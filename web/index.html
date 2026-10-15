@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Отклики Маши</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<section class="login" id="login" hidden>
+  <h1>Отклики Маши</h1>
+  <p class="sub">Вход по ссылке: введи почту, и на неё придёт письмо со ссылкой для входа.</p>
+  <form id="loginForm" class="row">
+    <input type="email" id="email" required placeholder="you@example.com" autocomplete="email" style="flex:1 1 220px;min-width:0">
+    <button class="btn primary" type="submit">Прислать ссылку</button>
+  </form>
+  <p class="note" id="loginNote"></p>
+</section>
+
+<div class="wrap" id="app" hidden>
+  <header class="top">
+    <div>
+      <h1>Отклики Маши</h1>
+      <p class="sub"><span class="updated" id="updated"></span></p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="reload" type="button">Обновить</button>
+      <label class="btn" for="importFile" title="Перенести данные из Google Таблицы (.xlsx)">Импорт из таблицы</label>
+      <input type="file" id="importFile" accept=".xlsx" hidden>
+      <button class="btn" id="logout" type="button">Выйти</button>
+    </div>
+  </header>
+
+  <div id="banner" hidden></div>
+
+  <section class="summary" aria-label="Сводка">
+    <div class="stats" id="stats"></div>
+    <div class="funnel" id="funnel"></div>
+  </section>
+
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <p class="intro" id="intro"></p>
+
+  <div class="controls">
+    <input type="search" id="q" placeholder="Компания или вакансия" aria-label="Поиск">
+    <select id="fFit" aria-label="Совпадение">
+      <option value="">Любое совпадение</option>
+      <option value="Высокий">Высокое</option>
+      <option value="Средний">Среднее</option>
+      <option value="Низкий">Низкое</option>
+    </select>
+    <select id="fFmt" aria-label="Формат работы">
+      <option value="">Любой формат</option>
+      <option value="удалёнка">Есть удалёнка</option>
+      <option value="гибрид">Есть гибрид</option>
+      <option value="офис">Офис</option>
+    </select>
+    <select id="fStatus" aria-label="Статус">
+      <option value="active">В работе (без «Не подходит» и «Отказ»)</option>
+      <option value="new">Ещё не откликалась</option>
+      <option value="process">Идёт процесс</option>
+      <option value="closed">Отказы и «Не подходит»</option>
+      <option value="">Все статусы</option>
+    </select>
+    <select id="sort" aria-label="Сортировка">
+      <option value="fit">Сначала высокое совпадение</option>
+      <option value="date">Сначала свежие</option>
+      <option value="few">Меньше всего откликов</option>
+      <option value="company">По компании</option>
+    </select>
+  </div>
+
+  <div class="pane">
+    <div class="list" id="list" aria-label="Вакансии"></div>
+    <article class="detail" id="detail" aria-live="polite"></article>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

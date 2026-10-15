@@ -1,0 +1,64 @@
+# Отклики Маши
+
+Личный трекер поиска работы: вакансии из LinkedIn (ОАЭ) и hh.ru (Россия, удалёнка), оценка совпадения, этапы, обратная связь и сопроводительные письма.
+
+```
+GitHub Actions, каждое утро              Supabase                     Веб-приложение (Vercel)
+ingest/ingest.py                         ┌──────────────┐             web/
+  Apify: LinkedIn + hh.ru    ──insert──▶ │ jobs         │ ◀──read/──▶ список, этапы, письма
+  Claude: оценка совпадения              │ job_events   │    write    вход по ссылке на почту
+                                         └──────────────┘
+                                         functions/letter  ◀── кнопка «Написать письмо»
+```
+
+- Сбор только **добавляет** новые вакансии и никогда не трогает статусы, письма и заметки.
+- Письма пишутся по кнопке, ключ Claude хранится на сервере (Supabase Edge Function).
+- Каждая смена этапа пишется в `job_events`: потом можно посчитать, сколько дней занимает каждый этап.
+
+## Настройка (один раз, ~20 минут)
+
+### 1. Supabase
+1. Создай проект на [supabase.com](https://supabase.com) (бесплатного плана хватит).
+2. **SQL Editor** → вставь содержимое `supabase/migrations/001_init.sql` → Run.
+3. **Authentication → URL Configuration**: в *Site URL* и *Redirect URLs* добавь адрес приложения из шага 3 (например `https://job-xxx.vercel.app`).
+4. **Project Settings → API**: скопируй *Project URL*, *anon public* и *service_role* ключи.
+
+### 2. Функция для писем
+Нужен [Supabase CLI](https://supabase.com/docs/guides/cli):
+```bash
+supabase login
+supabase link --project-ref <id проекта>
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+supabase functions deploy letter
+```
+
+### 3. Приложение
+1. В `web/config.js` впиши *Project URL* и *anon* ключ (они публичные, данные защищает RLS).
+2. На [vercel.com](https://vercel.com): New Project → импортируй этот репозиторий → **Root Directory: `web`** → Deploy.
+3. Открой приложение, войди по ссылке из письма.
+4. **Сразу после первого входа**: Supabase → Authentication → Sign In / Providers → выключи *Allow new users to sign up*. Так войти сможешь только ты.
+
+### 4. Ежедневный сбор
+GitHub → репозиторий → **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Секрет | Где взять |
+|---|---|
+| `APIFY_TOKEN` | apify.com → Settings → API & Integrations |
+| `ANTHROPIC_API_KEY` | console.anthropic.com → API Keys |
+| `SUPABASE_URL` | Project URL из шага 1 |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role ключ из шага 1 (никому не показывать) |
+
+Проверка: **Actions → Сбор вакансий → Run workflow**. Дальше запуск идёт сам каждый день в 07:17 по Москве.
+
+Модель для оценки и писем по умолчанию `claude-opus-5-5`. Чтобы сэкономить, можно задать переменную `CLAUDE_MODEL` (Actions → Variables) и одноимённый секрет функции, например `claude-haiku-5-5`.
+
+### 5. Перенос старых данных
+Google Таблица «Собесы» → Файл → Скачать → Microsoft Excel (.xlsx). В приложении нажми **Импорт из таблицы** и выбери файл. Переносятся листы «UAE» и «Россия удалёнка» со статусами, письмами, отказами и описаниями.
+
+## Стоимость
+- Apify: ~$0.3–0.5 за запуск (бесплатно $5 в месяц).
+- Claude API: центы в день на оценку, ~1 цент за письмо.
+- Supabase и Vercel: бесплатные планы.
+
+## Если поменялся опыт
+Обнови `ingest/profile.md` и `supabase/functions/letter/profile.ts` (тот же текст), затем `supabase functions deploy letter`.
