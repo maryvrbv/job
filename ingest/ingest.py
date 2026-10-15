@@ -165,7 +165,9 @@ def fetch_hh() -> list[dict]:
 # ---------- Supabase ----------
 
 def sb_headers(extra: dict | None = None) -> dict:
-    h = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+    h = {"apikey": SUPABASE_KEY}
+    if SUPABASE_KEY.startswith("eyJ"):  # legacy service_role JWT; new sb_secret_ keys go in apikey only
+        h["Authorization"] = f"Bearer {SUPABASE_KEY}"
     return h | (extra or {})
 
 
