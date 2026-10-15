@@ -261,6 +261,40 @@ def score(jobs: list[dict], client: anthropic.Anthropic) -> dict[str, dict]:
     return results
 
 
+
+# ---------- free scoring without an API key ----------
+
+DOMAINS = [
+    ("Финтех / банк", r"bank|банк|fintech|финтех|pay|bnpl|wallet|кошел|card|кредит|invest|инвест|trading|crypto|крипт|insur|страх"),
+    ("Телеком", r"telecom|телеком|мтс|mts|мегафон|билайн|tele2|ростелеком|\bdu\b|etisalat|\be&"),
+    ("E-commerce / ритейл", r"e-?commerce|marketplace|маркетплейс|ozon|wildberries|retail|ритейл|shop|магазин|delivery|доставк|самокат|talabat|noon"),
+    ("Суперапп / B2C", r"super ?app|суперапп|careem|яндекс|yandex|vk\b|sber|сбер"),
+    ("HR-tech", r"hr-?tech|recruit|hiring|подбор"),
+    ("Edtech", r"edtech|education|обучен|образован|школ|практикум"),
+]
+STRONG = {"Финтех / банк", "Телеком", "E-commerce / ритейл", "Суперапп / B2C"}
+
+
+def rule_score(job: dict) -> dict:
+    """Keyword scoring: rougher than Claude, but costs nothing."""
+    title = job["title"].lower()
+    text = f"{job['title']} {job['company']} {job.get('description', '')[:4000]}".lower()
+    domain = next((name for name, rx in DOMAINS if re.search(rx, text)), "")
+    senior = re.search(r"senior|lead|principal|head|staff|старш|ведущ|руковод|сеньор", title)
+    low = re.search(r"junior|middle\b|младш|стаж", title) or job.get("experience") in ("без опыта", "1–3")
+    product = re.search(r"product|продукт|ux|ui", title)
+    level = "Lead" if re.search(r"lead|principal|head|руковод", title) else "Senior" if senior else "Junior" if low else "—"
+    if low:
+        fit, why = "Низкий", "Уровень роли ниже твоего опыта."
+    elif product and domain in STRONG:
+        fit, why = "Высокий", f"Продуктовый дизайн в близком тебе домене: {domain.lower()}."
+    elif product:
+        fit, why = "Средний", "Продуктовый дизайн, но домен дальше от твоего опыта." if domain else "Продуктовый дизайн; домен лучше уточнить в описании."
+    else:
+        fit, why = "Средний", "Дизайн-роль; проверь, что это продуктовый дизайн, а не маркетинг."
+    return {"id": job["id"], "fit": fit, "domain": domain or "Не указан", "level": level, "why": why}
+
+
 def main() -> int:
     fetched = []
     for name, fn in (("LinkedIn", fetch_linkedin), ("hh.ru", fetch_hh)):
@@ -282,7 +316,11 @@ def main() -> int:
         if j["market"] == "ru" and not j.get("description"):
             j["description"] = hh_description(j["id"].split(":", 1)[1])
 
-    scores = score(new, anthropic.Anthropic())
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        scores = score(new, anthropic.Anthropic())
+    else:
+        log("no ANTHROPIC_API_KEY: keyword scoring")
+        scores = {j["id"]: rule_score(j) for j in new}
     rows = []
     for j in new:
         s = scores.get(j["id"])

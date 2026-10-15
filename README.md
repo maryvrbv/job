@@ -23,11 +23,12 @@ ingest/ingest.py                         ┌────────────
 3. **Authentication → URL Configuration**: в *Site URL* и *Redirect URLs* добавь адрес приложения из шага 3 (например `https://job-xxx.vercel.app`).
 4. **Project Settings → API**: скопируй *Project URL*, *anon public* и *service_role* ключи.
 
-### 2. Функция для писем
-1. Supabase → **Edge Functions → Secrets**: добавь `ANTHROPIC_API_KEY` (ключ из console.anthropic.com).
-2. **Edge Functions → Deploy a new function → Via Editor**, имя `letter`, вставь содержимое `supabase/functions/letter/index.ts` → **Deploy**.
+### 2. Письма и оценка вакансий: бесплатно или через API
+По умолчанию **ключ Anthropic API не нужен**:
+- кнопка «Запрос для Claude ↗» копирует готовый запрос (опыт + вакансия + требования к письму) и открывает claude.ai; ответ вставляешь обратно и сохраняешь;
+- сбор вакансий оценивает совпадение по ключевым словам (грубее, но бесплатно).
 
-Или через [Supabase CLI](https://supabase.com/docs/guides/cli): `supabase secrets set ANTHROPIC_API_KEY=...` и `supabase functions deploy letter`.
+Если захочешь автоматику (письмо одной кнопкой, оценка через Claude): добавь секрет `ANTHROPIC_API_KEY` в GitHub и в Supabase (**Edge Functions → Secrets**), задеплой функцию (**Edge Functions → Deploy a new function → Via Editor**, имя `letter`, код из `supabase/functions/letter/index.ts`) и поставь `letterFunction: true` в `web/config.js`.
 
 ### 3. Приложение
 1. В `web/config.js` впиши *Project URL* и *anon* ключ (они публичные, данные защищает RLS).
@@ -41,7 +42,7 @@ GitHub → репозиторий → **Settings → Secrets and variables → A
 | Секрет | Где взять |
 |---|---|
 | `APIFY_TOKEN` | apify.com → Settings → API & Integrations |
-| `ANTHROPIC_API_KEY` | console.anthropic.com → API Keys |
+| `ANTHROPIC_API_KEY` | необязательно: console.anthropic.com → API Keys |
 | `SUPABASE_URL` | Project URL из шага 1 |
 | `SUPABASE_SERVICE_ROLE_KEY` | service_role ключ из шага 1 (никому не показывать) |
 
