@@ -356,10 +356,17 @@ async function boot() {
   cacheLoad(); render(); load();
 }
 
+// Email + password. The very first sign-in creates the account; after that sign-ups are closed in Supabase.
 $("loginForm").onsubmit = async e => {
   e.preventDefault();
-  const { error } = await sb.auth.signInWithOtp({ email: $("email").value.trim(), options: { emailRedirectTo: location.origin + location.pathname } });
-  $("loginNote").textContent = error ? "Не получилось: " + error.message : "Ссылка отправлена. Открой письмо на этом устройстве.";
+  const email = $("email").value.trim(), password = $("password").value, note = $("loginNote");
+  note.textContent = "Вхожу…";
+  let { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error && /invalid login credentials/i.test(error.message)) {
+    const up = await sb.auth.signUp({ email, password });
+    error = up.error && /not allowed|disabled/i.test(up.error.message) ? { message: "Неверная почта или пароль." } : up.error;
+  }
+  note.textContent = error ? "Не получилось: " + error.message : "";
 };
 $("logout").onclick = async () => { await sb.auth.signOut(); try { localStorage.removeItem(CACHE_KEY); } catch (e) {} location.reload(); };
 $("tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; state.tab = b.dataset.k; try { localStorage.setItem("tab", state.tab); } catch (x) {} render(); };

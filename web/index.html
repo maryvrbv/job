@@ -14,10 +14,11 @@
 
 <section class="login" id="login" hidden>
   <h1>Отклики Маши</h1>
-  <p class="sub">Вход по ссылке: введи почту, и на неё придёт письмо со ссылкой для входа.</p>
-  <form id="loginForm" class="row">
-    <input type="email" id="email" required placeholder="you@example.com" autocomplete="email" style="flex:1 1 220px;min-width:0">
-    <button class="btn primary" type="submit">Прислать ссылку</button>
+  <p class="sub">В первый раз придумай пароль от 10 символов: аккаунт создастся сам. Дальше входи с ним же.</p>
+  <form id="loginForm" style="display:flex;flex-direction:column;gap:8px">
+    <input type="email" id="email" required placeholder="you@example.com" autocomplete="email">
+    <input type="password" id="password" required minlength="10" placeholder="Пароль" autocomplete="current-password">
+    <button class="btn primary" type="submit" style="align-self:flex-start">Войти</button>
   </form>
   <p class="note" id="loginNote"></p>
 </section>
