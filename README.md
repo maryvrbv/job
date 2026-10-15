@@ -24,13 +24,10 @@ ingest/ingest.py                         ┌────────────
 4. **Project Settings → API**: скопируй *Project URL*, *anon public* и *service_role* ключи.
 
 ### 2. Функция для писем
-Нужен [Supabase CLI](https://supabase.com/docs/guides/cli):
-```bash
-supabase login
-supabase link --project-ref <id проекта>
-supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
-supabase functions deploy letter
-```
+1. Supabase → **Edge Functions → Secrets**: добавь `ANTHROPIC_API_KEY` (ключ из console.anthropic.com).
+2. **Edge Functions → Deploy a new function → Via Editor**, имя `letter`, вставь содержимое `supabase/functions/letter/index.ts` → **Deploy**.
+
+Или через [Supabase CLI](https://supabase.com/docs/guides/cli): `supabase secrets set ANTHROPIC_API_KEY=...` и `supabase functions deploy letter`.
 
 ### 3. Приложение
 1. В `web/config.js` впиши *Project URL* и *anon* ключ (они публичные, данные защищает RLS).
@@ -61,4 +58,4 @@ Google Таблица «Собесы» → Файл → Скачать → Micro
 - Supabase и Vercel: бесплатные планы.
 
 ## Если поменялся опыт
-Обнови `ingest/profile.md` и `supabase/functions/letter/profile.ts` (тот же текст), затем `supabase functions deploy letter`.
+Обнови `ingest/profile.md` и константу `PROFILE` в `supabase/functions/letter/index.ts` (тот же текст), затем задеплой функцию заново.
