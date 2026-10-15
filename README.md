@@ -36,19 +36,11 @@ ingest/ingest.py                         ┌────────────
 3. Открой приложение, войди по ссылке из письма.
 4. **Сразу после первого входа**: Supabase → Authentication → Sign In / Providers → выключи *Allow new users to sign up*. Так войти сможешь только ты.
 
-### 4. Ежедневный сбор
-GitHub → репозиторий → **Settings → Secrets and variables → Actions → New repository secret**:
-
-| Секрет | Где взять |
-|---|---|
-| `APIFY_TOKEN` | apify.com → Settings → API & Integrations |
-| `ANTHROPIC_API_KEY` | необязательно: console.anthropic.com → API Keys |
-| `SUPABASE_URL` | Project URL из шага 1 |
-| `SUPABASE_SERVICE_ROLE_KEY` | service_role ключ из шага 1 (никому не показывать) |
-
-Проверка: **Actions → Сбор вакансий → Run workflow**. Дальше запуск идёт сам каждый день в 07:17 по Москве.
-
-Модель для оценки и писем по умолчанию `claude-opus-5-5`. Чтобы сэкономить, можно задать переменную `CLAUDE_MODEL` (Actions → Variables) и одноимённый секрет функции, например `claude-haiku-5-5`.
+### 4. Сбор вакансий
+Автоматического сбора по расписанию нет: вакансии обновляются по просьбе в чате с Claude
+(Apify → оценка → запись в базу), там же пишутся сопроводительные письма.
+`ingest/ingest.py` оставлен как запасной вариант: его можно запустить вручную с переменными
+`APIFY_TOKEN`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
 
 ### 5. Перенос старых данных
 Google Таблица «Собесы» → Файл → Скачать → Microsoft Excel (.xlsx). В приложении нажми **Импорт из таблицы** и выбери файл. Переносятся листы «UAE» и «Россия удалёнка» со статусами, письмами, отказами и описаниями.
