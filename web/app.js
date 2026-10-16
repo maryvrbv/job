@@ -61,7 +61,33 @@ async function loadDesc(job) {
     if (error) { body.textContent = "Не получилось загрузить описание: " + error.message; return; }
     state.desc[job.id] = (data.description || "").trim();
   }
-  if (state.sel[state.tab] === job.id) body.textContent = state.desc[job.id] || "Описания нет. Открой вакансию по ссылке в заголовке.";
+  if (state.sel[state.tab] === job.id) renderDesc(job, !state.desc[job.id]);
+}
+
+// hh.ru often blocks descriptions, so the text can be pasted in by hand; letters then use it
+function renderDesc(job, editing) {
+  const body = $("descBody"), text = state.desc[job.id] || "";
+  if (!editing) {
+    body.innerHTML = `<div class="text"></div><div class="row"><button class="btn" type="button" id="descEdit">Изменить описание</button></div>`;
+    body.querySelector(".text").textContent = text;
+    $("descEdit").onclick = () => renderDesc(job, true);
+    return;
+  }
+  body.innerHTML = `<p class="note">${text ? "Поправь текст и сохрани." : "Описание не подтянулось. Открой вакансию по ссылке в заголовке, скопируй текст и вставь сюда: по нему будет точнее письмо."}</p>
+    <textarea id="descText" placeholder="Текст вакансии: задачи, требования, условия"></textarea>
+    <div class="row"><button class="btn primary" type="button" id="descSave" disabled>Сохранить описание</button>${text ? '<button class="btn" type="button" id="descCancel">Отмена</button>' : ""}</div>`;
+  const ta = $("descText"), btn = $("descSave");
+  ta.value = text;
+  ta.oninput = () => btn.disabled = ta.value.trim() === text;
+  if ($("descCancel")) $("descCancel").onclick = () => renderDesc(job, false);
+  btn.onclick = async () => {
+    const v = ta.value.trim();
+    btn.disabled = true;
+    const { error } = await sb.from("jobs").update({ description: v }).eq("id", job.id);
+    if (error) { btn.disabled = false; showBanner("Описание не сохранилось: " + error.message); return; }
+    state.desc[job.id] = v; toast("Описание сохранено");
+    if (state.sel[state.tab] === job.id) renderDesc(job, !v);
+  };
 }
 
 const TR = { а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"e",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"h",ц:"ts",ч:"ch",ш:"sh",щ:"sch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya" };
