@@ -3,16 +3,16 @@
 Личный трекер поиска работы: вакансии из LinkedIn (ОАЭ) и hh.ru (Россия, удалёнка), оценка совпадения, этапы, обратная связь и сопроводительные письма.
 
 ```
-GitHub Actions, каждое утро              Supabase                     Веб-приложение (Vercel)
-ingest/ingest.py                         ┌──────────────┐             web/
-  Apify: LinkedIn + hh.ru    ──insert──▶ │ jobs         │ ◀──read/──▶ список, этапы, письма
-  Claude: оценка совпадения              │ job_events   │    write    вход по ссылке на почту
+Claude в чате (по просьбе)               Supabase                     Веб-приложение (Vercel)
+  Apify: LinkedIn + hh.ru    ──insert──▶ ┌──────────────┐             web/
+  оценка совпадения                      │ jobs         │ ◀──read/──▶ список, этапы, письма
+  сопроводительные письма    ──update──▶ │ job_events   │    write    вход по почте и паролю
                                          └──────────────┘
-                                         functions/letter  ◀── кнопка «Написать письмо»
 ```
 
+- Вакансии обновляются по просьбе в чате с Claude («обнови вакансии»), сбора по расписанию нет.
 - Сбор только **добавляет** новые вакансии и никогда не трогает статусы, письма и заметки.
-- Письма пишутся по кнопке, ключ Claude хранится на сервере (Supabase Edge Function).
+- Письма пишет Claude в чате («напиши сопроводительные») или кнопка «Запрос для Claude ↗» в приложении. Ключ Anthropic API не нужен.
 - Каждая смена этапа пишется в `job_events`: потом можно посчитать, сколько дней занимает каждый этап.
 
 ## Настройка (один раз, ~20 минут)
@@ -20,20 +20,20 @@ ingest/ingest.py                         ┌────────────
 ### 1. Supabase
 1. Создай проект на [supabase.com](https://supabase.com) (бесплатного плана хватит).
 2. **SQL Editor** → вставь содержимое `supabase/migrations/001_init.sql` → Run.
-3. **Authentication → URL Configuration**: в *Site URL* и *Redirect URLs* добавь адрес приложения из шага 3 (например `https://job-xxx.vercel.app`).
+3. **Authentication → Sign In / Providers**: включи вход по *Email* с паролем.
 4. **Project Settings → API**: скопируй *Project URL*, *anon public* и *service_role* ключи.
 
 ### 2. Письма и оценка вакансий: бесплатно или через API
 По умолчанию **ключ Anthropic API не нужен**:
 - кнопка «Запрос для Claude ↗» копирует готовый запрос (опыт + вакансия + требования к письму) и открывает claude.ai; ответ вставляешь обратно и сохраняешь;
-- сбор вакансий оценивает совпадение по ключевым словам (грубее, но бесплатно).
+- вакансии оценивает Claude в чате при обновлении.
 
-Если захочешь автоматику (письмо одной кнопкой, оценка через Claude): добавь секрет `ANTHROPIC_API_KEY` в GitHub и в Supabase (**Edge Functions → Secrets**), задеплой функцию (**Edge Functions → Deploy a new function → Via Editor**, имя `letter`, код из `supabase/functions/letter/index.ts`) и поставь `letterFunction: true` в `web/config.js`.
+Если захочешь письмо одной кнопкой прямо в приложении: добавь секрет `ANTHROPIC_API_KEY` в Supabase (**Edge Functions → Secrets**), задеплой функцию (**Edge Functions → Deploy a new function → Via Editor**, имя `letter`, код из `supabase/functions/letter/index.ts`) и поставь `letterFunction: true` в `web/config.js`.
 
 ### 3. Приложение
 1. В `web/config.js` впиши *Project URL* и *anon* ключ (они публичные, данные защищает RLS).
 2. На [vercel.com](https://vercel.com): New Project → импортируй этот репозиторий → **Root Directory: `web`** → Deploy.
-3. Открой приложение, войди по ссылке из письма.
+3. Открой приложение и войди по почте и паролю: первый вход создаёт аккаунт.
 4. **Сразу после первого входа**: Supabase → Authentication → Sign In / Providers → выключи *Allow new users to sign up*. Так войти сможешь только ты.
 
 ### 4. Сбор вакансий
@@ -47,7 +47,7 @@ Google Таблица «Собесы» → Файл → Скачать → Micro
 
 ## Стоимость
 - Apify: ~$0.3–0.5 за запуск (бесплатно $5 в месяц).
-- Claude API: центы в день на оценку, ~1 цент за письмо.
+- Claude: по подписке в чате. Только если включить функцию `letter`, ~1 цент за письмо через API.
 - Supabase и Vercel: бесплатные планы.
 
 ## Если поменялся опыт
