@@ -8,10 +8,11 @@ const TABS = [{ key: "today", label: "Откликнуться сегодня" }
 const FRESH_DAYS = 3;
 // pipeline order matters: the funnel and the "where did it stop" logic read it
 const STAGES = ["Откликнулась", "Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес", "Оффер"];
-const NEW = "Не откликалась", REJECT = "Отказ", SKIP = "Не подходит", RECRUITER = "Написала рекрутеру";
+const NEW = "Не откликалась", REJECT = "Отказ", SKIP = "Не подходит", RECRUITER = "Написала рекрутеру", CLOSED = "Вакансия удалена";
+const ENDED = [SKIP, REJECT, CLOSED];
 const SKIP_REASONS = ["Только офис без релокации", "Не мой домен", "Слишком джуниорская роль", "Низкая зарплата", "Нужен арабский", "Это агентство/аутстаф", "Уже откликалась раньше"];
 // everything except the long description, which loads when the panel opens
-const LIST_COLUMNS = "id,market,url,title,company,city,work_format,salary,experience,posted_at,applicants,domain,level,fit,why,status,applied_at,reject_stage,feedback,skip_reason,comment,letter,updated_at";
+const LIST_COLUMNS = "id,market,url,title,company,city,work_format,salary,experience,posted_at,applicants,domain,level,fit,why,status,applied_at,reject_stage,feedback,skip_reason,comment,letter,closed_at,updated_at";
 const CACHE_KEY = "jobs-cache-v1";
 
 const state = { tab: "today", jobs: [], sel: {}, loading: true, desc: {}, loadedAt: null };
@@ -25,7 +26,7 @@ const ruDate = iso => iso ? iso.slice(8, 10) + "." + iso.slice(5, 7) + "." + iso
 function ageDays(iso) { if (!/^\d{4}-\d{2}-\d{2}/.test(iso || "")) return null; const t = new Date(iso.slice(0, 10) + "T00:00:00"); const n = new Date(); n.setHours(0, 0, 0, 0); return Math.round((n - t) / 864e5); }
 function ageText(d) { return d == null ? "" : d <= 0 ? "сегодня" : d === 1 ? "вчера" : d + " дн. назад"; }
 const stageIx = s => STAGES.indexOf(s === RECRUITER ? "Откликнулась" : s);
-function statusCls(s) { if (s === NEW) return "s-new"; if (s === REJECT || s === SKIP) return "s-reject"; if (s === "Оффер") return "s-offer"; if (stageIx(s) >= 1) return "s-interview"; return "s-applied"; }
+function statusCls(s) { if (s === NEW) return "s-new"; if (s === REJECT || s === SKIP) return "s-reject"; if (s === CLOSED) return "s-new"; if (s === "Оффер") return "s-offer"; if (stageIx(s) >= 1) return "s-interview"; return "s-applied"; }
 const marketOf = k => MARKETS.find(m => m.key === k);
 function showBanner(text) { const b = $("banner"); b.className = "banner err"; b.textContent = text; b.hidden = !text; }
 
@@ -136,10 +137,10 @@ const tabJobs = () => state.tab === "today" ? state.jobs.filter(isHot) : state.j
 function filtered() {
   const q = $("q").value.trim().toLowerCase(), fit = $("fFit").value, fmt = $("fFmt").value, st = $("fStatus").value, sort = $("sort").value;
   const okStatus = j => !st ? true
-    : st === "active" ? ![SKIP, REJECT].includes(j.status)
+    : st === "active" ? !ENDED.includes(j.status)
     : st === "new" ? j.status === NEW
-    : st === "process" ? ![NEW, SKIP, REJECT].includes(j.status)
-    : [SKIP, REJECT].includes(j.status);
+    : st === "process" ? ![NEW, ...ENDED].includes(j.status)
+    : ENDED.includes(j.status);
   const rows = tabJobs().filter(j =>
     (!q || (j.company + " " + j.title).toLowerCase().includes(q)) &&
     (!fit || j.fit === fit) && (!fmt || (j.work_format || "").includes(fmt)) && okStatus(j));
@@ -253,6 +254,7 @@ function renderDetail(rows) {
         <button type="button" data-st="${RECRUITER}" aria-pressed="${pressed(RECRUITER)}">Написала рекрутеру</button>
         <button type="button" data-st="${REJECT}" aria-pressed="${pressed(REJECT)}">Отказ</button>
         <button type="button" data-st="${SKIP}" aria-pressed="${pressed(SKIP)}">Не подходит</button>
+        <button type="button" data-st="${CLOSED}" aria-pressed="${pressed(CLOSED)}">Вакансия удалена</button>
       </div>
     </div>
     <div id="extra"></div>
@@ -313,15 +315,19 @@ function renderExtra(j) {
     w.oninput = () => btn.disabled = w.value === j.skip_reason;
     $("quick").onclick = e => { const b = e.target.closest("button"); if (!b) return; w.value = w.value.trim() ? w.value.trim() + "; " + b.textContent : b.textContent; w.oninput(); w.focus(); };
     btn.onclick = () => save(j, { skip_reason: w.value }, "Причина сохранена");
+  } else if (j.status === CLOSED) {
+    const lived = j.posted_at && j.closed_at ? Math.round((new Date(j.closed_at) - new Date(j.posted_at)) / 864e5) : null;
+    X.innerHTML = `<div class="panel"><p class="note" style="margin:0">Вакансию сняли${j.closed_at ? ` (заметила ${esc(ruDate(j.closed_at))})` : ""}.${lived != null ? ` Прожила не больше ${lived} дн. с публикации ${esc(ruDate(j.posted_at))}.` : ""}</p></div>`;
   } else X.innerHTML = "";
 }
 
 function setStatus(j, st) {
   if (st === j.status) return;
   const patch = { status: st }, was = j.status;
-  if (st !== NEW && st !== SKIP && !j.applied_at) patch.applied_at = todayIso();
+  if (st !== NEW && st !== SKIP && st !== CLOSED && !j.applied_at) patch.applied_at = todayIso();
+  patch.closed_at = st === CLOSED ? todayIso() : null;
   if (st === REJECT && !j.reject_stage) patch.reject_stage = stageIx(was) >= 0 && was !== "Оффер" ? (was === RECRUITER ? "Откликнулась" : was) : "Откликнулась";
-  save(j, patch, st === REJECT ? "Отмечен отказ. Укажи этап и обратную связь" : st === SKIP ? "Отмечено «Не подходит». Можно написать почему" : "Этап: " + st);
+  save(j, patch, st === REJECT ? "Отмечен отказ. Укажи этап и обратную связь" : st === SKIP ? "Отмечено «Не подходит». Можно написать почему" : st === CLOSED ? "Отмечено: вакансия удалена" : "Этап: " + st);
 }
 
 function render() {
