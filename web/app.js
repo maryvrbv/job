@@ -137,12 +137,12 @@ async function generate(job) {
 // ---------- views ----------
 
 const isHot = j => j.fit === "Высокий" && j.status === NEW && ageDays(j.posted_at) != null && ageDays(j.posted_at) <= FRESH_DAYS;
-// "Отклики" tabs: everything I applied to, rejections included; not-a-fit and removed ones stay out
+// "Отклики" tabs: everything I applied to, rejections included; the market tabs keep the rest
 const isApplied = j => ![NEW, SKIP, CLOSED].includes(j.status);
 const tabOf = k => TABS.find(t => t.key === k);
 function jobsOf(t) {
   if (t.key === "today") return state.jobs.filter(isHot);
-  return state.jobs.filter(j => j.market === t.market && (!t.applied || isApplied(j)));
+  return state.jobs.filter(j => j.market === t.market && isApplied(j) === !!t.applied);
 }
 const tabJobs = () => jobsOf(tabOf(state.tab));
 
