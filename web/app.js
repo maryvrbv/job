@@ -9,8 +9,9 @@ const TABS = [
   ...MARKETS.map(m => ({ key: m.key, label: m.label, market: m.key })),
   { key: "applied-uae", label: "Отклики ОАЭ", market: "uae", applied: true },
   { key: "applied-ru", label: "Отклики РФ", market: "ru", applied: true },
+  { key: "archive", label: "Архив", archive: true },
 ];
-const FRESH_DAYS = 3;
+const FRESH_DAYS = 3, ARCHIVE_DAYS = 14;
 // pipeline order matters: the funnel and the "where did it stop" logic read it
 const STAGES = ["Откликнулась", "Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес", "Оффер"];
 const NEW = "Не откликалась", REJECT = "Отказ", SKIP = "Не подходит", RECRUITER = "Написала рекрутеру", CLOSED = "Вакансия удалена";
@@ -137,12 +138,16 @@ async function generate(job) {
 // ---------- views ----------
 
 const isHot = j => j.fit === "Высокий" && j.status === NEW && ageDays(j.posted_at) != null && ageDays(j.posted_at) <= FRESH_DAYS;
-// "Отклики" tabs: everything I applied to, rejections included; the market tabs keep the rest
+// "Отклики" tabs: everything I applied to, rejections included, whatever the age.
+// Vacancies I never applied to go to "Архив" once they are older than ARCHIVE_DAYS.
 const isApplied = j => ![NEW, SKIP, CLOSED].includes(j.status);
+const isOld = j => (ageDays(j.posted_at) ?? 0) > ARCHIVE_DAYS;
 const tabOf = k => TABS.find(t => t.key === k);
 function jobsOf(t) {
   if (t.key === "today") return state.jobs.filter(isHot);
-  return state.jobs.filter(j => j.market === t.market && isApplied(j) === !!t.applied);
+  if (t.archive) return state.jobs.filter(j => !isApplied(j) && isOld(j));
+  if (t.applied) return state.jobs.filter(j => j.market === t.market && isApplied(j));
+  return state.jobs.filter(j => j.market === t.market && !isApplied(j) && !isOld(j));
 }
 const tabJobs = () => jobsOf(tabOf(state.tab));
 
@@ -197,8 +202,8 @@ function renderSummary() {
 function renderTabs() {
   const loaded = state.jobs.length > 0;
   $("tabs").innerHTML = TABS.map(t => {
-    const n = !loaded ? null : jobsOf(t).filter(j => t.key === "today" || (t.applied ? j.status !== REJECT : j.status === NEW)).length;
-    const tail = n == null ? "" : `<span class="n">${t.key === "today" ? n : n + (t.applied ? " в процессе" : " новых")}</span>`;
+    const n = !loaded ? null : jobsOf(t).filter(j => t.key === "today" || t.archive || (t.applied ? j.status !== REJECT : j.status === NEW)).length;
+    const tail = n == null ? "" : `<span class="n">${t.key === "today" || t.archive ? n : n + (t.applied ? " в процессе" : " новых")}</span>`;
     return `<button class="tab ${t.key === "today" ? "today" : ""}" role="tab" type="button" data-k="${t.key}" aria-selected="${t.key === state.tab}">${esc(t.label)}${tail}</button>`;
   }).join("");
   $("intro").textContent = `Высокое совпадение, опубликованы за последние ${FRESH_DAYS} дня, ты ещё не откликалась. Чем раньше отклик, тем выше он в списке у рекрутера.`;
@@ -221,7 +226,7 @@ function renderList(rows) {
     const bits = [j.company, j.city, j.work_format && j.work_format !== "не указан" ? j.work_format : "", j.salary].filter(Boolean).map(esc).join(" · ");
     const meta = state.tab === "today"
       ? `<span class="src">${marketOf(j.market).short}</span><span class="age">${ageText(ageDays(j.posted_at))}</span>`
-      : `<span class="pill ${statusCls(j.status)}">${esc(j.status)}</span>${esc(ruDate(tabOf(state.tab).applied ? j.applied_at || j.posted_at : j.posted_at))}`;
+      : `${tabOf(state.tab).archive ? `<span class="src">${marketOf(j.market).short}</span>` : ""}<span class="pill ${statusCls(j.status)}">${esc(j.status)}</span>${esc(ruDate(tabOf(state.tab).applied ? j.applied_at || j.posted_at : j.posted_at))}`;
     return `<button class="item" type="button" data-id="${esc(j.id)}" aria-current="${j.id === sel}">
       <span class="stripe ${j.fit === "Высокий" ? "high" : ""}" title="Совпадение: ${esc(j.fit)}"></span>
       <span style="min-width:0"><span class="t">${esc(j.title)}</span><span class="c">${bits}</span></span>
