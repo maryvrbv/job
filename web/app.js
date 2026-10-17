@@ -4,7 +4,12 @@ const MARKETS = [
   { key: "uae", label: "ОАЭ", short: "ОАЭ", lang: "en" },
   { key: "ru", label: "Россия, удалёнка", short: "РФ", lang: "ru" },
 ];
-const TABS = [{ key: "today", label: "Откликнуться сегодня" }, ...MARKETS];
+const TABS = [
+  { key: "today", label: "Откликнуться сегодня" },
+  ...MARKETS.map(m => ({ key: m.key, label: m.label, market: m.key })),
+  { key: "applied-uae", label: "Отклики ОАЭ", market: "uae", applied: true },
+  { key: "applied-ru", label: "Отклики РФ", market: "ru", applied: true },
+];
 const FRESH_DAYS = 3;
 // pipeline order matters: the funnel and the "where did it stop" logic read it
 const STAGES = ["Откликнулась", "Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес", "Оффер"];
@@ -132,7 +137,14 @@ async function generate(job) {
 // ---------- views ----------
 
 const isHot = j => j.fit === "Высокий" && j.status === NEW && ageDays(j.posted_at) != null && ageDays(j.posted_at) <= FRESH_DAYS;
-const tabJobs = () => state.tab === "today" ? state.jobs.filter(isHot) : state.jobs.filter(j => j.market === state.tab);
+// "Отклики" tabs: everything I applied to, rejections included; not-a-fit and removed ones stay out
+const isApplied = j => ![NEW, SKIP, CLOSED].includes(j.status);
+const tabOf = k => TABS.find(t => t.key === k);
+function jobsOf(t) {
+  if (t.key === "today") return state.jobs.filter(isHot);
+  return state.jobs.filter(j => j.market === t.market && (!t.applied || isApplied(j)));
+}
+const tabJobs = () => jobsOf(tabOf(state.tab));
 
 function filtered() {
   const q = $("q").value.trim().toLowerCase(), fit = $("fFit").value, fmt = $("fFmt").value, st = $("fStatus").value, sort = $("sort").value;
@@ -147,7 +159,8 @@ function filtered() {
   const num = s => { const n = parseInt(String(s).replace(/\D/g, ""), 10); return isNaN(n) ? 1e9 : n; };
   const byDate = (a, b) => (b.posted_at || "").localeCompare(a.posted_at || "");
   const fitRank = f => ({ "Высокий": 0, "Средний": 1 }[f] ?? 2);
-  const cmp = state.tab === "today" ? byDate : {
+  const byApplied = (a, b) => (b.applied_at || "").localeCompare(a.applied_at || "") || byDate(a, b);
+  const cmp = state.tab === "today" ? byDate : tabOf(state.tab).applied ? byApplied : {
     fit: (a, b) => fitRank(a.fit) - fitRank(b.fit) || byDate(a, b),
     date: byDate,
     few: (a, b) => num(a.applicants) - num(b.applicants),
@@ -184,13 +197,13 @@ function renderSummary() {
 function renderTabs() {
   const loaded = state.jobs.length > 0;
   $("tabs").innerHTML = TABS.map(t => {
-    const n = !loaded ? null : t.key === "today" ? state.jobs.filter(isHot).length : state.jobs.filter(j => j.market === t.key && j.status === NEW).length;
-    const tail = n == null ? "" : `<span class="n">${t.key === "today" ? n : n + " новых"}</span>`;
+    const n = !loaded ? null : jobsOf(t).filter(j => t.key === "today" || (t.applied ? j.status !== REJECT : j.status === NEW)).length;
+    const tail = n == null ? "" : `<span class="n">${t.key === "today" ? n : n + (t.applied ? " в процессе" : " новых")}</span>`;
     return `<button class="tab ${t.key === "today" ? "today" : ""}" role="tab" type="button" data-k="${t.key}" aria-selected="${t.key === state.tab}">${esc(t.label)}${tail}</button>`;
   }).join("");
   $("intro").textContent = `Высокое совпадение, опубликованы за последние ${FRESH_DAYS} дня, ты ещё не откликалась. Чем раньше отклик, тем выше он в списке у рекрутера.`;
   $("intro").hidden = state.tab !== "today";
-  $("sort").disabled = state.tab === "today";
+  $("sort").disabled = state.tab === "today" || tabOf(state.tab).applied;
 }
 
 function renderList(rows) {
@@ -208,7 +221,7 @@ function renderList(rows) {
     const bits = [j.company, j.city, j.work_format && j.work_format !== "не указан" ? j.work_format : "", j.salary].filter(Boolean).map(esc).join(" · ");
     const meta = state.tab === "today"
       ? `<span class="src">${marketOf(j.market).short}</span><span class="age">${ageText(ageDays(j.posted_at))}</span>`
-      : `<span class="pill ${statusCls(j.status)}">${esc(j.status)}</span>${esc(ruDate(j.posted_at))}`;
+      : `<span class="pill ${statusCls(j.status)}">${esc(j.status)}</span>${esc(ruDate(tabOf(state.tab).applied ? j.applied_at || j.posted_at : j.posted_at))}`;
     return `<button class="item" type="button" data-id="${esc(j.id)}" aria-current="${j.id === sel}">
       <span class="stripe ${j.fit === "Высокий" ? "high" : ""}" title="Совпадение: ${esc(j.fit)}"></span>
       <span style="min-width:0"><span class="t">${esc(j.title)}</span><span class="c">${bits}</span></span>
@@ -229,7 +242,7 @@ function stepsHtml(j) {
 
 function renderDetail(rows) {
   const D = $("detail");
-  const j = state.jobs.find(x => x.id === state.sel[state.tab] && (state.tab === "today" || x.market === state.tab)) || rows[0];
+  const j = rows.find(x => x.id === state.sel[state.tab]) || tabJobs().find(x => x.id === state.sel[state.tab]) || rows[0];
   if (!j) { D.innerHTML = '<p class="note" style="margin:0">Выбери вакансию слева: здесь появятся описание, этапы и письмо.</p>'; return; }
   state.sel[state.tab] = j.id;
   const m = marketOf(j.market);
