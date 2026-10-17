@@ -66,9 +66,9 @@ button,select,input,textarea{font:inherit;color:inherit}
 .controls select{padding:10px 12px;border:0;border-radius:var(--r-sm);background:var(--surface);max-width:100%}
 .pane{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:16px;align-items:start}
 @media (max-width:860px){.pane{grid-template-columns:minmax(0,1fr)}}
-.list{display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 120px);overflow:auto;padding-right:2px}
+.list{display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 120px);overflow:auto;padding:2px}
 @media (max-width:860px){.list{max-height:none}}
-.item{display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:12px;align-items:start;text-align:left;border:0;background:var(--surface);border-radius:var(--r);padding:16px 16px 16px 0;cursor:pointer;width:100%;overflow:hidden}
+.item{display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:12px;align-items:start;text-align:left;border:0;background:var(--surface);border-radius:var(--r);padding:16px 16px 16px 0;cursor:pointer;width:100%;overflow:hidden;flex:none}
 .item:hover{box-shadow:0 0 0 1px var(--line)}
 .item[aria-current="true"]{box-shadow:0 0 0 2px var(--accent)}
 .item .stripe{align-self:stretch;border-radius:0 3px 3px 0;background:transparent;margin-block:4px}
