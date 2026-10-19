@@ -150,3 +150,9 @@ details.desc .body .note{margin:0}
 .notify .lbl{margin:0}
 .notify-text{margin:0;font-weight:500}
 .notify .note{margin:0;max-width:70ch}
+.sheet{border:0;border-radius:28px;padding:28px;max-width:440px;width:calc(100vw - 32px);background:var(--surface);color:var(--fg);box-shadow:0 24px 80px rgb(0 0 0 / .18)}
+.sheet::backdrop{background:rgb(0 0 0 / .35)}
+.sheet h2{margin:0 0 6px;font-size:22px;letter-spacing:-.01em}
+.steps-list{margin:14px 0;padding-left:22px;display:flex;flex-direction:column;gap:10px;line-height:1.45}
+.sheet .note{margin:0 0 14px}
+@media (max-width:560px){#installTop{order:-1;width:100%;justify-content:center}}

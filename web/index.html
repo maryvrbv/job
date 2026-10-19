@@ -50,10 +50,18 @@
       <button class="btn" id="reload" type="button">Обновить</button>
       <label class="btn" for="importFile" title="Перенести данные из Google Таблицы (.xlsx)">Импорт из таблицы</label>
       <input type="file" id="importFile" accept=".xlsx" hidden>
+      <button class="btn primary" id="installTop" type="button" hidden>Установить приложение</button>
       <button class="btn" id="notifyBtn" type="button" aria-expanded="false" aria-controls="notifyPanel">Уведомления</button>
       <button class="btn" id="logout" type="button">Выйти</button>
     </div>
   </header>
+  <dialog class="sheet" id="installSheet" aria-labelledby="installTitle">
+    <h2 id="installTitle">Установить приложение</h2>
+    <p class="note" id="installDevice"></p>
+    <ol class="steps-list" id="installSteps"></ol>
+    <p class="note" id="installNote"></p>
+    <form method="dialog" class="row"><button class="btn primary" value="ok">Понятно</button></form>
+  </dialog>
   <section class="notify" id="notifyPanel" hidden>
     <div>
       <p class="lbl">Уведомления</p>
