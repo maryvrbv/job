@@ -156,3 +156,5 @@ details.desc .body .note{margin:0}
 .steps-list{margin:14px 0;padding-left:22px;display:flex;flex-direction:column;gap:10px;line-height:1.45}
 .sheet .note{margin:0 0 14px}
 @media (max-width:560px){#installTop{order:-1;width:100%;justify-content:center}}
+.notify .btn:not(.primary){background:var(--sunken)}
+.notify .btn:not(.primary):hover{background:var(--line)}
