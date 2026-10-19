@@ -186,7 +186,7 @@ body.locked{overflow:hidden}
   h1{font-size:22px}
   .top .actions{display:none}
   #menuBtn{display:inline-flex}
-  .tabs{width:auto;margin-inline:-10px;padding-inline:10px;scrollbar-width:none}
+  .tabs{width:auto;max-width:none;margin-inline:-10px;padding-inline:10px;scrollbar-width:none}
   .tabs::-webkit-scrollbar{display:none}
   .intro{font-size:13px}
   .notify{padding:16px}
