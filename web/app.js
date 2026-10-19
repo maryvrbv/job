@@ -405,7 +405,10 @@ async function importXlsx(file) {
 
 // ---------- auth & wiring ----------
 
+let recovering = false;
 async function boot() {
+  if (recovering) { $("login").hidden = true; $("app").hidden = true; $("reset").hidden = false; return; }
+  $("reset").hidden = true;
   const { data: { session } } = await sb.auth.getSession();
   $("login").hidden = !!session; $("app").hidden = !session;
   if (!session) return;
@@ -424,6 +427,21 @@ $("loginForm").onsubmit = async e => {
   }
   note.textContent = error ? "Не получилось: " + error.message : "";
 };
+// Forgotten password: Supabase emails a link back to this page, which then asks for a new password
+$("forgot").onclick = async () => {
+  const email = $("email").value.trim(), note = $("loginNote");
+  if (!email) { note.textContent = "Впиши почту выше, и я пришлю ссылку для нового пароля."; $("email").focus(); return; }
+  note.textContent = "Отправляю…";
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  note.textContent = error ? "Не получилось: " + error.message : "Письмо со ссылкой отправлено на " + email + ". Открой его на этом устройстве.";
+};
+$("resetForm").onsubmit = async e => {
+  e.preventDefault();
+  const note = $("resetNote"); note.textContent = "Сохраняю…";
+  const { error } = await sb.auth.updateUser({ password: $("newPassword").value });
+  if (error) { note.textContent = "Не получилось: " + error.message; return; }
+  recovering = false; history.replaceState(null, "", location.pathname); boot();
+};
 $("logout").onclick = async () => { await sb.auth.signOut(); try { localStorage.removeItem(CACHE_KEY); } catch (e) {} location.reload(); };
 $("tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; state.tab = b.dataset.k; try { localStorage.setItem("tab", state.tab); } catch (x) {} render(); };
 $("list").onclick = e => { const b = e.target.closest(".item"); if (!b) return; state.sel[state.tab] = b.dataset.id; render(); if (matchMedia("(max-width:860px)").matches) $("detail").scrollIntoView({ behavior: "smooth", block: "start" }); };
@@ -431,5 +449,8 @@ $("list").onclick = e => { const b = e.target.closest(".item"); if (!b) return; 
 $("sort").addEventListener("change", () => { try { localStorage.setItem("sort", $("sort").value); } catch (e) {} });
 $("reload").onclick = load;
 $("importFile").onchange = e => { const f = e.target.files[0]; if (f) importXlsx(f).catch(err => showBanner("Импорт не удался: " + err.message)); e.target.value = ""; };
-sb.auth.onAuthStateChange((event) => { if (event === "SIGNED_IN" || event === "SIGNED_OUT") boot(); });
+sb.auth.onAuthStateChange((event) => {
+  if (event === "PASSWORD_RECOVERY") recovering = true;
+  if (["SIGNED_IN", "SIGNED_OUT", "PASSWORD_RECOVERY"].includes(event)) boot();
+});
 boot();

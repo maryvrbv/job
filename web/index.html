@@ -23,7 +23,18 @@
     <input type="password" id="password" required minlength="10" placeholder="Пароль" autocomplete="current-password">
     <button class="btn primary" type="submit" style="align-self:flex-start">Войти</button>
   </form>
+  <button class="linkbtn" type="button" id="forgot">Забыли пароль?</button>
   <p class="note" id="loginNote"></p>
+</section>
+
+<section class="login" id="reset" hidden>
+  <h1>Новый пароль</h1>
+  <p class="sub">Придумай новый пароль от 10 символов.</p>
+  <form id="resetForm" style="display:flex;flex-direction:column;gap:8px">
+    <input type="password" id="newPassword" required minlength="10" placeholder="Новый пароль" autocomplete="new-password">
+    <button class="btn primary" type="submit" style="align-self:flex-start">Сохранить и войти</button>
+  </form>
+  <p class="note" id="resetNote"></p>
 </section>
 
 <div class="wrap" id="app" hidden>

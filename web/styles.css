@@ -135,6 +135,8 @@ details.desc .body{padding:0 14px 14px;line-height:1.55;max-height:420px;overflo
 
 .login{max-width:420px;margin:12vh auto 0;background:var(--surface);border-radius:28px;padding:28px;display:flex;flex-direction:column;gap:12px}
 .login input{padding:12px 14px;border:0;border-radius:var(--r-sm);background:var(--sunken)}
+.linkbtn{background:none;border:0;padding:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;align-self:flex-start;font-size:13px}
+.linkbtn:hover{color:var(--fg)}
 .top .actions{display:flex;flex-wrap:wrap;gap:8px}
 .updated{font-size:13px;color:var(--muted)}
 [hidden]{display:none!important}
