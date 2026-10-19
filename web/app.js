@@ -10,6 +10,7 @@ const TABS = [
   { key: "applied-uae", label: "Отклики ОАЭ", market: "uae", applied: true },
   { key: "applied-ru", label: "Отклики РФ", market: "ru", applied: true },
   { key: "archive", label: "Архив", archive: true },
+  { key: "dash", label: "Дашборд", dash: true },
 ];
 const FRESH_DAYS = 3, ARCHIVE_DAYS = 14;
 // pipeline order matters: the funnel and the "where did it stop" logic read it
@@ -29,6 +30,8 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2400); }
 const todayIso = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+// in the list the current year goes without saying: 11.10 instead of 11.10.2026
+const shortDate = iso => iso && iso.slice(0, 4) === String(new Date().getFullYear()) ? iso.slice(8, 10) + "." + iso.slice(5, 7) : ruDate(iso);
 const ruDate = iso => iso ? iso.slice(8, 10) + "." + iso.slice(5, 7) + "." + iso.slice(0, 4) : "";
 function ageDays(iso) { if (!/^\d{4}-\d{2}-\d{2}/.test(iso || "")) return null; const t = new Date(iso.slice(0, 10) + "T00:00:00"); const n = new Date(); n.setHours(0, 0, 0, 0); return Math.round((n - t) / 864e5); }
 function ageText(d) { return d == null ? "" : d <= 0 ? "сегодня" : d === 1 ? "вчера" : d + " дн. назад"; }
@@ -145,6 +148,7 @@ const isApplied = j => ![NEW, SKIP, CLOSED].includes(j.status);
 const isOld = j => (ageDays(j.posted_at) ?? 0) > ARCHIVE_DAYS;
 const tabOf = k => TABS.find(t => t.key === k);
 function jobsOf(t) {
+  if (t.dash) return [];
   if (t.key === "today") return state.jobs.filter(isHot);
   if (t.archive) return state.jobs.filter(j => !isApplied(j) && isOld(j));
   if (t.applied) return state.jobs.filter(j => j.market === t.market && isApplied(j));
@@ -199,16 +203,29 @@ function renderSummary() {
     const lost = all.filter(j => j.status === REJECT && reached(j) === i).length;
     return `<div class="frow"><span>${esc(s)}</span><span class="bar" title="${got} дошли, ${lost} отказов на этом этапе"><i style="width:${(got - lost) / max * 100}%"></i><i class="x" style="width:${lost / max * 100}%"></i></span><span class="num"><b>${got}</b>${lost ? " · −" + lost : ""}</span></div>`;
   }).join("");
+  // per market: fresh relevant vacancies still waiting for me, and how my applications go
+  const row = m => {
+    const js = all.filter(j => j.market === m.key);
+    const fresh = js.filter(j => j.status === NEW && ["Высокий", "Средний"].includes(j.fit) && !isOld(j)).length;
+    const sentM = js.filter(j => reached(j) >= 0);
+    const talks = js.filter(j => reached(j) >= 1).length;
+    const rejects = js.filter(j => j.status === REJECT).length;
+    return `<div class="mrow"><b>${esc(m.short)}</b><span><b>${fresh}</b> ждут отклика</span><span><b>${sentM.length}</b> откликов</span><span><b>${talks}</b> собесов</span><span><b>${rejects}</b> отказов</span></div>`;
+  };
+  $("markets").innerHTML = dash ? "" : `<div class="head">По рынкам</div>` + MARKETS.map(row).join("");
   $("updated").textContent = state.loadedAt ? "Обновлено " + new Date(state.loadedAt).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) : "";
 }
 
 function renderTabs() {
   const loaded = state.jobs.length > 0;
   $("tabs").innerHTML = TABS.map(t => {
-    const n = !loaded ? null : jobsOf(t).filter(j => t.key === "today" || t.archive || (t.applied ? j.status !== REJECT : j.status === NEW)).length;
+    const n = !loaded || t.dash ? null : jobsOf(t).filter(j => t.key === "today" || t.archive || (t.applied ? j.status !== REJECT : j.status === NEW)).length;
     const tail = n == null ? "" : `<span class="n">${t.key === "today" || t.archive ? n : n + (t.applied ? " в процессе" : " новых")}</span>`;
     return `<button class="tab ${t.key === "today" ? "today" : ""}" role="tab" type="button" data-k="${t.key}" aria-selected="${t.key === state.tab}">${esc(t.label)}${tail}</button>`;
   }).join("");
+  // keep the chosen tab visible in the scrolling row on phones, without moving the page
+  const T = $("tabs"), cur = T.querySelector('[aria-selected="true"]');
+  if (cur && (cur.offsetLeft < T.scrollLeft || cur.offsetLeft + cur.offsetWidth > T.scrollLeft + T.clientWidth)) T.scrollLeft = cur.offsetLeft - 10;
   $("intro").textContent = `Высокое совпадение, опубликованы за последние ${FRESH_DAYS} дня, ты ещё не откликалась. Чем раньше отклик, тем выше он в списке у рекрутера.`;
   $("intro").hidden = state.tab !== "today";
 }
@@ -228,7 +245,7 @@ function renderList(rows) {
     const bits = [j.company, j.city, j.work_format && j.work_format !== "не указан" ? j.work_format : "", j.salary].filter(Boolean).map(esc).join(" · ");
     const meta = state.tab === "today"
       ? `<span class="src">${marketOf(j.market).short}</span><span class="age">${ageText(ageDays(j.posted_at))}</span>`
-      : `${tabOf(state.tab).archive ? `<span class="src">${marketOf(j.market).short}</span>` : ""}<span class="pill ${statusCls(j.status)}">${esc(j.status)}</span>${isApplied(j) && j.applied_at ? `<span class="applied-on">отклик ${esc(ruDate(j.applied_at))}</span>` : esc(ruDate(j.posted_at))}`;
+      : `${tabOf(state.tab).archive ? `<span class="src">${marketOf(j.market).short}</span>` : ""}${j.status === NEW ? "" : `<span class="pill ${statusCls(j.status)}">${esc(j.status)}</span>`}${isApplied(j) && j.applied_at ? `<span class="applied-on">отклик ${esc(shortDate(j.applied_at))}</span>` : esc(shortDate(j.posted_at))}`;
     return `<button class="item" type="button" data-id="${esc(j.id)}" aria-current="${j.id === sel}">
       <span class="stripe ${j.fit === "Высокий" ? "high" : ""}" title="Совпадение: ${esc(j.fit)}"></span>
       <span style="min-width:0"><span class="t">${esc(j.title)}</span><span class="c">${bits}</span></span>
@@ -262,6 +279,7 @@ function renderDetail(rows) {
     .filter(([, v]) => v && v !== "—").map(([k, v]) => `<span class="chip">${k}: <strong>${esc(v)}</strong></span>`).join("");
   const pressed = s => j.status === s ? "true" : "false";
   D.innerHTML = `
+    <div class="sheet-bar"><div class="grab" aria-hidden="true"></div><button class="btn icon-btn" type="button" id="detailClose" aria-label="Закрыть">✕</button></div>
     <div>
       <p class="lbl">${esc(m.label)} · ${esc(j.company)}</p>
       <h2><a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)} ↗</a></h2>
@@ -297,6 +315,7 @@ function renderDetail(rows) {
     </div>`;
 
   renderExtra(j);
+  $("detailClose").onclick = () => closeSheet();
   $("desc").addEventListener("toggle", () => { if ($("desc").open) loadDesc(j); });
   const ta = $("letter");
   ta.addEventListener("input", () => { $("saveLetter").disabled = ta.value === j.letter; $("copy").disabled = !ta.value.trim(); });
@@ -356,6 +375,10 @@ function setStatus(j, st) {
 
 function render() {
   renderSummary(); renderTabs();
+  const dash = !!tabOf(state.tab).dash;
+  $("summary").hidden = !dash; $("controls").hidden = $("pane").hidden = dash;
+  renderFiltersCount();
+  if (dash) return;
   const rows = filtered(); renderList(rows); renderDetail(rows);
 }
 
@@ -444,10 +467,71 @@ $("resetForm").onsubmit = async e => {
 };
 $("logout").onclick = async () => { await sb.auth.signOut(); try { localStorage.removeItem(CACHE_KEY); } catch (e) {} location.reload(); };
 $("tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; state.tab = b.dataset.k; try { localStorage.setItem("tab", state.tab); } catch (x) {} render(); };
-$("list").onclick = e => { const b = e.target.closest(".item"); if (!b) return; state.sel[state.tab] = b.dataset.id; render(); if (matchMedia("(max-width:860px)").matches) $("detail").scrollIntoView({ behavior: "smooth", block: "start" }); };
+$("list").onclick = e => { const b = e.target.closest(".item"); if (!b) return; state.sel[state.tab] = b.dataset.id; render(); if (mobile.matches) { $("detail").scrollTop = 0; openSheet("detail"); } };
 ["q", "fFit", "fFmt", "fStatus", "sort"].forEach(id => $(id).addEventListener("input", render));
 $("sort").addEventListener("change", () => { try { localStorage.setItem("sort", $("sort").value); } catch (e) {} });
 $("reload").onclick = load;
+
+// ---------- phone layout: the vacancy and the filters slide up as bottom sheets, the rest hides in the settings menu ----------
+
+const mobile = matchMedia("(max-width:860px)");
+let sheetOpen = null;
+function openSheet(id) {
+  if (sheetOpen === id) return;
+  if (sheetOpen) $(sheetOpen).classList.remove("open");
+  // the phone's back gesture closes the sheet instead of leaving the app
+  history[history.state?.sheet ? "replaceState" : "pushState"]({ sheet: id }, "");
+  sheetOpen = id; $(id).classList.add("open"); $("backdrop").hidden = false; document.body.classList.add("locked");
+}
+function closeSheet(fromHistory) {
+  if (!sheetOpen) return;
+  $(sheetOpen).classList.remove("open"); sheetOpen = null; $("backdrop").hidden = true; document.body.classList.remove("locked");
+  if (!fromHistory && history.state?.sheet) history.back();
+}
+addEventListener("popstate", () => closeSheet(true));
+addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+$("backdrop").onclick = () => closeSheet();
+mobile.addEventListener("change", () => { if (!mobile.matches) closeSheet(); });
+// pull the sheet down by its top bar to close it
+for (const id of ["detail", "filters"]) {
+  const el = $(id); let y0 = null;
+  el.addEventListener("touchstart", e => { if (!e.target.closest(".sheet-bar, .sheet-head")) return; y0 = e.touches[0].clientY; el.style.transition = "none"; }, { passive: true });
+  el.addEventListener("touchmove", e => { if (y0 != null) el.style.transform = `translateY(${Math.max(0, e.touches[0].clientY - y0)}px)`; }, { passive: true });
+  el.addEventListener("touchend", e => {
+    if (y0 == null) return;
+    const dy = e.changedTouches[0].clientY - y0; y0 = null; el.style.transition = el.style.transform = "";
+    if (dy > 80) closeSheet();
+  });
+}
+
+const FILTER_DEFAULTS = { fFit: "", fFmt: "", fStatus: "active", sort: "date" };
+function renderFiltersCount() {
+  const n = Object.entries(FILTER_DEFAULTS).filter(([id, v]) => $(id).value !== v).length;
+  $("filtersCount").textContent = n; $("filtersCount").hidden = !n;
+}
+$("filtersBtn").onclick = () => openSheet("filters");
+$("filtersDone").onclick = () => closeSheet();
+$("filtersReset").onclick = () => {
+  for (const [id, v] of Object.entries(FILTER_DEFAULTS)) $(id).value = v;
+  try { localStorage.setItem("sort", "date"); } catch (e) {}
+  render();
+};
+
+const menu = $("menuSheet");
+$("menuBtn").onclick = () => { $("menuInstall").hidden = standalone(); menu.showModal(); };
+menu.onclick = e => {
+  if (e.target === menu) return menu.close(); // tap on the dimmed area
+  const b = e.target.closest("button[data-act]"); if (!b) return;
+  menu.close();
+  ({
+    reload: load,
+    notify: () => { $("notifyPanel").hidden = false; renderNotify(); scrollTo({ top: 0, behavior: "smooth" }); },
+    install: () => install(),
+    import: () => $("importFile").click(),
+    logout: () => $("logout").click(),
+  })[b.dataset.act]();
+};
+$("installSheet").onclick = e => { if (e.target === $("installSheet")) $("installSheet").close(); };
 $("importFile").onchange = e => { const f = e.target.files[0]; if (f) importXlsx(f).catch(err => showBanner("Импорт не удался: " + err.message)); e.target.value = ""; };
 sb.auth.onAuthStateChange((event) => {
   if (event === "PASSWORD_RECOVERY") recovering = true;
@@ -512,6 +596,7 @@ $("notifyBtn").onclick = () => {
   $("notifyBtn").setAttribute("aria-expanded", String(!p.hidden));
   if (!p.hidden) renderNotify();
 };
+$("notifyClose").onclick = () => { $("notifyPanel").hidden = true; $("notifyBtn").setAttribute("aria-expanded", "false"); };
 $("notifyToggle").onclick = () => toggleNotify().catch(e => { showBanner("Не получилось включить уведомления: " + e.message); renderNotify(); });
 $("notifyTest").onclick = async () => {
   const { data, error } = await sb.functions.invoke("notify", { body: { test: true } });
