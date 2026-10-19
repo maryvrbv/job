@@ -98,6 +98,7 @@
   <div class="segmented" role="tablist" id="views" aria-label="Раздел">
     <button type="button" role="tab" data-v="jobs" aria-selected="true">Вакансии</button>
     <button type="button" role="tab" data-v="dash" aria-selected="false">Дашборд</button>
+    <button type="button" role="tab" data-v="diary" aria-selected="false">Дорогой дневник</button>
   </div>
   <div class="tabs" role="tablist" id="tabs"></div>
   <p class="intro" id="intro"></p>
@@ -108,6 +109,20 @@
       <div class="markets" id="markets"></div>
     </div>
     <div class="funnel" id="funnel"></div>
+    <div class="activity" id="activity"></div>
+  </section>
+
+  <section class="diary" id="diary" aria-label="Дорогой дневник" hidden>
+    <p class="intro" id="diaryStats"></p>
+    <div class="diary-list" id="diaryList"></div>
+    <form class="diary-form" id="diaryForm">
+      <label class="lbl" for="diaryText">Новая запись</label>
+      <textarea id="diaryText" required placeholder="Что получилось сделать? Маленькие шаги тоже считаются"></textarea>
+      <div class="row">
+        <input type="date" id="diaryDay" aria-label="Дата">
+        <button class="btn primary" type="submit" id="diarySave">Записать</button>
+      </div>
+    </form>
   </section>
 
   <div class="controls" id="controls">
