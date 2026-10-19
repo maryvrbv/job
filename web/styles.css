@@ -277,3 +277,26 @@ i.l0{background:var(--sunken)} i.l1{background:#DDD0FB} i.l2{background:#B79BF5}
   .segmented button{padding:9px 6px;font-size:14px}
   .activity{padding:14px}
 }
+
+/* Goals in the diary: a checkbox reveals the priority, open goals get a tick circle */
+.check{display:inline-flex;align-items:center;gap:8px;font-weight:500;cursor:pointer;align-self:flex-start}
+.check input{width:18px;height:18px;accent-color:var(--accent);margin:0}
+.goal-fields{display:flex;flex-direction:column;gap:6px}
+.goal-fields .lbl{margin:0}
+.prio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;background:var(--sunken);border-radius:var(--r-sm)}
+.prio label{position:relative;cursor:pointer}
+.prio input{position:absolute;opacity:0;pointer-events:none}
+.prio span{display:block;text-align:center;padding:8px 4px;border-radius:9px;font-size:14px;font-weight:500;color:var(--muted)}
+.prio input:focus-visible + span{outline:2px solid var(--accent);outline-offset:1px}
+.prio .p-high input:checked + span{background:var(--hot-soft);color:var(--hot)}
+.prio .p-mid input:checked + span{background:var(--warn-soft);color:var(--warn)}
+.prio .p-low input:checked + span{background:var(--surface);color:var(--fg)}
+.dbody{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.gtag{font-size:12px;font-weight:500;border-radius:8px;padding:2px 8px;background:var(--sunken);color:var(--muted)}
+.gtag.p-high{background:var(--hot-soft);color:var(--hot)}
+.gtag.p-mid{background:var(--warn-soft);color:var(--warn)}
+.gtag.done{background:var(--lime-soft);color:var(--good)}
+.goal-tick{flex:none;width:22px;height:22px;margin-top:1px;border-radius:50%;border:2px solid var(--accent);background:none;cursor:pointer;padding:0}
+.goal-tick:hover{background:var(--accent-soft)}
+#diaryGoals:empty{display:none}
+#diaryGoals > .lbl{margin:0 4px}
