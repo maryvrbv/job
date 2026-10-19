@@ -1,28 +1,19 @@
 /* Layout: summary strip and hiring funnel, then a two-pane workbench — vacancy list on the left, the chosen vacancy with stages, letter and description on the right; one column on phones */
-/* Visual language borrowed from hirehi.ru: light grey canvas, borderless white cards with 24px corners,
-   soft filled chips with 12px corners, Inter throughout, green accent #4DB288 */
+/* Light theme only. Shapes borrowed from hirehi.ru (borderless white cards, 24px corners, filled chips, Inter);
+   colours after the app icon and Золотое Яблоко: lilac accent for selection and progress, lime for the main action */
 :root{
-  --bg:#F3F3F3; --surface:#FFFFFF; --sunken:#F3F3F3; --line:#EBEBEB;
-  --fg:#222222; --muted:#6F6F6F; --accent:#4DB288; --accent-hover:#399E74; --accent-ink:#10261C; --accent-soft:#E2F3EB;
-  --good:#3C4D1A; --good-soft:#EBF6D4; --warn:#4D410A; --warn-soft:#FCF1D0; --bad:#9E2F27; --bad-soft:#FBE3E0; --info:#1A4D4D; --info-soft:#DDF4F4;
+  --bg:#F7F5FB; --surface:#FFFFFF; --sunken:#F1EEF7; --line:#E6E1F0;
+  --fg:#1F1A2E; --muted:#6B6578;
+  --accent:#7C3AED; --accent-hover:#6D28D9; --accent-ink:#FFFFFF; --accent-soft:#F0E8FE;
+  --lime:#C6F432; --lime-hover:#B4E41C; --lime-ink:#1A2100; --lime-soft:#F1FBD3;
+  --good:#3C4D1A; --good-soft:#EBF6D4; --warn:#4D410A; --warn-soft:#FCF1D0; --bad:#9E2F27; --bad-soft:#FBE3E0; --info:#4B2A8C; --info-soft:#ECE4FB;
   --hot:#C2410C; --hot-soft:#FDE6D8;
   --font-ui:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --font-display:var(--font-ui);
   --font-mono:var(--font-ui);
   --r:24px; --r-sm:12px; --r-xs:10px;
+  color-scheme:light;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#141414; --surface:#1D1E20; --sunken:#2E3035; --line:#31353E;
-  --fg:#FFFFFF; --muted:#A0A0A0; --accent:#4DB288; --accent-hover:#6FD0A6; --accent-ink:#0B1F16; --accent-soft:#1F3A2F;
-  --good:#DEEFB9; --good-soft:#2F371D; --warn:#FFF0C2; --warn-soft:#403923; --bad:#F7B8B0; --bad-soft:#4A2522; --info:#D1F0F0; --info-soft:#263D3D;
-  --hot:#F59A62; --hot-soft:#3D2416;
-  color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#141414; --surface:#1D1E20; --sunken:#2E3035; --line:#31353E;
-  --fg:#FFFFFF; --muted:#A0A0A0; --accent:#4DB288; --accent-hover:#6FD0A6; --accent-ink:#0B1F16; --accent-soft:#1F3A2F;
-  --good:#DEEFB9; --good-soft:#2F371D; --warn:#FFF0C2; --warn-soft:#403923; --bad:#F7B8B0; --bad-soft:#4A2522; --info:#D1F0F0; --info-soft:#263D3D;
-  --hot:#F59A62; --hot-soft:#3D2416;
-  color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 32px}
@@ -34,8 +25,8 @@ h1{font-family:var(--font-display);font-weight:600;font-size:28px;margin:0;lette
 button,select,input,textarea{font:inherit;color:inherit}
 .btn{border:0;background:var(--surface);border-radius:var(--r-sm);padding:10px 16px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .btn:hover{background:var(--sunken)}
-.btn.primary{background:var(--accent);color:var(--accent-ink);font-weight:600}
-.btn.primary:hover{background:var(--accent-hover)}
+.btn.primary{background:var(--lime);color:var(--lime-ink);font-weight:600}
+.btn.primary:hover{background:var(--lime-hover)}
 .btn:disabled{opacity:.5;cursor:default}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .summary{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:8px}
@@ -72,7 +63,7 @@ button,select,input,textarea{font:inherit;color:inherit}
 .item:hover{box-shadow:0 0 0 1px var(--line)}
 .item[aria-current="true"]{box-shadow:0 0 0 2px var(--accent)}
 .item .stripe{align-self:stretch;border-radius:0 3px 3px 0;background:transparent;margin-block:4px}
-.item .stripe.high{background:var(--accent)}
+.item .stripe.high{background:#9ACD12}
 .item .t{font-weight:600;font-size:16px;line-height:1.3;overflow-wrap:anywhere}
 .item .c{color:var(--muted);font-size:13px;margin-top:2px;overflow-wrap:anywhere;display:block}
 .item .meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -97,7 +88,7 @@ button,select,input,textarea{font:inherit;color:inherit}
 .chip.applied{background:var(--accent-soft);color:var(--fg)}
 .applied-on{color:var(--fg);font-weight:500}
 .chip.fmt strong{color:var(--info)}
-.why{background:var(--accent-soft);border-radius:var(--r-sm);padding:12px 14px;margin:0}
+.why{background:var(--lime-soft);border-radius:var(--r-sm);padding:12px 14px;margin:0}
 .lbl{font-size:13px;color:var(--muted);font-weight:500;margin:0 0 8px}
 .steps{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .steps button{border:0;background:var(--sunken);border-radius:var(--r-xs);padding:7px 11px;cursor:pointer;font-size:14px;position:relative}
