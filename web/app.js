@@ -239,13 +239,10 @@ function applications() {
     return { job: j, day: t ? isoOf(t) : j.applied_at.slice(0, 10), slot: t ? slotOf(t.getHours()) : "unknown" };
   });
 }
-// diary entries (not the open goals) in the same day × part-of-day grid; the time is known only when the entry
-// was written on its own day, imported and back-dated entries go to «Без времени»
+// diary entries (not the open goals) in the same day × part-of-day grid; entries without a time go to «Без времени»
 function diaryActs() {
-  return (diary.rows || []).filter(r => !isOpenGoal(r)).map(r => {
-    const t = r.created_at ? new Date(r.created_at) : null;
-    return { row: r, day: r.day, slot: t && isoOf(t) === r.day ? slotOf(t.getHours()) : "unknown" };
-  });
+  return (diary.rows || []).filter(r => !isOpenGoal(r)).map(r =>
+    ({ row: r, day: r.day, slot: r.at_time ? slotOf(+r.at_time.slice(0, 2)) : "unknown" }));
 }
 const APP_SHADES = ["", "#C9B5F8", "#A783F3", "#8B55EE", "#5B21B6"];
 const DIARY_SHADES = ["", "#FBCFE8", "#F9A8D4", "#F472B6", "#DB2777"];
@@ -495,15 +492,17 @@ const diary = { rows: null, editing: null };
 const PRIORITIES = [["high", "Горит"], ["mid", "Важно"], ["low", "Не горит"]];
 const PRIO_RANK = { high: 0, mid: 1, low: 2 };
 const prioLabel = p => (PRIORITIES.find(([k]) => k === p) || PRIORITIES[1])[1];
-const DIARY_COLS = "id,day,text,is_goal,priority,done,created_at";
+const DIARY_COLS = "id,day,at_time,text,is_goal,priority,done";
+const nowTime = () => { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+const hhmm = t => t ? t.slice(0, 5) : "";
 async function loadDiary() {
   diary.rows = diary.rows || [];
-  const { data, error } = await sb.from("diary").select(DIARY_COLS).order("day", { ascending: false }).order("id", { ascending: false });
+  const { data, error } = await sb.from("diary").select(DIARY_COLS).order("day", { ascending: false }).order("at_time", { ascending: false, nullsFirst: false }).order("id", { ascending: false });
   if (error) { showBanner("Не получилось загрузить дневник: " + error.message); return; }
   diary.rows = data; renderDiary();
   if (state.view === "dash") renderActivity();
 }
-const byNewest = (a, b) => b.day.localeCompare(a.day) || b.id - a.id;
+const byNewest = (a, b) => b.day.localeCompare(a.day) || hhmm(b.at_time).localeCompare(hhmm(a.at_time)) || b.id - a.id;
 const isOpenGoal = r => r.is_goal && !r.done;
 const PENCIL = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
 const TRASH = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
@@ -517,12 +516,12 @@ function entryHtml(r) {
     <label class="check"><input type="checkbox" class="dgoal" ${r.is_goal ? "checked" : ""}> Это цель</label>
     <div class="goal-fields" ${r.is_goal ? "" : "hidden"}><span class="lbl">Приоритет</span>${prioRadios("prio-" + r.id, r.priority || "mid")}
       <label class="check"><input type="checkbox" class="ddone" ${r.done ? "checked" : ""}> Выполнена</label></div>
-    <input type="date" class="dday-input" value="${esc(r.day)}" aria-label="Дата">
+    <div class="when"><input type="date" class="dday-input" value="${esc(r.day)}" aria-label="Дата"><input type="time" class="dtime-input" value="${esc(hhmm(r.at_time))}" aria-label="Время"></div>
     <div class="edit-actions"><button class="btn del-btn" type="button" data-a="del" aria-label="Удалить запись" title="Удалить">${TRASH}</button><button class="btn" type="button" data-a="cancel">Отмена</button><button class="btn primary" type="button" data-a="save">Сохранить</button></div>
   </div>`;
   const tick = isOpenGoal(r) ? `<button class="goal-tick" type="button" data-a="done" aria-label="Цель выполнена" title="Отметить выполненной"></button>` : "";
   const tag = r.is_goal ? (r.done ? `<span class="gtag done">✓ Цель выполнена</span>` : `<span class="gtag p-${r.priority || "mid"}" title="Приоритет">${prioLabel(r.priority)}</span>`) : "";
-  return `<div class="dentry ${isOpenGoal(r) ? "goal" : ""}" data-id="${r.id}">${tick}<div class="dbody">${tag}<p>${esc(r.text)}</p></div><button class="icon-edit" type="button" data-a="edit" aria-label="Изменить запись" title="Изменить">${PENCIL}</button></div>`;
+  return `<div class="dentry ${isOpenGoal(r) ? "goal" : ""}" data-id="${r.id}">${tick}<div class="dbody">${r.at_time && !isOpenGoal(r) || tag ? `<div class="dmeta">${r.at_time && !isOpenGoal(r) ? `<span class="dtime">${esc(hhmm(r.at_time))}</span>` : ""}${tag}</div>` : ""}<p>${esc(r.text)}</p></div><button class="icon-edit" type="button" data-a="edit" aria-label="Изменить запись" title="Изменить">${PENCIL}</button></div>`;
 }
 
 function renderDiary() {
@@ -540,19 +539,22 @@ function renderDiary() {
   $("diaryList").innerHTML = days.map(d => `<div class="dday"><p class="lbl">${esc(longDate(d))}</p>${log.filter(r => r.day === d).map(entryHtml).join("")}</div>`).join("");
 }
 
-$("diaryDay").value = todayIso();
+const resetWhen = () => { $("diaryDay").value = todayIso(); $("diaryTime").value = nowTime(); };
+resetWhen();
+// the form shows the current date and time; refresh them when I come back to an empty form
+$("diaryText").addEventListener("focus", () => { if (!$("diaryText").value.trim()) resetWhen(); });
 $("diaryGoal").onchange = () => { $("diaryGoalFields").hidden = !$("diaryGoal").checked; };
 $("diaryForm").onsubmit = async e => {
   e.preventDefault();
   const text = $("diaryText").value.trim(), day = $("diaryDay").value || todayIso(), is_goal = $("diaryGoal").checked;
   if (!text) return;
-  const entry = { day, text, is_goal, priority: is_goal ? ($("diaryForm").querySelector("input[name=prio-new]:checked")?.value || "mid") : null };
+  const entry = { day, at_time: $("diaryTime").value || null, text, is_goal, priority: is_goal ? ($("diaryForm").querySelector("input[name=prio-new]:checked")?.value || "mid") : null };
   $("diarySave").disabled = true;
   const { data, error } = await sb.from("diary").insert(entry).select(DIARY_COLS).single();
   $("diarySave").disabled = false;
   if (error) { showBanner("Запись не сохранилась: " + error.message); return; }
   diary.rows.push(data); diary.rows.sort(byNewest);
-  $("diaryText").value = ""; $("diaryDay").value = todayIso(); $("diaryGoal").checked = false; $("diaryGoalFields").hidden = true;
+  $("diaryText").value = ""; resetWhen(); $("diaryGoal").checked = false; $("diaryGoalFields").hidden = true;
   renderDiary(); toast(is_goal ? "Цель записана. У тебя получится!" : "Записала. Ты молодец!");
 };
 
@@ -571,11 +573,11 @@ async function diaryAction(e) {
     diary.rows = diary.rows.filter(r => r.id !== id); diary.editing = null; renderDiary(); toast("Запись удалена"); return;
   }
   let patch;
-  if (a === "done") patch = { done: true, day: todayIso() }; // a reached goal goes into today's log
+  if (a === "done") patch = { done: true, day: todayIso(), at_time: nowTime() }; // a reached goal goes into today's log, now
   else {
     const text = box.querySelector(".dedit").value.trim(); if (!text) return;
     const is_goal = box.querySelector(".dgoal").checked;
-    patch = { text, day: box.querySelector(".dday-input").value || row.day, is_goal,
+    patch = { text, day: box.querySelector(".dday-input").value || row.day, at_time: box.querySelector(".dtime-input").value || null, is_goal,
       priority: is_goal ? (box.querySelector(`input[name=prio-${id}]:checked`)?.value || "mid") : null, done: is_goal && box.querySelector(".ddone").checked };
   }
   const { error } = await sb.from("diary").update(patch).eq("id", id);
