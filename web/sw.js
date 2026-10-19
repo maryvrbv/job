@@ -9,8 +9,8 @@ self.addEventListener("push", e => {
   try { data = e.data ? e.data.json() : {}; } catch (err) { data = { body: e.data && e.data.text() }; }
   e.waitUntil(self.registration.showNotification(data.title || "Отклики Маши", {
     body: data.body || "",
-    icon: "icon-192.png",
-    badge: "icon-192.png",
+    // no large icon: Android already shows the app's cat on the left; the badge is a white cat silhouette for the status bar
+    badge: "badge-96.png",
     data: { url: data.url || "./" },
   }));
 });
