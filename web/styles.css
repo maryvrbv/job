@@ -261,10 +261,12 @@ i.l0{background:var(--sunken)} i.l1{background:#DDD0FB} i.l2{background:#B79BF5}
 .dday{display:flex;flex-direction:column;gap:6px}
 .dday > .lbl{margin:0 4px}
 .dday > .lbl::first-letter{text-transform:uppercase}
-.dentry{background:var(--surface);border-radius:var(--r-sm);padding:12px 16px;display:flex;flex-direction:column;gap:6px;border-left:4px solid var(--lime)}
+.dentry{background:var(--surface);border-radius:var(--r-sm);padding:12px 8px 12px 16px;display:flex;align-items:flex-start;gap:8px}
+.dentry p{flex:1}
+.dentry.editing{flex-direction:column;align-items:stretch;padding-right:16px}
+.icon-edit{border:0;background:none;color:var(--muted);border-radius:var(--r-xs);width:36px;height:36px;flex:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;margin:-8px 0}
+.icon-edit:hover{background:var(--sunken);color:var(--fg)}
 .dentry p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
-.dentry .linkbtn{font-size:12px}
-.dentry.editing{border-left-color:var(--accent)}
 .dentry textarea,.diary-form textarea{width:100%;min-height:96px;resize:vertical;border:0;border-radius:var(--r-xs);padding:10px 12px;background:var(--sunken);line-height:1.5}
 .diary-form{background:var(--surface);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:10px;scroll-margin-bottom:16px}
 .diary-form .lbl{margin:0}

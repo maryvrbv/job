@@ -420,27 +420,28 @@ function render() {
   const rows = filtered(); renderList(rows); renderDetail(rows);
 }
 
-// ---------- «Дорогой дневник»: what I did, day by day, oldest first; new entries go at the bottom ----------
+// ---------- «Дорогой дневник»: what I did, day by day, newest first; the form for a new entry is on top ----------
 
 const diary = { rows: null, editing: null };
 async function loadDiary() {
   diary.rows = diary.rows || [];
-  const { data, error } = await sb.from("diary").select("id,day,text").order("day").order("id");
+  const { data, error } = await sb.from("diary").select("id,day,text").order("day", { ascending: false }).order("id", { ascending: false });
   if (error) { showBanner("Не получилось загрузить дневник: " + error.message); return; }
   diary.rows = data; renderDiary();
-  if (state.view === "diary") $("diaryForm").scrollIntoView({ block: "end" });
 }
+const byNewest = (a, b) => b.day.localeCompare(a.day) || b.id - a.id;
+const PENCIL = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
 const longDate = iso => new Date(iso + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "long", weekday: "short" });
 function renderDiary() {
   const rows = diary.rows || [], L = $("diaryList");
   const days = [...new Set(rows.map(r => r.day))];
   $("diaryStats").textContent = rows.length
-    ? `${rows.length} ${plural(rows.length, "запись", "записи", "записей")} за ${days.length} ${plural(days.length, "день", "дня", "дней")}, с ${longDate(rows[0].day).replace(/^\S+ /, "")}. Каждая строчка — шаг вперёд.`
+    ? `${rows.length} ${plural(rows.length, "запись", "записи", "записей")} за ${days.length} ${plural(days.length, "день", "дня", "дней")}, с ${longDate(rows[rows.length - 1].day).replace(/^\S+ /, "")}. Каждая строчка — шаг вперёд.`
     : "Записывай сюда всё, что сделала для поиска работы: отклики, портфолио, созвоны, новые навыки.";
   L.innerHTML = days.map(d => `<div class="dday"><p class="lbl">${esc(longDate(d))}</p>${rows.filter(r => r.day === d).map(r =>
     diary.editing === r.id
       ? `<div class="dentry editing" data-id="${r.id}"><textarea class="dedit">${esc(r.text)}</textarea><div class="row"><input type="date" class="dday-input" value="${esc(r.day)}"><button class="btn primary" type="button" data-a="save">Сохранить</button><button class="btn" type="button" data-a="cancel">Отмена</button><button class="linkbtn danger" type="button" data-a="del">Удалить</button></div></div>`
-      : `<div class="dentry" data-id="${r.id}"><p>${esc(r.text)}</p><button class="linkbtn" type="button" data-a="edit">Изменить</button></div>`).join("")}</div>`).join("");
+      : `<div class="dentry" data-id="${r.id}"><p>${esc(r.text)}</p><button class="icon-edit" type="button" data-a="edit" aria-label="Изменить запись" title="Изменить">${PENCIL}</button></div>`).join("")}</div>`).join("");
 }
 $("diaryDay").value = todayIso();
 $("diaryForm").onsubmit = async e => {
@@ -451,10 +452,9 @@ $("diaryForm").onsubmit = async e => {
   const { data, error } = await sb.from("diary").insert({ day, text }).select("id,day,text").single();
   $("diarySave").disabled = false;
   if (error) { showBanner("Запись не сохранилась: " + error.message); return; }
-  diary.rows.push(data); diary.rows.sort((a, b) => a.day.localeCompare(b.day) || a.id - b.id);
+  diary.rows.push(data); diary.rows.sort(byNewest);
   $("diaryText").value = ""; $("diaryDay").value = todayIso();
   renderDiary(); toast("Записала. Ты молодец!");
-  $("diaryForm").scrollIntoView({ block: "end" });
 };
 $("diaryList").onclick = async e => {
   const b = e.target.closest("button[data-a]"); if (!b) return;
@@ -471,7 +471,7 @@ $("diaryList").onclick = async e => {
   if (!text) return;
   const { error } = await sb.from("diary").update({ text, day }).eq("id", id);
   if (error) { showBanner("Не сохранилось: " + error.message); return; }
-  Object.assign(row, { text, day }); diary.rows.sort((a, b) => a.day.localeCompare(b.day) || a.id - b.id);
+  Object.assign(row, { text, day }); diary.rows.sort(byNewest);
   diary.editing = null; renderDiary(); toast("Запись обновлена");
 };
 
@@ -563,7 +563,6 @@ $("views").onclick = e => {
   const b = e.target.closest("button[data-v]"); if (!b) return;
   state.view = b.dataset.v; try { localStorage.setItem("view", state.view); } catch (x) {}
   render();
-  if (state.view === "diary" && diary.rows) $("diaryForm").scrollIntoView({ block: "end" });
 };
 $("tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; state.tab = b.dataset.k; try { localStorage.setItem("tab", state.tab); } catch (x) {} render(); };
 $("list").onclick = e => { const b = e.target.closest(".item"); if (!b) return; state.sel[state.tab] = b.dataset.id; render(); if (mobile.matches) { $("detail").scrollTop = 0; openSheet("detail"); } };
