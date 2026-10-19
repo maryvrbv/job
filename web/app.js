@@ -14,7 +14,7 @@ const TABS = [
 const FRESH_DAYS = 3, ARCHIVE_DAYS = 14;
 // pipeline order matters: the funnel and the "where did it stop" logic read it
 const STAGES = ["Откликнулась", "Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес", "Оффер"];
-const NEW = "Не откликалась", REJECT = "Отказ", SKIP = "Не подходит", RECRUITER = "Написала рекрутеру", CLOSED = "Вакансия удалена";
+const NEW = "Не откликалась", REJECT = "Отказ", SKIP = "Не подходит", RECRUITER = "Написала рекрутеру", CLOSED = "Отклики закрыты";
 const ENDED = [SKIP, REJECT, CLOSED];
 const SKIP_REASONS = ["Только офис без релокации", "Не мой домен", "Слишком джуниорская роль", "Низкая зарплата", "Нужен арабский", "Это агентство/аутстаф", "Уже откликалась раньше"];
 // everything except the long description, which loads when the panel opens
@@ -277,7 +277,7 @@ function renderDetail(rows) {
         <button type="button" data-st="${RECRUITER}" aria-pressed="${pressed(RECRUITER)}">Написала рекрутеру</button>
         <button type="button" data-st="${REJECT}" aria-pressed="${pressed(REJECT)}">Отказ</button>
         <button type="button" data-st="${SKIP}" aria-pressed="${pressed(SKIP)}">Не подходит</button>
-        <button type="button" data-st="${CLOSED}" aria-pressed="${pressed(CLOSED)}">Вакансия удалена</button>
+        <button type="button" data-st="${CLOSED}" aria-pressed="${pressed(CLOSED)}">Отклики закрыты</button>
       </div>
     </div>
     <div id="extra"></div>
@@ -340,7 +340,7 @@ function renderExtra(j) {
     btn.onclick = () => save(j, { skip_reason: w.value }, "Причина сохранена");
   } else if (j.status === CLOSED) {
     const lived = j.posted_at && j.closed_at ? Math.round((new Date(j.closed_at) - new Date(j.posted_at)) / 864e5) : null;
-    X.innerHTML = `<div class="panel"><p class="note" style="margin:0">Вакансию сняли${j.closed_at ? ` (заметила ${esc(ruDate(j.closed_at))})` : ""}.${lived != null ? ` Прожила не больше ${lived} дн. с публикации ${esc(ruDate(j.posted_at))}.` : ""}</p></div>`;
+    X.innerHTML = `<div class="panel"><p class="note" style="margin:0">Приём откликов закрыт${j.closed_at ? ` (заметила ${esc(ruDate(j.closed_at))})` : ""}.${lived != null ? ` Прожила не больше ${lived} дн. с публикации ${esc(ruDate(j.posted_at))}.` : ""}</p></div>`;
   } else X.innerHTML = "";
 }
 
@@ -351,7 +351,7 @@ function setStatus(j, st) {
   if (st === NEW) patch.applied_at = null; // undoing an application by mistake clears its date
   patch.closed_at = st === CLOSED ? todayIso() : null;
   if (st === REJECT && !j.reject_stage) patch.reject_stage = stageIx(was) >= 0 && was !== "Оффер" ? (was === RECRUITER ? "Откликнулась" : was) : "Откликнулась";
-  save(j, patch, st === REJECT ? "Отмечен отказ. Укажи этап и обратную связь" : st === SKIP ? "Отмечено «Не подходит». Можно написать почему" : st === CLOSED ? "Отмечено: вакансия удалена" : "Этап: " + st);
+  save(j, patch, st === REJECT ? "Отмечен отказ. Укажи этап и обратную связь" : st === SKIP ? "Отмечено «Не подходит». Можно написать почему" : st === CLOSED ? "Отмечено: отклики закрыты" : "Этап: " + st);
 }
 
 function render() {
