@@ -51,7 +51,7 @@ async function load() {
   state.loading = false;
   if (error) { showBanner("Не получилось загрузить вакансии: " + error.message); render(); return; }
   showBanner("");
-  state.jobs = data; state.loadedAt = new Date().toISOString(); cacheSave(); render();
+  state.jobs = data; state.loadedAt = new Date().toISOString(); cacheSave(); applyTimes = null; render();
 }
 
 let writing = Promise.resolve();
@@ -216,48 +216,82 @@ function renderSummary() {
   $("updated").textContent = state.loadedAt ? "Обновлено " + new Date(state.loadedAt).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) : "";
 }
 
-// GitHub-style map of the last year: one square per day, darker on days with more applications
+// Activity map: columns are days (last 90), rows are parts of the day; darker means more applications.
+// The time of an application comes from job_events (status change log); older ones have only a date.
 const RU_MONTHS = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+const SLOTS = [["morning", "Утро", "утром"], ["day", "День", "днём"], ["evening", "Вечер", "вечером"], ["night", "Ночь", "ночью"], ["unknown", "Без времени", "время не записано"]];
+const HEAT_DAYS = 90;
 const isoOf = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const slotOf = h => h >= 6 && h < 12 ? "morning" : h >= 12 && h < 18 ? "day" : h >= 18 ? "evening" : "night";
+let applyTimes = null; // job id → when the status left «Не откликалась»
+async function loadApplyTimes() {
+  applyTimes = applyTimes || {};
+  const { data } = await sb.from("job_events").select("job_id,to_status,at").eq("from_status", NEW).order("at");
+  const map = {};
+  for (const e of data || []) if (![NEW, SKIP, CLOSED].includes(e.to_status) && !map[e.job_id]) map[e.job_id] = e.at;
+  applyTimes = map;
+  if (state.view === "dash") renderActivity();
+}
+// every application placed into a day and a part of the day
+function applications() {
+  return state.jobs.filter(j => isApplied(j) && j.applied_at).map(j => {
+    const t = applyTimes?.[j.id] ? new Date(applyTimes[j.id]) : null;
+    return { job: j, day: t ? isoOf(t) : j.applied_at.slice(0, 10), slot: t ? slotOf(t.getHours()) : "unknown" };
+  });
+}
 function renderActivity() {
-  const A = $("activity");
-  const per = {};
-  for (const j of state.jobs) if (isApplied(j) && j.applied_at) per[j.applied_at.slice(0, 10)] = (per[j.applied_at.slice(0, 10)] || 0) + 1;
+  if (!applyTimes) loadApplyTimes();
+  const A = $("activity"), apps = applications();
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const start = new Date(today); start.setDate(start.getDate() - 52 * 7 - ((today.getDay() + 6) % 7)); // a Monday a year ago
-  const level = n => n >= 5 ? 4 : n >= 3 ? 3 : n; // fixed steps: 1, 2, 3–4, 5+ applications a day
-  let cells = "", months = "", lastMonth = -1, week = 0;
+  const start = new Date(today); start.setDate(start.getDate() - HEAT_DAYS + 1);
+  const startIso = isoOf(start), recent = apps.filter(a => a.day >= startIso);
+  const slots = SLOTS.filter(([k]) => k !== "unknown" || recent.some(a => a.slot === "unknown"));
+  const count = {};
+  for (const a of recent) count[a.day + "|" + a.slot] = (count[a.day + "|" + a.slot] || 0) + 1;
+  const level = n => n >= 5 ? 4 : n >= 3 ? 3 : n; // fixed steps: 1, 2, 3–4, 5+ applications
+  let cells = "", heads = "", col = 0;
   for (const d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
-    const dow = (d.getDay() + 6) % 7, iso = isoOf(d), n = per[iso] || 0;
-    if (dow === 0) {
-      week++;
-      if (d.getMonth() !== lastMonth) { months += `<span style="grid-column:${week}">${RU_MONTHS[d.getMonth()]}</span>`; lastMonth = d.getMonth(); }
-    }
-    cells += `<i class="l${level(n)}" style="grid-row:${dow + 1};grid-column:${week}" data-d="${iso}"></i>`;
+    col++;
+    const iso = isoOf(d);
+    if (iso === isoOf(today)) heads += `<span class="t" style="grid-column:${col}">${d.getDate()}</span>`;
+    else if (d.getDate() === 1 || col === 1) heads += `<span class="m" style="grid-column:${col}">${RU_MONTHS[d.getMonth()]}</span>`;
+    else if (d.getDay() === 1 && col < HEAT_DAYS - 2) heads += `<span style="grid-column:${col}">${d.getDate()}</span>`;
+    slots.forEach(([k], r) => { const n = count[iso + "|" + k] || 0; cells += `<i class="l${level(n)}" style="grid-row:${r + 1};grid-column:${col}" data-d="${iso}" data-s="${k}"></i>`; });
   }
   // streak: days in a row with applications, counting from today (or yesterday, if today is still empty)
+  const days = new Set(apps.map(a => a.day));
   let streak = 0; const c = new Date(today);
-  if (!per[isoOf(c)]) c.setDate(c.getDate() - 1);
-  while (per[isoOf(c)]) { streak++; c.setDate(c.getDate() - 1); }
-  const yearIso = isoOf(start), inYear = Object.entries(per).filter(([d]) => d >= yearIso);
-  const total = inYear.reduce((a, [, n]) => a + n, 0);
-  A.innerHTML = `<div class="head"><span>Активность: отклики по дням</span><span>${total} за год · ${inYear.length} ${plural(inYear.length, "день", "дня", "дней")} с откликами${streak ? ` · серия ${streak} ${plural(streak, "день", "дня", "дней")} подряд` : ""}</span></div>
-    <div class="heat-scroll" id="heatScroll"><div class="heat"><div class="heat-months" style="grid-template-columns:repeat(${week},12px)">${months}</div><div class="heat-days"><span style="grid-row:1">пн</span><span style="grid-row:3">ср</span><span style="grid-row:5">пт</span></div><div class="heat-cells" style="grid-template-columns:repeat(${week},12px)">${cells}</div></div></div>
+  if (!days.has(isoOf(c))) c.setDate(c.getDate() - 1);
+  while (days.has(isoOf(c))) { streak++; c.setDate(c.getDate() - 1); }
+  const recentDays = new Set(recent.map(a => a.day)).size;
+  const bySlot = SLOTS.slice(0, 4).map(([k, , w]) => [w, recent.filter(a => a.slot === k).length]).sort((a, b) => b[1] - a[1]);
+  const fav = bySlot[0][1] ? ` · чаще всего ${bySlot[0][0]}` : "";
+  const cols = `grid-template-columns:repeat(${col},14px)`;
+  A.innerHTML = `<div class="head"><span>Активность: когда я откликаюсь</span><span>${recent.length} за ${HEAT_DAYS} дней · ${recentDays} ${plural(recentDays, "день", "дня", "дней")} с откликами${streak ? ` · серия ${streak} ${plural(streak, "день", "дня", "дней")}` : ""}${fav}</span></div>
+    <div class="heat-scroll" id="heatScroll"><div class="heat"><div class="heat-corner"></div>
+      <div class="heat-months" style="${cols}">${heads}</div>
+      <div class="heat-days" style="grid-template-rows:repeat(${slots.length},14px)">${slots.map(([, l]) => `<span>${l}</span>`).join("")}</div>
+      <div class="heat-cells" style="${cols};grid-template-rows:repeat(${slots.length},14px)">${cells}</div>
+    </div></div>
     <div class="heat-foot"><p class="heat-day" id="heatDay"></p><div class="heat-legend"><i class="l0"></i>0 <i class="l1"></i>1 <i class="l2"></i>2 <i class="l3"></i>3–4 <i class="l4"></i>5+</div></div>`;
-  showHeatDay(heatSel && heatSel >= yearIso ? heatSel : isoOf(today));
+  const sc = $("heatScroll"); sc.scrollLeft = sc.scrollWidth; // today on the right
+  const keep = heatSel && heatSel.day >= startIso ? heatSel : { day: isoOf(today), slot: null };
+  showHeatDay(keep.day, keep.slot);
 }
-// tap a square: the line under the map tells the date, how many applications and where
+// tap a square: the line under the map tells the day, the part of the day, how many applications and where
 let heatSel = null;
-function showHeatDay(iso) {
-  heatSel = iso;
-  const jobs = state.jobs.filter(j => isApplied(j) && (j.applied_at || "").slice(0, 10) === iso);
+function showHeatDay(iso, slot) {
+  heatSel = { day: iso, slot };
+  const apps = applications().filter(a => a.day === iso && (!slot || a.slot === slot));
   const d = new Date(iso + "T00:00:00").toLocaleDateString("ru-RU", { weekday: "short", day: "numeric", month: "long" });
-  $("heatDay").innerHTML = `<b>${esc(d)}</b> · ${jobs.length ? jobs.length + " " + plural(jobs.length, "отклик", "отклика", "откликов") + ": " + esc(jobs.map(j => j.company).join(", ")) : "без откликов"}`;
+  const part = slot ? ", " + SLOTS.find(([k]) => k === slot)[2] : "";
+  $("heatDay").innerHTML = `<b>${esc(d)}${esc(part)}</b> · ${apps.length ? apps.length + " " + plural(apps.length, "отклик", "отклика", "откликов") + ": " + esc(apps.map(a => a.job.company).join(", ")) : "без откликов"}`;
   $("activity").querySelectorAll("i.sel").forEach(i => i.classList.remove("sel"));
-  $("activity").querySelector(`i[data-d="${iso}"]`)?.classList.add("sel");
+  if (slot) $("activity").querySelector(`i[data-d="${iso}"][data-s="${slot}"]`)?.classList.add("sel");
 }
-$("activity").addEventListener("click", e => { const c = e.target.closest("i[data-d]"); if (c) showHeatDay(c.dataset.d); });
-$("activity").addEventListener("mouseover", e => { const c = e.target.closest("i[data-d]"); if (c) showHeatDay(c.dataset.d); });
+const pickHeat = e => { const c = e.target.closest("i[data-d]"); if (c) showHeatDay(c.dataset.d, c.dataset.s); };
+$("activity").addEventListener("click", pickHeat);
+$("activity").addEventListener("mouseover", pickHeat);
 
 function plural(n, one, few, many) { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many; }
 
