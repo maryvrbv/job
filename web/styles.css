@@ -307,5 +307,13 @@ i.l0{background:var(--sunken)} i.l1{background:#DDD0FB} i.l2{background:#B79BF5}
 .goal-strip .dentry{flex:0 0 240px;scroll-snap-align:start;padding:12px 6px 12px 12px}
 .goal-strip .dentry p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:14px;line-height:1.35}
 .goal-strip .dentry.editing{flex:0 0 min(100%,420px);padding:12px}
-.goal-strip .dentry.editing .row{flex-wrap:wrap}
 @media (max-width:860px){.goal-strip{margin-inline:-10px;padding-inline:10px;scroll-padding-inline:10px}.goal-strip .dentry{flex-basis:220px}}
+
+/* Edit mode: date on its own line, then delete (icon) · cancel · save, all the same height */
+.dentry.editing .dday-input{align-self:flex-start}
+.edit-actions{display:grid;grid-template-columns:44px 1fr 1fr;gap:8px}
+.edit-actions .btn{justify-content:center;min-height:44px}
+.edit-actions .btn:not(.primary){background:var(--sunken)}
+.edit-actions .btn:not(.primary):hover{background:var(--line)}
+.edit-actions .del-btn{padding:0;color:var(--bad);background:var(--bad-soft)!important}
+.edit-actions .del-btn:hover{background:#F7D2CD!important}
