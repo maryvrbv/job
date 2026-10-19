@@ -116,7 +116,10 @@ if __name__ == "__main__":
     elif cmd == "details" and args:
         out = []
         for a in args:
-            out.append(details(a.removeprefix("li:")))
+            try:
+                out.append(details(a.removeprefix("li:")))
+            except Exception as e:  # one bad page should not lose the rest
+                out.append({"id": "li:" + a.removeprefix("li:"), "error": str(e)})
             time.sleep(1.5)
     else:
         sys.exit(__doc__)
