@@ -23,6 +23,7 @@ const CACHE_KEY = "jobs-cache-v1";
 
 const state = { tab: "today", jobs: [], sel: {}, loading: true, desc: {}, loadedAt: null };
 try { const t = localStorage.getItem("tab"); if (TABS.some(s => s.key === t)) state.tab = t; } catch (e) {}
+try { const s = localStorage.getItem("sort"); if (s && document.querySelector(`#sort option[value="${s}"]`)) document.getElementById("sort").value = s; } catch (e) {}
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -165,9 +166,11 @@ function filtered() {
   const byDate = (a, b) => (b.posted_at || "").localeCompare(a.posted_at || "");
   const fitRank = f => ({ "Высокий": 0, "Средний": 1 }[f] ?? 2);
   const byApplied = (a, b) => (b.applied_at || "").localeCompare(a.applied_at || "") || byDate(a, b);
-  const cmp = state.tab === "today" ? byDate : tabOf(state.tab).applied ? byApplied : {
+  const cmp = {
     fit: (a, b) => fitRank(a.fit) - fitRank(b.fit) || byDate(a, b),
     date: byDate,
+    "date-old": (a, b) => -byDate(a, b),
+    applied: byApplied,
     few: (a, b) => num(a.applicants) - num(b.applicants),
     company: (a, b) => a.company.localeCompare(b.company, "ru"),
   }[sort];
@@ -208,7 +211,6 @@ function renderTabs() {
   }).join("");
   $("intro").textContent = `Высокое совпадение, опубликованы за последние ${FRESH_DAYS} дня, ты ещё не откликалась. Чем раньше отклик, тем выше он в списке у рекрутера.`;
   $("intro").hidden = state.tab !== "today";
-  $("sort").disabled = state.tab === "today" || tabOf(state.tab).applied;
 }
 
 function renderList(rows) {
@@ -422,6 +424,7 @@ $("logout").onclick = async () => { await sb.auth.signOut(); try { localStorage.
 $("tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; state.tab = b.dataset.k; try { localStorage.setItem("tab", state.tab); } catch (x) {} render(); };
 $("list").onclick = e => { const b = e.target.closest(".item"); if (!b) return; state.sel[state.tab] = b.dataset.id; render(); if (matchMedia("(max-width:860px)").matches) $("detail").scrollIntoView({ behavior: "smooth", block: "start" }); };
 ["q", "fFit", "fFmt", "fStatus", "sort"].forEach(id => $(id).addEventListener("input", render));
+$("sort").addEventListener("change", () => { try { localStorage.setItem("sort", $("sort").value); } catch (e) {} });
 $("reload").onclick = load;
 $("importFile").onchange = e => { const f = e.target.files[0]; if (f) importXlsx(f).catch(err => showBanner("Импорт не удался: " + err.message)); e.target.value = ""; };
 sb.auth.onAuthStateChange((event) => { if (event === "SIGNED_IN" || event === "SIGNED_OUT") boot(); });
