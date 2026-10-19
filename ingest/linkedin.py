@@ -28,7 +28,7 @@ KEEP = re.compile(r"product design|\bux\b|\bui\b|ui/ux|ux/ui|uiux|user experienc
 DROP = re.compile(r"graphic|interior|landscape|architect|engineer|developer|fashion|apparel|womenswear|couture|motion|video|"
                   r"3d|packaging|wayfinding|facade|façade|mep\b|bim\b|structural|automotive|industrial designer|"
                   r"brand designer|creative designer|multimedia|content|marketing|nationals only|uae national|emirati|"
-                  r"intern\b|trainee|graduate|junior|front-?end|full.?stack", re.I)
+                  r"intern\b|trainee|graduate|junior|front-?end|full.?stack|expert opportunity", re.I)
 MAX_PER_QUERY = 100
 
 
