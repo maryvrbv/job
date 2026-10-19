@@ -225,8 +225,7 @@ function renderActivity() {
   for (const j of state.jobs) if (isApplied(j) && j.applied_at) per[j.applied_at.slice(0, 10)] = (per[j.applied_at.slice(0, 10)] || 0) + 1;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const start = new Date(today); start.setDate(start.getDate() - 52 * 7 - ((today.getDay() + 6) % 7)); // a Monday a year ago
-  const max = Math.max(1, ...Object.values(per));
-  const level = n => !n ? 0 : Math.min(4, Math.ceil(n / max * 4));
+  const level = n => n >= 5 ? 4 : n >= 3 ? 3 : n; // fixed steps: 1, 2, 3–4, 5+ applications a day
   let cells = "", months = "", lastMonth = -1, week = 0;
   for (const d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
     const dow = (d.getDay() + 6) % 7, iso = isoOf(d), n = per[iso] || 0;
@@ -234,7 +233,7 @@ function renderActivity() {
       week++;
       if (d.getMonth() !== lastMonth) { months += `<span style="grid-column:${week}">${RU_MONTHS[d.getMonth()]}</span>`; lastMonth = d.getMonth(); }
     }
-    cells += `<i class="l${level(n)}" style="grid-row:${dow + 1};grid-column:${week}" title="${ruDate(iso)}: ${n ? n + " " + plural(n, "отклик", "отклика", "откликов") : "без откликов"}"></i>`;
+    cells += `<i class="l${level(n)}" style="grid-row:${dow + 1};grid-column:${week}" data-d="${iso}"></i>`;
   }
   // streak: days in a row with applications, counting from today (or yesterday, if today is still empty)
   let streak = 0; const c = new Date(today);
@@ -244,8 +243,22 @@ function renderActivity() {
   const total = inYear.reduce((a, [, n]) => a + n, 0);
   A.innerHTML = `<div class="head"><span>Активность: отклики по дням</span><span>${total} за год · ${inYear.length} ${plural(inYear.length, "день", "дня", "дней")} с откликами${streak ? ` · серия ${streak} ${plural(streak, "день", "дня", "дней")} подряд` : ""}</span></div>
     <div class="heat-scroll" id="heatScroll"><div class="heat"><div class="heat-months" style="grid-template-columns:repeat(${week},12px)">${months}</div><div class="heat-days"><span style="grid-row:1">пн</span><span style="grid-row:3">ср</span><span style="grid-row:5">пт</span></div><div class="heat-cells" style="grid-template-columns:repeat(${week},12px)">${cells}</div></div></div>
-    <div class="heat-legend">меньше <i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i> больше</div>`;
+    <div class="heat-foot"><p class="heat-day" id="heatDay"></p><div class="heat-legend"><i class="l0"></i>0 <i class="l1"></i>1 <i class="l2"></i>2 <i class="l3"></i>3–4 <i class="l4"></i>5+</div></div>`;
+  showHeatDay(heatSel && heatSel >= yearIso ? heatSel : isoOf(today));
 }
+// tap a square: the line under the map tells the date, how many applications and where
+let heatSel = null;
+function showHeatDay(iso) {
+  heatSel = iso;
+  const jobs = state.jobs.filter(j => isApplied(j) && (j.applied_at || "").slice(0, 10) === iso);
+  const d = new Date(iso + "T00:00:00").toLocaleDateString("ru-RU", { weekday: "short", day: "numeric", month: "long" });
+  $("heatDay").innerHTML = `<b>${esc(d)}</b> · ${jobs.length ? jobs.length + " " + plural(jobs.length, "отклик", "отклика", "откликов") + ": " + esc(jobs.map(j => j.company).join(", ")) : "без откликов"}`;
+  $("activity").querySelectorAll("i.sel").forEach(i => i.classList.remove("sel"));
+  $("activity").querySelector(`i[data-d="${iso}"]`)?.classList.add("sel");
+}
+$("activity").addEventListener("click", e => { const c = e.target.closest("i[data-d]"); if (c) showHeatDay(c.dataset.d); });
+$("activity").addEventListener("mouseover", e => { const c = e.target.closest("i[data-d]"); if (c) showHeatDay(c.dataset.d); });
+
 function plural(n, one, few, many) { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many; }
 
 function renderTabs() {
