@@ -292,11 +292,20 @@ i.l0{background:var(--sunken)} i.l1{background:#DDD0FB} i.l2{background:#B79BF5}
 .prio .p-mid input:checked + span{background:var(--warn-soft);color:var(--warn)}
 .prio .p-low input:checked + span{background:var(--surface);color:var(--fg)}
 .dbody{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
-.gtag{font-size:12px;font-weight:500;border-radius:8px;padding:2px 8px;background:var(--sunken);color:var(--muted)}
+.gtag{white-space:nowrap;font-size:12px;font-weight:500;border-radius:8px;padding:2px 8px;background:var(--sunken);color:var(--muted)}
 .gtag.p-high{background:var(--hot-soft);color:var(--hot)}
 .gtag.p-mid{background:var(--warn-soft);color:var(--warn)}
 .gtag.done{background:var(--lime-soft);color:var(--good)}
 .goal-tick{flex:none;width:22px;height:22px;margin-top:1px;border-radius:50%;border:2px solid var(--accent);background:none;cursor:pointer;padding:0}
 .goal-tick:hover{background:var(--accent-soft)}
-#diaryGoals:empty{display:none}
-#diaryGoals > .lbl{margin:0 4px}
+
+/* Open goals: a horizontal strip of compact cards that stays in sight without taking the screen */
+.goals{display:flex;flex-direction:column;gap:6px;min-width:0}
+.goals > .lbl{margin:0 4px}
+.goal-strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;padding-bottom:2px}
+.goal-strip::-webkit-scrollbar{display:none}
+.goal-strip .dentry{flex:0 0 240px;scroll-snap-align:start;padding:12px 6px 12px 12px}
+.goal-strip .dentry p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:14px;line-height:1.35}
+.goal-strip .dentry.editing{flex:0 0 min(100%,420px);padding:12px}
+.goal-strip .dentry.editing .row{flex-wrap:wrap}
+@media (max-width:860px){.goal-strip{margin-inline:-10px;padding-inline:10px;scroll-padding-inline:10px}.goal-strip .dentry{flex-basis:220px}}
