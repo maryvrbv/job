@@ -8,6 +8,9 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#4DB288">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Отклики">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
@@ -47,9 +50,23 @@
       <button class="btn" id="reload" type="button">Обновить</button>
       <label class="btn" for="importFile" title="Перенести данные из Google Таблицы (.xlsx)">Импорт из таблицы</label>
       <input type="file" id="importFile" accept=".xlsx" hidden>
+      <button class="btn" id="notifyBtn" type="button" aria-expanded="false" aria-controls="notifyPanel">Уведомления</button>
       <button class="btn" id="logout" type="button">Выйти</button>
     </div>
   </header>
+  <section class="notify" id="notifyPanel" hidden>
+    <div>
+      <p class="lbl">Уведомления</p>
+      <p class="notify-text" id="notifyStatus">Проверяю…</p>
+      <p class="note">Каждый день в 12:00 и 20:00 по Москве вакансии обновляются, и если появились новые с высоким или средним совпадением, придёт уведомление. Если новых нет, уведомления не будет.</p>
+      <p class="note" id="notifyHint"></p>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="notifyToggle" type="button">Включить на этом устройстве</button>
+      <button class="btn" id="notifyTest" type="button" hidden>Прислать тестовое</button>
+      <button class="btn" id="installBtn" type="button" hidden>Установить приложение</button>
+    </div>
+  </section>
 
   <div id="banner" hidden></div>
 

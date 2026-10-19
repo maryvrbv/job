@@ -453,4 +453,72 @@ sb.auth.onAuthStateChange((event) => {
   if (event === "PASSWORD_RECOVERY") recovering = true;
   if (["SIGNED_IN", "SIGNED_OUT", "PASSWORD_RECOVERY"].includes(event)) boot();
 });
+
+// ---------- install as an app & push notifications ----------
+// The notify function (Supabase) pushes at 12:00 and 20:00 MSK when new relevant vacancies appeared.
+
+const swReady = "serviceWorker" in navigator
+  ? navigator.serviceWorker.register("sw.js").then(() => navigator.serviceWorker.ready).catch(() => null)
+  : Promise.resolve(null);
+let installPrompt = null;
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); installPrompt = e; if (!$("notifyPanel").hidden) renderNotify(); });
+const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const pushSupported = () => "PushManager" in window && "Notification" in window && "serviceWorker" in navigator;
+function urlB64(s) { const b = atob((s + "=".repeat((4 - s.length % 4) % 4)).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(b, c => c.charCodeAt(0)); }
+async function currentSub() { const reg = await swReady; return reg ? reg.pushManager.getSubscription() : null; }
+
+async function renderNotify() {
+  const st = $("notifyStatus"), hint = $("notifyHint"), tg = $("notifyToggle"), test = $("notifyTest");
+  $("installBtn").hidden = !installPrompt || standalone();
+  hint.textContent = isIOS && !standalone()
+    ? "На iPhone уведомления работают только в установленном приложении: Safari → «Поделиться» → «На экран „Домой“», затем открой «Отклики» с иконки и включи уведомления там."
+    : "";
+  if (!pushSupported()) {
+    st.textContent = isIOS && !standalone() ? "Сначала установи приложение на экран «Домой»." : "Этот браузер не поддерживает уведомления.";
+    tg.hidden = test.hidden = true; return;
+  }
+  if (Notification.permission === "denied") {
+    st.textContent = "Уведомления запрещены в настройках браузера.";
+    hint.textContent = "Разреши уведомления для этого сайта в настройках браузера или телефона и вернись сюда.";
+    tg.hidden = test.hidden = true; return;
+  }
+  const sub = await currentSub();
+  st.textContent = sub ? "Включены на этом устройстве." : "Выключены на этом устройстве.";
+  tg.hidden = false;
+  tg.textContent = sub ? "Выключить на этом устройстве" : "Включить на этом устройстве";
+  tg.className = sub ? "btn" : "btn primary";
+  test.hidden = !sub;
+}
+
+async function toggleNotify() {
+  const sub = await currentSub();
+  if (sub) {
+    await sb.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+    await sub.unsubscribe(); toast("Уведомления выключены"); return renderNotify();
+  }
+  if (await Notification.requestPermission() !== "granted") return renderNotify();
+  const reg = await swReady;
+  const s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64(window.JOB_CONFIG.vapidPublicKey) });
+  const { error } = await sb.from("push_subscriptions").upsert({ endpoint: s.endpoint, subscription: s.toJSON() });
+  if (error) { await s.unsubscribe(); showBanner("Не сохранилась подписка на уведомления: " + error.message); }
+  else toast("Уведомления включены");
+  renderNotify();
+}
+
+$("notifyBtn").onclick = () => {
+  const p = $("notifyPanel"); p.hidden = !p.hidden;
+  $("notifyBtn").setAttribute("aria-expanded", String(!p.hidden));
+  if (!p.hidden) renderNotify();
+};
+$("notifyToggle").onclick = () => toggleNotify().catch(e => { showBanner("Не получилось включить уведомления: " + e.message); renderNotify(); });
+$("notifyTest").onclick = async () => {
+  const { data, error } = await sb.functions.invoke("notify", { body: { test: true } });
+  toast(error ? "Не отправилось: " + error.message : data?.sent ? "Отправлено, сейчас придёт" : "Отправить не удалось");
+};
+$("installBtn").onclick = async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; renderNotify();
+};
+
 boot();

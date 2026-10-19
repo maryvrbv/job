@@ -6,4 +6,6 @@ window.JOB_CONFIG = {
   // true: the «Написать письмо» button calls the Supabase function (needs an Anthropic API key).
   // false: the app copies a ready prompt for your Claude chat, no API costs.
   letterFunction: false,
+  // Web Push public key (the private half lives only in Supabase, table app_secrets)
+  vapidPublicKey: "BEtvtpen4EcdiWVCOIcupBVit1vBBZYY8X5VHrRlxZR3fyDupPzL9Dww70wASa0K8CtyoIYNaYeiYSXI9DAbY5A",
 };
