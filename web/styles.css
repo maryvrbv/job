@@ -337,3 +337,12 @@ i.l0{background:var(--sunken)} i.l1{background:#C9B5F8} i.l2{background:#A783F3}
 .check input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .check{gap:10px}
 @media (prefers-reduced-motion:reduce){.check input,.check input::after{transition:none}}
+
+/* Activity details under the map: lilac line for applications, pink lines for diary entries */
+.heat-foot{align-items:flex-start}
+.heat-day{display:flex;flex-direction:column;gap:4px;flex:1 1 260px}
+.heat-day span{padding-left:14px;position:relative;color:var(--fg);overflow-wrap:anywhere}
+.heat-day span::before{content:"";position:absolute;left:0;top:.45em;width:8px;height:8px;border-radius:2px}
+.heat-day .hd-app::before{background:#A783F3}
+.heat-day .hd-note::before{background:#F9A8D4}
+.heat-legend{flex-wrap:wrap}

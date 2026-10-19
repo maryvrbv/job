@@ -239,16 +239,32 @@ function applications() {
     return { job: j, day: t ? isoOf(t) : j.applied_at.slice(0, 10), slot: t ? slotOf(t.getHours()) : "unknown" };
   });
 }
+// diary entries (not the open goals) in the same day × part-of-day grid; the time is known only when the entry
+// was written on its own day, imported and back-dated entries go to «Без времени»
+function diaryActs() {
+  return (diary.rows || []).filter(r => !isOpenGoal(r)).map(r => {
+    const t = r.created_at ? new Date(r.created_at) : null;
+    return { row: r, day: r.day, slot: t && isoOf(t) === r.day ? slotOf(t.getHours()) : "unknown" };
+  });
+}
+const APP_SHADES = ["", "#C9B5F8", "#A783F3", "#8B55EE", "#5B21B6"];
+const DIARY_SHADES = ["", "#FBCFE8", "#F9A8D4", "#F472B6", "#DB2777"];
 function renderActivity() {
   if (!applyTimes) loadApplyTimes();
-  const A = $("activity"), apps = applications();
+  if (!diary.rows) loadDiary();
+  const A = $("activity"), apps = applications(), notes = diaryActs();
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const start = new Date(today); start.setDate(start.getDate() - HEAT_DAYS + 1);
   const startIso = isoOf(start), recent = apps.filter(a => a.day >= startIso);
-  const slots = SLOTS.filter(([k]) => k !== "unknown" || recent.some(a => a.slot === "unknown"));
-  const count = {};
+  const recentNotes = notes.filter(a => a.day >= startIso && a.day <= isoOf(today));
+  const slots = SLOTS.filter(([k]) => k !== "unknown" || recent.some(a => a.slot === "unknown") || recentNotes.some(a => a.slot === "unknown"));
+  const count = {}, noteCount = {};
   for (const a of recent) count[a.day + "|" + a.slot] = (count[a.day + "|" + a.slot] || 0) + 1;
-  const level = n => n >= 5 ? 4 : n >= 3 ? 3 : n; // fixed steps: 1, 2, 3–4, 5+ applications
+  for (const a of recentNotes) noteCount[a.day + "|" + a.slot] = (noteCount[a.day + "|" + a.slot] || 0) + 1;
+  const level = n => n >= 5 ? 4 : n >= 3 ? 3 : n; // fixed steps: 1, 2, 3–4, 5+
+  // applications are lilac, diary entries pink; a cell with both is split along the diagonal
+  const paint = (n, m) => !n && !m ? "" : !m ? `background:${APP_SHADES[level(n)]}` : !n ? `background:${DIARY_SHADES[level(m)]}`
+    : `background:linear-gradient(135deg,${APP_SHADES[level(n)]} 50%,${DIARY_SHADES[level(m)]} 50%)`;
   let cells = "", heads = "", col = 0;
   for (const d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
     col++;
@@ -256,7 +272,7 @@ function renderActivity() {
     if (iso === isoOf(today)) heads += `<span class="t" style="grid-column:${col}">${d.getDate()}</span>`;
     else if (d.getDate() === 1 || col === 1) heads += `<span class="m" style="grid-column:${col}">${RU_MONTHS[d.getMonth()]}</span>`;
     else if (d.getDay() === 1 && col < HEAT_DAYS - 2) heads += `<span style="grid-column:${col}">${d.getDate()}</span>`;
-    slots.forEach(([k], r) => { const n = count[iso + "|" + k] || 0; cells += `<i class="l${level(n)}" style="grid-row:${r + 1};grid-column:${col}" data-d="${iso}" data-s="${k}"></i>`; });
+    slots.forEach(([k], r) => { const key = iso + "|" + k; cells += `<i style="grid-row:${r + 1};grid-column:${col};${paint(count[key] || 0, noteCount[key] || 0)}" data-d="${iso}" data-s="${k}"></i>`; });
   }
   // streak: days in a row with applications, counting from today (or yesterday, if today is still empty)
   const days = new Set(apps.map(a => a.day));
@@ -267,13 +283,13 @@ function renderActivity() {
   const bySlot = SLOTS.slice(0, 4).map(([k, , w]) => [w, recent.filter(a => a.slot === k).length]).sort((a, b) => b[1] - a[1]);
   const fav = bySlot[0][1] ? ` · чаще всего ${bySlot[0][0]}` : "";
   const cols = `grid-template-columns:repeat(${col},14px)`;
-  A.innerHTML = `<div class="head"><span>Активность: когда я откликаюсь</span><span>${recent.length} за ${HEAT_DAYS} дней · ${recentDays} ${plural(recentDays, "день", "дня", "дней")} с откликами${streak ? ` · серия ${streak} ${plural(streak, "день", "дня", "дней")}` : ""}${fav}</span></div>
+  A.innerHTML = `<div class="head"><span>Активность: отклики и дневник</span><span>${recent.length} ${plural(recent.length, "отклик", "отклика", "откликов")} и ${recentNotes.length} ${plural(recentNotes.length, "запись", "записи", "записей")} в дневнике за ${HEAT_DAYS} дней · ${recentDays} ${plural(recentDays, "день", "дня", "дней")} с откликами${streak ? ` · серия ${streak} ${plural(streak, "день", "дня", "дней")}` : ""}${fav}</span></div>
     <div class="heat-scroll" id="heatScroll"><div class="heat"><div class="heat-corner"></div>
       <div class="heat-months" style="${cols}">${heads}</div>
       <div class="heat-days" style="grid-template-rows:repeat(${slots.length},14px)">${slots.map(([, l]) => `<span>${l}</span>`).join("")}</div>
       <div class="heat-cells" style="${cols};grid-template-rows:repeat(${slots.length},14px)">${cells}</div>
     </div></div>
-    <div class="heat-foot"><p class="heat-day" id="heatDay"></p><div class="heat-legend"><i class="l0"></i>0 <i class="l1"></i>1 <i class="l2"></i>2 <i class="l3"></i>3–4 <i class="l4"></i>5+</div></div>`;
+    <div class="heat-foot"><p class="heat-day" id="heatDay"></p><div class="heat-legend"><i style="background:${APP_SHADES[2]}"></i>отклики <i style="background:${DIARY_SHADES[2]}"></i>дневник <i style="background:linear-gradient(135deg,${APP_SHADES[2]} 50%,${DIARY_SHADES[2]} 50%)"></i>оба</div></div>`;
   const sc = $("heatScroll"); sc.scrollLeft = sc.scrollWidth; // today on the right
   const keep = heatSel && heatSel.day >= startIso ? heatSel : { day: isoOf(today), slot: null };
   showHeatDay(keep.day, keep.slot);
@@ -282,10 +298,14 @@ function renderActivity() {
 let heatSel = null;
 function showHeatDay(iso, slot) {
   heatSel = { day: iso, slot };
-  const apps = applications().filter(a => a.day === iso && (!slot || a.slot === slot));
+  const here = a => a.day === iso && (!slot || a.slot === slot);
+  const apps = applications().filter(here), notes = diaryActs().filter(here);
   const d = new Date(iso + "T00:00:00").toLocaleDateString("ru-RU", { weekday: "short", day: "numeric", month: "long" });
   const part = slot ? ", " + SLOTS.find(([k]) => k === slot)[2] : "";
-  $("heatDay").innerHTML = `<b>${esc(d)}${esc(part)}</b> · ${apps.length ? apps.length + " " + plural(apps.length, "отклик", "отклика", "откликов") + ": " + esc(apps.map(a => a.job.company).join(", ")) : "без откликов"}`;
+  const short = t => t.length > 90 ? t.slice(0, 88).trimEnd() + "…" : t;
+  $("heatDay").innerHTML = `<b>${esc(d)}${esc(part)}</b>${!apps.length && !notes.length ? " · ничего не отмечено" : ""}`
+    + (apps.length ? `<span class="hd-app">${apps.length} ${plural(apps.length, "отклик", "отклика", "откликов")}: ${esc(apps.map(a => a.job.company).join(", "))}</span>` : "")
+    + notes.map(a => `<span class="hd-note">${a.row.is_goal ? "✓ " : ""}${esc(short(a.row.text.replace(/\s+/g, " ")))}</span>`).join("");
   $("activity").querySelectorAll("i.sel").forEach(i => i.classList.remove("sel"));
   if (slot) $("activity").querySelector(`i[data-d="${iso}"][data-s="${slot}"]`)?.classList.add("sel");
 }
@@ -475,12 +495,13 @@ const diary = { rows: null, editing: null };
 const PRIORITIES = [["high", "Горит"], ["mid", "Важно"], ["low", "Не горит"]];
 const PRIO_RANK = { high: 0, mid: 1, low: 2 };
 const prioLabel = p => (PRIORITIES.find(([k]) => k === p) || PRIORITIES[1])[1];
-const DIARY_COLS = "id,day,text,is_goal,priority,done";
+const DIARY_COLS = "id,day,text,is_goal,priority,done,created_at";
 async function loadDiary() {
   diary.rows = diary.rows || [];
   const { data, error } = await sb.from("diary").select(DIARY_COLS).order("day", { ascending: false }).order("id", { ascending: false });
   if (error) { showBanner("Не получилось загрузить дневник: " + error.message); return; }
   diary.rows = data; renderDiary();
+  if (state.view === "dash") renderActivity();
 }
 const byNewest = (a, b) => b.day.localeCompare(a.day) || b.id - a.id;
 const isOpenGoal = r => r.is_goal && !r.done;
