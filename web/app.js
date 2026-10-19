@@ -421,7 +421,8 @@ function render() {
 }
 
 // ---------- «Дорогой дневник»: what I did, day by day, newest first; the form for a new entry is on top ----------
-// An entry can be a goal with a priority: open goals sit in their own block, a ticked goal moves to the log as done today.
+// An entry can be a goal with a priority: open goals sit in a horizontal strip on top, a ticked goal moves to the log as done today
+// (unticking «Выполнена» in edit mode brings it back).
 
 const diary = { rows: null, editing: null };
 const PRIORITIES = [["high", "Высокий"], ["mid", "Средний"], ["low", "Низкий"]];
@@ -445,11 +446,12 @@ function entryHtml(r) {
   if (diary.editing === r.id) return `<div class="dentry editing" data-id="${r.id}">
     <textarea class="dedit">${esc(r.text)}</textarea>
     <label class="check"><input type="checkbox" class="dgoal" ${r.is_goal ? "checked" : ""}> Это цель</label>
-    <div class="goal-fields" ${r.is_goal ? "" : "hidden"}><span class="lbl">Приоритет</span>${prioRadios("prio-" + r.id, r.priority || "mid")}</div>
+    <div class="goal-fields" ${r.is_goal ? "" : "hidden"}><span class="lbl">Приоритет</span>${prioRadios("prio-" + r.id, r.priority || "mid")}
+      <label class="check"><input type="checkbox" class="ddone" ${r.done ? "checked" : ""}> Выполнена</label></div>
     <div class="row"><input type="date" class="dday-input" value="${esc(r.day)}"><button class="btn primary" type="button" data-a="save">Сохранить</button><button class="btn" type="button" data-a="cancel">Отмена</button><button class="linkbtn danger" type="button" data-a="del">Удалить</button></div>
   </div>`;
   const tick = isOpenGoal(r) ? `<button class="goal-tick" type="button" data-a="done" aria-label="Цель выполнена" title="Отметить выполненной"></button>` : "";
-  const tag = r.is_goal ? (r.done ? `<span class="gtag done">✓ Цель выполнена</span>` : `<span class="gtag p-${r.priority || "mid"}">${prioLabel(r.priority)} приоритет</span>`) : "";
+  const tag = r.is_goal ? (r.done ? `<span class="gtag done">✓ Цель выполнена</span>` : `<span class="gtag p-${r.priority || "mid"}" title="Приоритет">${prioLabel(r.priority)}</span>`) : "";
   return `<div class="dentry ${isOpenGoal(r) ? "goal" : ""}" data-id="${r.id}">${tick}<div class="dbody">${tag}<p>${esc(r.text)}</p></div><button class="icon-edit" type="button" data-a="edit" aria-label="Изменить запись" title="Изменить">${PENCIL}</button></div>`;
 }
 
@@ -462,7 +464,9 @@ function renderDiary() {
   $("diaryStats").textContent = log.length
     ? `${log.length} ${plural(log.length, "запись", "записи", "записей")} за ${days.length} ${plural(days.length, "день", "дня", "дней")}, с ${longDate(log[log.length - 1].day).replace(/^\S+ /, "")}${doneGoals ? `, ${doneGoals} ${plural(doneGoals, "цель достигнута", "цели достигнуты", "целей достигнуто")}` : ""}. Каждая строчка — шаг вперёд.`
     : "Записывай сюда всё, что сделала для поиска работы: отклики, портфолио, созвоны, новые навыки.";
-  $("diaryGoals").innerHTML = goals.length ? `<p class="lbl">Мои цели · ${goals.length}</p>` + goals.map(entryHtml).join("") : "";
+  $("goalsBox").hidden = !goals.length;
+  $("goalsLbl").textContent = `Мои цели · ${goals.length}`;
+  $("diaryGoals").innerHTML = goals.map(entryHtml).join("");
   $("diaryList").innerHTML = days.map(d => `<div class="dday"><p class="lbl">${esc(longDate(d))}</p>${log.filter(r => r.day === d).map(entryHtml).join("")}</div>`).join("");
 }
 
@@ -502,7 +506,7 @@ async function diaryAction(e) {
     const text = box.querySelector(".dedit").value.trim(); if (!text) return;
     const is_goal = box.querySelector(".dgoal").checked;
     patch = { text, day: box.querySelector(".dday-input").value || row.day, is_goal,
-      priority: is_goal ? (box.querySelector(`input[name=prio-${id}]:checked`)?.value || "mid") : null, done: is_goal ? row.done : false };
+      priority: is_goal ? (box.querySelector(`input[name=prio-${id}]:checked`)?.value || "mid") : null, done: is_goal && box.querySelector(".ddone").checked };
   }
   const { error } = await sb.from("diary").update(patch).eq("id", id);
   if (error) { showBanner("Не сохранилось: " + error.message); return; }
