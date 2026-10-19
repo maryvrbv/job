@@ -8,7 +8,6 @@ create table if not exists public.push_subscriptions (
   created_at   timestamptz not null default now()
 );
 alter table public.push_subscriptions enable row level security;
-drop policy if exists "owner manages push subscriptions" on public.push_subscriptions;
 create policy "owner manages push subscriptions" on public.push_subscriptions
   for all to authenticated using (true) with check (true);
 
@@ -21,7 +20,6 @@ create table if not exists public.notify_log (
   devices int not null default 0
 );
 alter table public.notify_log enable row level security;
-drop policy if exists "owner reads notify log" on public.notify_log;
 create policy "owner reads notify log" on public.notify_log for select to authenticated using (true);
 
 -- VAPID keys and the cron secret. No policies: only the service role (the function) and postgres read it.
@@ -29,6 +27,7 @@ create policy "owner reads notify log" on public.notify_log for select to authen
 create table if not exists public.app_secrets (name text primary key, value text not null);
 alter table public.app_secrets enable row level security;
 
+-- 09:00 and 17:00 UTC = 12:00 and 20:00 Moscow
 select cron.schedule('notify-vacancies', '0 9,17 * * *', $$
   select net.http_post(
     url := 'https://iiaqpkynritnvcwjhooh.supabase.co/functions/v1/notify',
