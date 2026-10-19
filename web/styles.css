@@ -302,12 +302,12 @@ i.l0{background:var(--sunken)} i.l1{background:#DDD0FB} i.l2{background:#B79BF5}
 /* Open goals: a horizontal strip of compact cards that stays in sight without taking the screen */
 .goals{display:flex;flex-direction:column;gap:6px;min-width:0}
 .goals > .lbl{margin:0 4px}
-.goal-strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;padding-bottom:2px}
+.goal-strip{display:flex;align-items:stretch;gap:8px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;padding-bottom:2px}
 .goal-strip::-webkit-scrollbar{display:none}
 .goal-strip .dentry{flex:0 0 240px;scroll-snap-align:start;padding:12px 6px 12px 12px}
-.goal-strip .dentry p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:14px;line-height:1.35}
+.goal-strip .dentry p{font-size:14px;line-height:1.35}
 .goal-strip .dentry.editing{flex:0 0 min(100%,420px);padding:12px}
-@media (max-width:860px){.goal-strip{margin-inline:-10px;padding-inline:10px;scroll-padding-inline:10px}.goal-strip .dentry{flex-basis:220px}}
+@media (max-width:860px){.goal-strip{margin-inline:-10px;padding-inline:10px;scroll-padding-inline:10px}.goal-strip .dentry{flex-basis:240px}}
 
 /* Edit mode: date on its own line, then delete (icon) · cancel · save, all the same height */
 .dentry.editing .dday-input{align-self:flex-start}
