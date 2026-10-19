@@ -3,6 +3,7 @@
 The official API answers 403 to anonymous vacancy search, but the site itself is open.
 
     python3 ingest/hh.py search            # remote vacancies for the queries below, newest first, as JSON
+                                           # (ruble ranges topping out under MIN_RUB are dropped)
     python3 ingest/hh.py details 138221309 # description, salary, experience, format, closed flag, as JSON
 
 Prints JSON to stdout; writing to Supabase stays with Claude (MCP), so no keys are needed here.
@@ -18,6 +19,9 @@ import urllib.request
 QUERIES = ["продуктовый дизайнер", "product designer", "UX/UI дизайнер", "UX дизайнер"]
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
 MAX_PAGES = 3
+# Masha's floor in Russia: a vacancy whose whole range in rubles is below it is skipped and never stored
+MIN_RUB = 270_000
+RUB_PER = {"RUR": 1, "USD": 80, "EUR": 90}  # rough on purpose: only clearly lower ranges should drop
 EXPERIENCE = {"noExperience": "нет", "between1And3": "1–3", "between3And6": "3–6", "moreThan6": "6+"}
 FORMATS = {"REMOTE": "удалёнка", "HYBRID": "гибрид", "ON_SITE": "офис", "FIELD_WORK": "разъездной"}
 
@@ -44,6 +48,15 @@ def salary(c):
     return (f"от {k(lo)} {cur}" if lo else f"до {k(hi)} {cur}") + tax if (lo or hi) else ""
 
 
+def below_floor(c):
+    """True only when the range has a known top under MIN_RUB in rubles; "от X" alone or no salary passes."""
+    rate = RUB_PER.get((c or {}).get("currencyCode"))
+    if not c or c.get("noCompensation") or not rate:
+        return False
+    top = c.get("to")
+    return bool(top) and top * rate < MIN_RUB
+
+
 def formats(raw):
     flat = []
     for f in raw or []:
@@ -52,7 +65,7 @@ def formats(raw):
 
 
 def search():
-    jobs = {}
+    jobs, skipped = {}, set()
     for q in QUERIES:
         for page in range(MAX_PAGES):
             params = {"text": q, "area": "113", "schedule": "remote", "search_field": "name",
@@ -60,6 +73,9 @@ def search():
             res = fetch_state("https://hh.ru/search/vacancy?" + urllib.parse.urlencode(params))["vacancySearchResult"]
             for v in res.get("vacancies", []):
                 vid = str(v["vacancyId"])
+                if below_floor(v.get("compensation")):
+                    skipped.add(vid)
+                    continue
                 jobs.setdefault(vid, {
                     "id": "hh:" + vid,
                     "url": "https://hh.ru/vacancy/" + vid,
@@ -76,6 +92,7 @@ def search():
                 break
             time.sleep(1)
         time.sleep(1)
+    print(f"skipped {len(skipped)} below {MIN_RUB // 1000}k RUB", file=sys.stderr)
     return sorted(jobs.values(), key=lambda j: j["posted_at"], reverse=True)
 
 
