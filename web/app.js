@@ -425,7 +425,7 @@ function render() {
 // (unticking «Выполнена» in edit mode brings it back).
 
 const diary = { rows: null, editing: null };
-const PRIORITIES = [["high", "Высокий"], ["mid", "Средний"], ["low", "Низкий"]];
+const PRIORITIES = [["high", "Горит"], ["mid", "Важно"], ["low", "Не горит"]];
 const PRIO_RANK = { high: 0, mid: 1, low: 2 };
 const prioLabel = p => (PRIORITIES.find(([k]) => k === p) || PRIORITIES[1])[1];
 const DIARY_COLS = "id,day,text,is_goal,priority,done";
