@@ -355,3 +355,6 @@ i.l0{background:var(--sunken)} i.l1{background:#C9B5F8} i.l2{background:#A783F3}
 .diary-form .row{flex-direction:column;align-items:stretch}
 .diary-form .when input[type=date]{flex:1 1 auto;min-width:0}
 .diary-form #diarySave{justify-content:center;min-height:46px}
+
+/* Status history of a vacancy, small and quiet under its stages */
+.hist{margin:8px 0 0;display:flex;flex-wrap:wrap;gap:2px 10px;font-variant-numeric:tabular-nums}

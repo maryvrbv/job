@@ -51,7 +51,7 @@ async function load() {
   state.loading = false;
   if (error) { showBanner("Не получилось загрузить вакансии: " + error.message); render(); return; }
   showBanner("");
-  state.jobs = data; state.loadedAt = new Date().toISOString(); cacheSave(); applyTimes = null; render();
+  state.jobs = data; state.loadedAt = new Date().toISOString(); cacheSave(); events = null; render(); // the activity map reloads the status log
 }
 
 let writing = Promise.resolve();
@@ -223,21 +223,36 @@ const SLOTS = [["morning", "Утро", "утром"], ["day", "День", "дн�
 const HEAT_DAYS = 90;
 const isoOf = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 const slotOf = h => h >= 6 && h < 12 ? "morning" : h >= 12 && h < 18 ? "day" : h >= 18 ? "evening" : "night";
-let applyTimes = null; // job id → when the status left «Не откликалась»
-async function loadApplyTimes() {
-  applyTimes = applyTimes || {};
-  const { data } = await sb.from("job_events").select("job_id,to_status,at").eq("from_status", NEW).order("at");
-  const map = {};
-  for (const e of data || []) if (![NEW, SKIP, CLOSED].includes(e.to_status) && !map[e.job_id]) map[e.job_id] = e.at;
-  applyTimes = map;
+let events = null; // status changes, oldest first; by_me marks the ones made in the app (not by the update scripts)
+async function loadEvents() {
+  events = events || [];
+  const { data } = await sb.from("job_events").select("job_id,from_status,to_status,at,by_me").order("at");
+  events = data || [];
   if (state.view === "dash") renderActivity();
+  const h = $("hist"); if (h) renderHistory(h.dataset.id);
 }
-// every application placed into a day and a part of the day
-function applications() {
-  return state.jobs.filter(j => isApplied(j) && j.applied_at).map(j => {
-    const t = applyTimes?.[j.id] ? new Date(applyTimes[j.id]) : null;
-    return { job: j, day: t ? isoOf(t) : j.applied_at.slice(0, 10), slot: t ? slotOf(t.getHours()) : "unknown" };
+const isApplyStatus = st => ![NEW, SKIP, CLOSED].includes(st);
+// my work on vacancies placed into a day and a part of the day: every status change I made,
+// plus applications from before the log existed (those have only a date)
+function jobActs() {
+  const byId = Object.fromEntries(state.jobs.map(j => [j.id, j]));
+  const acts = (events || []).filter(e => e.by_me !== false && byId[e.job_id]).map(e => {
+    const t = new Date(e.at);
+    return { job: byId[e.job_id], to: e.to_status, at: t, day: isoOf(t), slot: slotOf(t.getHours()) };
   });
+  const logged = new Set(acts.filter(a => isApplyStatus(a.to)).map(a => a.job.id));
+  for (const j of state.jobs) if (isApplied(j) && j.applied_at && !logged.has(j.id))
+    acts.push({ job: j, to: "Откликнулась", at: null, day: j.applied_at.slice(0, 10), slot: "unknown" });
+  return acts;
+}
+const hm = d => String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+// the vacancy's own history under its stages: when I moved it and where
+function renderHistory(id) {
+  const h = $("hist"); if (!h || h.dataset.id !== id) return;
+  const list = (events || []).filter(e => e.job_id === id);
+  h.innerHTML = list.length ? "История: " + list.map(e => { const t = new Date(e.at);
+    return `<span>${esc(ruDate(isoOf(t)).slice(0, 5))} ${hm(t)} → ${esc(e.to_status)}${e.by_me === false ? " (автоматически)" : ""}</span>`; }).join("") : "";
+  h.hidden = !list.length;
 }
 // diary entries (not the open goals) in the same day × part-of-day grid; entries without a time go to «Без времени»
 function diaryActs() {
@@ -247,9 +262,9 @@ function diaryActs() {
 const APP_SHADES = ["", "#C9B5F8", "#A783F3", "#8B55EE", "#5B21B6"];
 const DIARY_SHADES = ["", "#FBCFE8", "#F9A8D4", "#F472B6", "#DB2777"];
 function renderActivity() {
-  if (!applyTimes) loadApplyTimes();
+  if (!events) loadEvents();
   if (!diary.rows) loadDiary();
-  const A = $("activity"), apps = applications(), notes = diaryActs();
+  const A = $("activity"), apps = jobActs(), notes = diaryActs();
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const start = new Date(today); start.setDate(start.getDate() - HEAT_DAYS + 1);
   const startIso = isoOf(start), recent = apps.filter(a => a.day >= startIso);
@@ -276,33 +291,47 @@ function renderActivity() {
   let streak = 0; const c = new Date(today);
   if (!days.has(isoOf(c))) c.setDate(c.getDate() - 1);
   while (days.has(isoOf(c))) { streak++; c.setDate(c.getDate() - 1); }
-  const recentDays = new Set(recent.map(a => a.day)).size;
+  const recentDays = new Set([...recent, ...recentNotes].map(a => a.day)).size;
+  const applied = recent.filter(a => isApplyStatus(a.to)).length;
   const bySlot = SLOTS.slice(0, 4).map(([k, , w]) => [w, recent.filter(a => a.slot === k).length]).sort((a, b) => b[1] - a[1]);
   const fav = bySlot[0][1] ? ` · чаще всего ${bySlot[0][0]}` : "";
   const cols = `grid-template-columns:repeat(${col},14px)`;
-  A.innerHTML = `<div class="head"><span>Активность: отклики и дневник</span><span>${recent.length} ${plural(recent.length, "отклик", "отклика", "откликов")} и ${recentNotes.length} ${plural(recentNotes.length, "запись", "записи", "записей")} в дневнике за ${HEAT_DAYS} дней · ${recentDays} ${plural(recentDays, "день", "дня", "дней")} с откликами${streak ? ` · серия ${streak} ${plural(streak, "день", "дня", "дней")}` : ""}${fav}</span></div>
+  A.innerHTML = `<div class="head"><span>Активность: вакансии и дневник</span><span>За ${HEAT_DAYS} дней ${recent.length} ${plural(recent.length, "действие", "действия", "действий")} с вакансиями, из них ${applied} ${plural(applied, "отклик", "отклика", "откликов")}, и ${recentNotes.length} ${plural(recentNotes.length, "запись", "записи", "записей")} в дневнике · ${recentDays} ${plural(recentDays, "активный день", "активных дня", "активных дней")}${streak ? ` · серия ${streak} ${plural(streak, "день", "дня", "дней")}` : ""}${fav}</span></div>
     <div class="heat-scroll" id="heatScroll"><div class="heat"><div class="heat-corner"></div>
       <div class="heat-months" style="${cols}">${heads}</div>
       <div class="heat-days" style="grid-template-rows:repeat(${slots.length},14px)">${slots.map(([, l]) => `<span>${l}</span>`).join("")}</div>
       <div class="heat-cells" style="${cols};grid-template-rows:repeat(${slots.length},14px)">${cells}</div>
     </div></div>
-    <div class="heat-foot"><p class="heat-day" id="heatDay"></p><div class="heat-legend"><i style="background:${APP_SHADES[2]}"></i>отклики <i style="background:${DIARY_SHADES[2]}"></i>дневник <i style="background:linear-gradient(135deg,${APP_SHADES[2]} 50%,${DIARY_SHADES[2]} 50%)"></i>оба</div></div>`;
+    <div class="heat-foot"><p class="heat-day" id="heatDay"></p><div class="heat-legend"><i style="background:${APP_SHADES[2]}"></i>вакансии <i style="background:${DIARY_SHADES[2]}"></i>дневник <i style="background:linear-gradient(135deg,${APP_SHADES[2]} 50%,${DIARY_SHADES[2]} 50%)"></i>оба</div></div>`;
   const sc = $("heatScroll"); sc.scrollLeft = sc.scrollWidth; // today on the right
   const keep = heatSel && heatSel.day >= startIso ? heatSel : { day: isoOf(today), slot: null };
   showHeatDay(keep.day, keep.slot);
+}
+// what I did with vacancies in a cell, one line per new status: time span, status, how many and which companies
+function vacancyLines(acts) {
+  const groups = {};
+  for (const a of acts) (groups[a.to] = groups[a.to] || []).push(a);
+  const order = st => isApplyStatus(st) ? 0 : st === SKIP ? 1 : 2;
+  return Object.entries(groups).sort(([x], [y]) => order(x) - order(y)).map(([st, list]) => {
+    const times = list.filter(a => a.at).map(a => hm(a.at)).sort();
+    const span = times.length ? (times[0] === times[times.length - 1] ? times[0] : times[0] + "–" + times[times.length - 1]) + " · " : "";
+    const names = [...new Set(list.map(a => a.job.company))];
+    const shown = names.slice(0, 6).join(", ") + (names.length > 6 ? ` и ещё ${names.length - 6}` : "");
+    return `<span class="hd-app">${esc(span)}${esc(st)} — ${list.length}: ${esc(shown)}</span>`;
+  }).join("");
 }
 // tap a square: the line under the map tells the day, the part of the day, how many applications and where
 let heatSel = null;
 function showHeatDay(iso, slot) {
   heatSel = { day: iso, slot };
   const here = a => a.day === iso && (!slot || a.slot === slot);
-  const apps = applications().filter(here), notes = diaryActs().filter(here);
+  const apps = jobActs().filter(here), notes = diaryActs().filter(here);
   const d = new Date(iso + "T00:00:00").toLocaleDateString("ru-RU", { weekday: "short", day: "numeric", month: "long" });
   const part = slot ? ", " + SLOTS.find(([k]) => k === slot)[2] : "";
   const short = t => t.length > 90 ? t.slice(0, 88).trimEnd() + "…" : t;
   $("heatDay").innerHTML = `<b>${esc(d)}${esc(part)}</b>${!apps.length && !notes.length ? " · ничего не отмечено" : ""}`
-    + (apps.length ? `<span class="hd-app">${apps.length} ${plural(apps.length, "отклик", "отклика", "откликов")}: ${esc(apps.map(a => a.job.company).join(", "))}</span>` : "")
-    + notes.map(a => `<span class="hd-note">${a.row.is_goal ? "✓ " : ""}${esc(short(a.row.text.replace(/\s+/g, " ")))}</span>`).join("");
+    + vacancyLines(apps)
+    + notes.map(a => `<span class="hd-note">${a.row.at_time ? esc(hhmm(a.row.at_time)) + " · " : ""}${a.row.is_goal ? "✓ " : ""}${esc(short(a.row.text.replace(/\s+/g, " ")))}</span>`).join("");
   $("activity").querySelectorAll("i.sel").forEach(i => i.classList.remove("sel"));
   if (slot) $("activity").querySelector(`i[data-d="${iso}"][data-s="${slot}"]`)?.classList.add("sel");
 }
@@ -393,6 +422,7 @@ function renderDetail(rows) {
         <button type="button" data-st="${SKIP}" aria-pressed="${pressed(SKIP)}">Не подходит</button>
         <button type="button" data-st="${CLOSED}" aria-pressed="${pressed(CLOSED)}">Отклики закрыты</button>
       </div>
+      <p class="note hist" id="hist" data-id="${esc(j.id)}" hidden></p>
     </div>
     <div id="extra"></div>
     <div>
@@ -410,7 +440,7 @@ function renderDetail(rows) {
       <input class="comment" id="comment" value="${esc(j.comment)}" placeholder="Например: написала Патрисии в LinkedIn">
     </div>`;
 
-  renderExtra(j);
+  renderExtra(j); renderHistory(j.id);
   $("detailClose").onclick = () => closeSheet();
   $("desc").addEventListener("toggle", () => { if ($("desc").open) loadDesc(j); });
   const ta = $("letter");
@@ -464,6 +494,7 @@ function setStatus(j, st) {
   const patch = { status: st }, was = j.status;
   if (st !== NEW && st !== SKIP && st !== CLOSED && !j.applied_at) patch.applied_at = todayIso();
   if (st === NEW) patch.applied_at = null; // undoing an application by mistake clears its date
+  if (events) events.push({ job_id: j.id, from_status: was, to_status: st, at: new Date().toISOString(), by_me: true }); // the server logs the same
   patch.closed_at = st === CLOSED ? todayIso() : null;
   if (st === REJECT && !j.reject_stage) patch.reject_stage = stageIx(was) >= 0 && was !== "Оффер" ? (was === RECRUITER ? "Откликнулась" : was) : "Откликнулась";
   save(j, patch, st === REJECT ? "Отмечен отказ. Укажи этап и обратную связь" : st === SKIP ? "Отмечено «Не подходит». Можно написать почему" : st === CLOSED ? "Отмечено: отклики закрыты" : "Этап: " + st);
