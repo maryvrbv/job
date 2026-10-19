@@ -461,7 +461,8 @@ const swReady = "serviceWorker" in navigator
   ? navigator.serviceWorker.register("sw.js").then(() => navigator.serviceWorker.ready).catch(() => null)
   : Promise.resolve(null);
 let installPrompt = null;
-addEventListener("beforeinstallprompt", e => { e.preventDefault(); installPrompt = e; if (!$("notifyPanel").hidden) renderNotify(); });
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); installPrompt = e; renderInstall(); if (!$("notifyPanel").hidden) renderNotify(); });
+addEventListener("appinstalled", () => { installPrompt = null; renderInstall(); toast("Приложение установлено"); });
 const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const pushSupported = () => "PushManager" in window && "Notification" in window && "serviceWorker" in navigator;
@@ -470,7 +471,7 @@ async function currentSub() { const reg = await swReady; return reg ? reg.pushMa
 
 async function renderNotify() {
   const st = $("notifyStatus"), hint = $("notifyHint"), tg = $("notifyToggle"), test = $("notifyTest");
-  $("installBtn").hidden = !installPrompt || standalone();
+  $("installBtn").hidden = standalone();
   hint.textContent = isIOS && !standalone()
     ? "На iPhone уведомления работают только в установленном приложении: Safari → «Поделиться» → «На экран „Домой“», затем открой «Отклики» с иконки и включи уведомления там."
     : "";
@@ -516,9 +517,64 @@ $("notifyTest").onclick = async () => {
   const { data, error } = await sb.functions.invoke("notify", { body: { test: true } });
   toast(error ? "Не отправилось: " + error.message : data?.sent ? "Отправлено, сейчас придёт" : "Отправить не удалось");
 };
-$("installBtn").onclick = async () => {
-  if (!installPrompt) return;
-  installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; renderNotify();
-};
+// Which device and browser this is, so the install sheet shows the right steps
+function deviceInfo() {
+  const ua = navigator.userAgent;
+  const ios = isIOS, android = /Android/i.test(ua);
+  const inApp = /Instagram|FBAN|FBAV|Telegram|Line\/|VK\b|WhatsApp/i.test(ua);
+  const browser = /EdgiOS|EdgA|Edg\//.test(ua) ? "edge" : /CriOS|Chrome\//.test(ua) && !/OPR|YaBrowser|SamsungBrowser/.test(ua) ? "chrome"
+    : /FxiOS|Firefox\//.test(ua) ? "firefox" : /SamsungBrowser/.test(ua) ? "samsung" : /YaBrowser/.test(ua) ? "yandex"
+    : /Safari\//.test(ua) ? "safari" : "other";
+  const os = ios ? (/iPad/.test(ua) || navigator.maxTouchPoints > 1 && /Macintosh/.test(ua) ? "iPad" : "iPhone") : android ? "Android" : /Mac OS X/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : "компьютер";
+  return { ios, android, inApp, browser, os };
+}
+const BROWSER = { safari: "Safari", chrome: "Chrome", edge: "Edge", firefox: "Firefox", samsung: "Samsung Internet", yandex: "Яндекс Браузер", other: "браузер" };
+
+function installGuide() {
+  const d = deviceInfo();
+  const where = `${d.os}, ${BROWSER[d.browser]}`;
+  if (d.inApp) return { where: d.os + ", встроенный браузер приложения", steps: [
+    "Открой меню «⋯» в правом верхнем углу.",
+    d.ios ? "Выбери «Открыть в Safari»." : "Выбери «Открыть в браузере» (лучше Chrome).",
+    "В открывшемся браузере снова нажми «Установить приложение»." ], note: "Из встроенного браузера Telegram, Instagram и других приложений установить нельзя." };
+  if (d.ios) return { where, steps: d.browser === "safari" ? [
+    "Нажми «Поделиться» внизу экрана (квадрат со стрелкой вверх).",
+    "Прокрути список и выбери «На экран „Домой“».",
+    "Нажми «Добавить». На экране появится зелёная иконка «Отклики».",
+    "Открой приложение с иконки и включи там уведомления." ] : [
+    "Нажми «Поделиться» в адресной строке (квадрат со стрелкой вверх).",
+    "Выбери «На экран „Домой“» (если пункта нет — открой сайт в Safari и сделай то же там).",
+    "Открой приложение с иконки и включи там уведомления." ],
+    note: "На iPhone уведомления приходят только в установленном приложении (iOS 16.4 и новее)." };
+  if (d.android) return { where, steps: d.browser === "samsung" ? [
+    "Нажми меню «≡» внизу справа.", "Выбери «Добавить страницу на» → «Главный экран».", "Открой «Отклики» с иконки." ]
+    : d.browser === "firefox" ? [ "Нажми меню «⋮».", "Выбери «Установить».", "Открой «Отклики» с иконки." ]
+    : [ "Нажми меню «⋮» в правом верхнем углу.", "Выбери «Установить приложение» или «Добавить на главный экран».", "Подтверди. Иконка «Отклики» появится на главном экране." ], note: "" };
+  if (d.browser === "safari") return { where, steps: [
+    "В меню Safari выбери «Файл» → «Добавить в Dock».", "Нажми «Добавить». «Отклики» появятся в Dock и в Launchpad." ], note: "Нужен macOS Sonoma (Safari 17) или новее." };
+  if (d.browser === "firefox") return { where, steps: [
+    "Открой сайт в Chrome, Edge или Яндекс Браузере.", "Там нажми «Установить приложение»." ], note: "Firefox на компьютере не умеет устанавливать веб-приложения." };
+  return { where, steps: [
+    "Нажми значок установки справа в адресной строке (монитор со стрелкой вниз).",
+    "Если значка нет: меню «⋮» → «Трансляция, сохранение и отправка» → «Установить страницу как приложение» (в Edge: «⋯» → «Приложения» → «Установить этот сайт как приложение»).",
+    "Подтверди. «Отклики» откроются отдельным окном." ], note: "" };
+}
+
+async function install() {
+  if (installPrompt) {
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice; installPrompt = null; renderInstall();
+    if (outcome === "accepted") return;
+  }
+  const g = installGuide();
+  $("installDevice").textContent = "Твоё устройство: " + g.where;
+  $("installSteps").innerHTML = g.steps.map(s => `<li>${esc(s)}</li>`).join("");
+  $("installNote").textContent = g.note; $("installNote").hidden = !g.note;
+  $("installSheet").showModal();
+}
+function renderInstall() { $("installTop").hidden = standalone(); }
+$("installBtn").onclick = install;
+$("installTop").onclick = install;
+renderInstall();
 
 boot();
