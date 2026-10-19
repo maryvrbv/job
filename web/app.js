@@ -228,7 +228,7 @@ function renderList(rows) {
     const bits = [j.company, j.city, j.work_format && j.work_format !== "не указан" ? j.work_format : "", j.salary].filter(Boolean).map(esc).join(" · ");
     const meta = state.tab === "today"
       ? `<span class="src">${marketOf(j.market).short}</span><span class="age">${ageText(ageDays(j.posted_at))}</span>`
-      : `${tabOf(state.tab).archive ? `<span class="src">${marketOf(j.market).short}</span>` : ""}<span class="pill ${statusCls(j.status)}">${esc(j.status)}</span>${esc(ruDate(tabOf(state.tab).applied ? j.applied_at || j.posted_at : j.posted_at))}`;
+      : `${tabOf(state.tab).archive ? `<span class="src">${marketOf(j.market).short}</span>` : ""}<span class="pill ${statusCls(j.status)}">${esc(j.status)}</span>${isApplied(j) && j.applied_at ? `<span class="applied-on">отклик ${esc(ruDate(j.applied_at))}</span>` : esc(ruDate(j.posted_at))}`;
     return `<button class="item" type="button" data-id="${esc(j.id)}" aria-current="${j.id === sel}">
       <span class="stripe ${j.fit === "Высокий" ? "high" : ""}" title="Совпадение: ${esc(j.fit)}"></span>
       <span style="min-width:0"><span class="t">${esc(j.title)}</span><span class="c">${bits}</span></span>
@@ -255,6 +255,9 @@ function renderDetail(rows) {
   const m = marketOf(j.market);
   const fmtChip = j.work_format ? `<span class="chip fmt">Формат: <strong>${esc(j.work_format)}</strong></span>` : "";
   const age = ageDays(j.posted_at);
+  const sinceApplied = ageDays(j.applied_at);
+  const appliedChip = isApplied(j) && j.applied_at
+    ? `<span class="chip applied">Откликнулась: <strong>${esc(ruDate(j.applied_at))}${sinceApplied != null ? " (" + esc(ageText(sinceApplied)) + ")" : ""}</strong></span>` : "";
   const chips = [["Совпадение", j.fit], ["Сфера", j.domain], ["Уровень", j.level], ["Город", j.city], ["Опыт", j.experience && j.experience + " лет"], ["Зарплата", j.salary], ["Опубликовано", j.posted_at ? ruDate(j.posted_at) + (age != null ? " (" + ageText(age) + ")" : "") : ""], ["Откликов", j.applicants]]
     .filter(([, v]) => v && v !== "—").map(([k, v]) => `<span class="chip">${k}: <strong>${esc(v)}</strong></span>`).join("");
   const pressed = s => j.status === s ? "true" : "false";
@@ -263,11 +266,11 @@ function renderDetail(rows) {
       <p class="lbl">${esc(m.label)} · ${esc(j.company)}</p>
       <h2><a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)} ↗</a></h2>
     </div>
-    <div class="chips">${fmtChip}${chips}</div>
+    <div class="chips">${appliedChip}${fmtChip}${chips}</div>
     ${j.why ? `<p class="why">${esc(j.why)}</p>` : ""}
     <details class="desc" id="desc"><summary>Описание вакансии</summary><div class="body" id="descBody">Загружаю…</div></details>
     <div>
-      <p class="lbl">Этап${j.applied_at ? ` · откликнулась ${esc(ruDate(j.applied_at))}` : ""}</p>
+      <p class="lbl">Этап${isApplied(j) && j.applied_at ? ` · откликнулась ${esc(ruDate(j.applied_at))}` : ""}</p>
       <div class="steps" id="steps">${stepsHtml(j)}</div>
       <div class="outcomes" id="outcomes">
         <button type="button" data-st="${NEW}" aria-pressed="${pressed(NEW)}">Не откликалась</button>
@@ -345,6 +348,7 @@ function setStatus(j, st) {
   if (st === j.status) return;
   const patch = { status: st }, was = j.status;
   if (st !== NEW && st !== SKIP && st !== CLOSED && !j.applied_at) patch.applied_at = todayIso();
+  if (st === NEW) patch.applied_at = null; // undoing an application by mistake clears its date
   patch.closed_at = st === CLOSED ? todayIso() : null;
   if (st === REJECT && !j.reject_stage) patch.reject_stage = stageIx(was) >= 0 && was !== "Оффер" ? (was === RECRUITER ? "Откликнулась" : was) : "Откликнулась";
   save(j, patch, st === REJECT ? "Отмечен отказ. Укажи этап и обратную связь" : st === SKIP ? "Отмечено «Не подходит». Можно написать почему" : st === CLOSED ? "Отмечено: вакансия удалена" : "Этап: " + st);
