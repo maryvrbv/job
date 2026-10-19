@@ -13,6 +13,7 @@ import json
 import re
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -27,9 +28,17 @@ FORMATS = {"REMOTE": "удалёнка", "HYBRID": "гибрид", "ON_SITE": "�
 
 
 def fetch_state(url):
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "ru"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        page = r.read().decode("utf-8")
+    for attempt in range(3):
+        req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "ru"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                page = r.read().decode("utf-8")
+            break
+        except urllib.error.HTTPError as e:
+            # hh answers 403/429 to bursts of requests; back off and retry
+            if e.code not in (403, 429) or attempt == 2:
+                raise
+            time.sleep(10 * (attempt + 1))
     m = re.search(r'<template[^>]*id="HH-Lux-InitialState"[^>]*>(.*?)</template>', page, re.S)
     if not m:
         raise RuntimeError("no page state at " + url + " (captcha?)")
@@ -122,8 +131,11 @@ if __name__ == "__main__":
     elif cmd == "details" and args:
         out = []
         for a in args:
-            out.append(details(a.removeprefix("hh:")))
-            time.sleep(1)
+            try:
+                out.append(details(a.removeprefix("hh:")))
+            except Exception as e:  # one bad page should not lose the rest
+                out.append({"id": "hh:" + a.removeprefix("hh:"), "error": str(e)})
+            time.sleep(2)
     else:
         sys.exit(__doc__)
     json.dump(out, sys.stdout, ensure_ascii=False, indent=1)
