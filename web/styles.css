@@ -94,6 +94,8 @@ button,select,input,textarea{font:inherit;color:inherit}
 .chip{background:var(--sunken);border-radius:var(--r-xs);padding:5px 10px;font-size:13px;color:var(--muted)}
 .chip strong{color:var(--fg);font-weight:500}
 .chip.fmt{background:var(--info-soft);color:var(--info)}
+.chip.applied{background:var(--accent-soft);color:var(--fg)}
+.applied-on{color:var(--fg);font-weight:500}
 .chip.fmt strong{color:var(--info)}
 .why{background:var(--accent-soft);border-radius:var(--r-sm);padding:12px 14px;margin:0}
 .lbl{font-size:13px;color:var(--muted);font-weight:500;margin:0 0 8px}
