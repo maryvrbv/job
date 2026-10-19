@@ -234,8 +234,44 @@ body.locked{overflow:hidden}
 }
 
 /* Top level switch: Вакансии / Дашборд, two equal halves */
-.segmented{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:var(--line);border-radius:14px;width:320px;max-width:100%}
-.segmented button{border:0;background:none;border-radius:10px;padding:9px 12px;font-weight:500;cursor:pointer;color:var(--muted);text-align:center}
+.segmented{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;background:var(--line);border-radius:14px;width:560px;max-width:100%}
+.segmented button{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0;background:none;border-radius:10px;padding:9px 12px;font-weight:500;cursor:pointer;color:var(--muted);text-align:center}
 .segmented button:hover{color:var(--fg)}
 .segmented button[aria-selected="true"]{background:var(--surface);color:var(--fg);font-weight:600;box-shadow:0 1px 3px rgb(31 26 46 / .12)}
 @media (max-width:860px){.segmented{width:100%}}
+
+/* Activity map on the dashboard, GitHub style */
+.activity{grid-column:1/-1;background:var(--surface);border-radius:var(--r);padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.activity .head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;font-size:12px;color:var(--muted)}
+.activity .head span:first-child{color:var(--fg);font-weight:500;font-size:13px}
+.heat-scroll{overflow-x:auto;scrollbar-width:thin}
+.heat{display:grid;grid-template-columns:22px max-content;grid-template-areas:". m" "d c";gap:4px 4px;width:max-content}
+.heat-months{grid-area:m;display:grid;column-gap:3px;font-size:10px;color:var(--muted);height:14px}
+.heat-months span{white-space:nowrap}
+.heat-days{grid-area:d;display:grid;grid-template-rows:repeat(7,12px);row-gap:3px;font-size:10px;color:var(--muted);line-height:12px}
+.heat-cells{grid-area:c;display:grid;grid-template-rows:repeat(7,12px);gap:3px}
+.heat-cells i,.heat-legend i{display:block;width:12px;height:12px;border-radius:3px;background:var(--sunken)}
+.heat-legend{display:flex;align-items:center;justify-content:flex-end;gap:3px;font-size:11px;color:var(--muted)}
+.heat-legend i{display:inline-block}
+i.l0{background:var(--sunken)} i.l1{background:#DDD0FB} i.l2{background:#B79BF5} i.l3{background:#9461EF} i.l4{background:var(--accent)}
+
+/* «Дорогой дневник» */
+.diary{display:flex;flex-direction:column;gap:12px;max-width:760px}
+.diary-list{display:flex;flex-direction:column;gap:14px}
+.dday{display:flex;flex-direction:column;gap:6px}
+.dday > .lbl{margin:0 4px}
+.dday > .lbl::first-letter{text-transform:uppercase}
+.dentry{background:var(--surface);border-radius:var(--r-sm);padding:12px 16px;display:flex;flex-direction:column;gap:6px;border-left:4px solid var(--lime)}
+.dentry p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.dentry .linkbtn{font-size:12px}
+.dentry.editing{border-left-color:var(--accent)}
+.dentry textarea,.diary-form textarea{width:100%;min-height:96px;resize:vertical;border:0;border-radius:var(--r-xs);padding:10px 12px;background:var(--sunken);line-height:1.5}
+.diary-form{background:var(--surface);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:10px;scroll-margin-bottom:16px}
+.diary-form .lbl{margin:0}
+.diary input[type=date]{border:0;border-radius:var(--r-sm);padding:10px 12px;background:var(--sunken)}
+.linkbtn.danger{color:var(--bad)}
+@media (max-width:860px){
+  .segmented{grid-template-columns:repeat(2,minmax(0,1fr)) auto}
+  .segmented button{padding:9px 6px;font-size:14px}
+  .activity{padding:14px}
+}

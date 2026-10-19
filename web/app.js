@@ -23,7 +23,7 @@ const CACHE_KEY = "jobs-cache-v1";
 
 const state = { view: "jobs", tab: "today", jobs: [], sel: {}, loading: true, desc: {}, loadedAt: null };
 try { const t = localStorage.getItem("tab"); if (TABS.some(s => s.key === t)) state.tab = t; } catch (e) {}
-try { if (localStorage.getItem("view") === "dash") state.view = "dash"; } catch (e) {}
+try { const v = localStorage.getItem("view"); if (v === "dash" || v === "diary") state.view = v; } catch (e) {}
 try { const s = localStorage.getItem("sort"); if (s && document.querySelector(`#sort option[value="${s}"]`)) document.getElementById("sort").value = s; } catch (e) {}
 
 const $ = id => document.getElementById(id);
@@ -211,9 +211,42 @@ function renderSummary() {
     const rejects = js.filter(j => j.status === REJECT).length;
     return `<div class="mrow"><b>${esc(m.short)}</b><span><b>${fresh}</b> ждут отклика</span><span><b>${sentM.length}</b> откликов</span><span><b>${talks}</b> собесов</span><span><b>${rejects}</b> отказов</span></div>`;
   };
+  renderActivity();
   $("markets").innerHTML = dash ? "" : `<div class="head">По рынкам</div>` + MARKETS.map(row).join("");
   $("updated").textContent = state.loadedAt ? "Обновлено " + new Date(state.loadedAt).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) : "";
 }
+
+// GitHub-style map of the last year: one square per day, darker on days with more applications
+const RU_MONTHS = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+const isoOf = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+function renderActivity() {
+  const A = $("activity");
+  const per = {};
+  for (const j of state.jobs) if (isApplied(j) && j.applied_at) per[j.applied_at.slice(0, 10)] = (per[j.applied_at.slice(0, 10)] || 0) + 1;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const start = new Date(today); start.setDate(start.getDate() - 52 * 7 - ((today.getDay() + 6) % 7)); // a Monday a year ago
+  const max = Math.max(1, ...Object.values(per));
+  const level = n => !n ? 0 : Math.min(4, Math.ceil(n / max * 4));
+  let cells = "", months = "", lastMonth = -1, week = 0;
+  for (const d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+    const dow = (d.getDay() + 6) % 7, iso = isoOf(d), n = per[iso] || 0;
+    if (dow === 0) {
+      week++;
+      if (d.getMonth() !== lastMonth) { months += `<span style="grid-column:${week}">${RU_MONTHS[d.getMonth()]}</span>`; lastMonth = d.getMonth(); }
+    }
+    cells += `<i class="l${level(n)}" style="grid-row:${dow + 1};grid-column:${week}" title="${ruDate(iso)}: ${n ? n + " " + plural(n, "отклик", "отклика", "откликов") : "без откликов"}"></i>`;
+  }
+  // streak: days in a row with applications, counting from today (or yesterday, if today is still empty)
+  let streak = 0; const c = new Date(today);
+  if (!per[isoOf(c)]) c.setDate(c.getDate() - 1);
+  while (per[isoOf(c)]) { streak++; c.setDate(c.getDate() - 1); }
+  const yearIso = isoOf(start), inYear = Object.entries(per).filter(([d]) => d >= yearIso);
+  const total = inYear.reduce((a, [, n]) => a + n, 0);
+  A.innerHTML = `<div class="head"><span>Активность: отклики по дням</span><span>${total} за год · ${inYear.length} ${plural(inYear.length, "день", "дня", "дней")} с откликами${streak ? ` · серия ${streak} ${plural(streak, "день", "дня", "дней")} подряд` : ""}</span></div>
+    <div class="heat-scroll" id="heatScroll"><div class="heat"><div class="heat-months" style="grid-template-columns:repeat(${week},12px)">${months}</div><div class="heat-days"><span style="grid-row:1">пн</span><span style="grid-row:3">ср</span><span style="grid-row:5">пт</span></div><div class="heat-cells" style="grid-template-columns:repeat(${week},12px)">${cells}</div></div></div>
+    <div class="heat-legend">меньше <i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i> больше</div>`;
+}
+function plural(n, one, few, many) { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many; }
 
 function renderTabs() {
   const loaded = state.jobs.length > 0;
@@ -374,15 +407,73 @@ function setStatus(j, st) {
 
 function render() {
   renderSummary(); renderTabs();
-  // top level: vacancies or the dashboard
-  const dash = state.view === "dash";
-  for (const b of $("views").children) b.setAttribute("aria-selected", String(b.dataset.v === state.view));
-  $("summary").hidden = !dash; $("tabs").hidden = $("controls").hidden = $("pane").hidden = dash;
-  if (dash) $("intro").hidden = true;
+  // top level: vacancies, the dashboard or the diary
+  const v = state.view, jobsView = v === "jobs";
+  for (const b of $("views").children) b.setAttribute("aria-selected", String(b.dataset.v === v));
+  $("summary").hidden = v !== "dash"; $("diary").hidden = v !== "diary";
+  $("tabs").hidden = $("controls").hidden = $("pane").hidden = !jobsView;
+  if (!jobsView) $("intro").hidden = true;
   renderFiltersCount();
-  if (dash) return;
+  if (v === "diary" && !diary.rows) loadDiary();
+  if (v === "dash") $("heatScroll").scrollLeft = $("heatScroll").scrollWidth; // today on the right, once it is visible
+  if (!jobsView) return;
   const rows = filtered(); renderList(rows); renderDetail(rows);
 }
+
+// ---------- «Дорогой дневник»: what I did, day by day, oldest first; new entries go at the bottom ----------
+
+const diary = { rows: null, editing: null };
+async function loadDiary() {
+  diary.rows = diary.rows || [];
+  const { data, error } = await sb.from("diary").select("id,day,text").order("day").order("id");
+  if (error) { showBanner("Не получилось загрузить дневник: " + error.message); return; }
+  diary.rows = data; renderDiary();
+  if (state.view === "diary") $("diaryForm").scrollIntoView({ block: "end" });
+}
+const longDate = iso => new Date(iso + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "long", weekday: "short" });
+function renderDiary() {
+  const rows = diary.rows || [], L = $("diaryList");
+  const days = [...new Set(rows.map(r => r.day))];
+  $("diaryStats").textContent = rows.length
+    ? `${rows.length} ${plural(rows.length, "запись", "записи", "записей")} за ${days.length} ${plural(days.length, "день", "дня", "дней")}, с ${longDate(rows[0].day).replace(/^\S+ /, "")}. Каждая строчка — шаг вперёд.`
+    : "Записывай сюда всё, что сделала для поиска работы: отклики, портфолио, созвоны, новые навыки.";
+  L.innerHTML = days.map(d => `<div class="dday"><p class="lbl">${esc(longDate(d))}</p>${rows.filter(r => r.day === d).map(r =>
+    diary.editing === r.id
+      ? `<div class="dentry editing" data-id="${r.id}"><textarea class="dedit">${esc(r.text)}</textarea><div class="row"><input type="date" class="dday-input" value="${esc(r.day)}"><button class="btn primary" type="button" data-a="save">Сохранить</button><button class="btn" type="button" data-a="cancel">Отмена</button><button class="linkbtn danger" type="button" data-a="del">Удалить</button></div></div>`
+      : `<div class="dentry" data-id="${r.id}"><p>${esc(r.text)}</p><button class="linkbtn" type="button" data-a="edit">Изменить</button></div>`).join("")}</div>`).join("");
+}
+$("diaryDay").value = todayIso();
+$("diaryForm").onsubmit = async e => {
+  e.preventDefault();
+  const text = $("diaryText").value.trim(), day = $("diaryDay").value || todayIso();
+  if (!text) return;
+  $("diarySave").disabled = true;
+  const { data, error } = await sb.from("diary").insert({ day, text }).select("id,day,text").single();
+  $("diarySave").disabled = false;
+  if (error) { showBanner("Запись не сохранилась: " + error.message); return; }
+  diary.rows.push(data); diary.rows.sort((a, b) => a.day.localeCompare(b.day) || a.id - b.id);
+  $("diaryText").value = ""; $("diaryDay").value = todayIso();
+  renderDiary(); toast("Записала. Ты молодец!");
+  $("diaryForm").scrollIntoView({ block: "end" });
+};
+$("diaryList").onclick = async e => {
+  const b = e.target.closest("button[data-a]"); if (!b) return;
+  const box = b.closest(".dentry"), id = +box.dataset.id, row = diary.rows.find(r => r.id === id);
+  if (b.dataset.a === "edit") { diary.editing = id; renderDiary(); $("diaryList").querySelector(".dedit").focus(); return; }
+  if (b.dataset.a === "cancel") { diary.editing = null; renderDiary(); return; }
+  if (b.dataset.a === "del") {
+    if (!confirm("Удалить запись?")) return;
+    const { error } = await sb.from("diary").delete().eq("id", id);
+    if (error) { showBanner("Не удалилось: " + error.message); return; }
+    diary.rows = diary.rows.filter(r => r.id !== id); diary.editing = null; renderDiary(); toast("Запись удалена"); return;
+  }
+  const text = box.querySelector(".dedit").value.trim(), day = box.querySelector(".dday-input").value || row.day;
+  if (!text) return;
+  const { error } = await sb.from("diary").update({ text, day }).eq("id", id);
+  if (error) { showBanner("Не сохранилось: " + error.message); return; }
+  Object.assign(row, { text, day }); diary.rows.sort((a, b) => a.day.localeCompare(b.day) || a.id - b.id);
+  diary.editing = null; renderDiary(); toast("Запись обновлена");
+};
 
 // ---------- import from the old Google Sheet (.xlsx download) ----------
 
@@ -468,7 +559,12 @@ $("resetForm").onsubmit = async e => {
   recovering = false; history.replaceState(null, "", location.pathname); boot();
 };
 $("logout").onclick = async () => { await sb.auth.signOut(); try { localStorage.removeItem(CACHE_KEY); } catch (e) {} location.reload(); };
-$("views").onclick = e => { const b = e.target.closest("button[data-v]"); if (!b) return; state.view = b.dataset.v; try { localStorage.setItem("view", state.view); } catch (x) {} render(); };
+$("views").onclick = e => {
+  const b = e.target.closest("button[data-v]"); if (!b) return;
+  state.view = b.dataset.v; try { localStorage.setItem("view", state.view); } catch (x) {}
+  render();
+  if (state.view === "diary" && diary.rows) $("diaryForm").scrollIntoView({ block: "end" });
+};
 $("tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; state.tab = b.dataset.k; try { localStorage.setItem("tab", state.tab); } catch (x) {} render(); };
 $("list").onclick = e => { const b = e.target.closest(".item"); if (!b) return; state.sel[state.tab] = b.dataset.id; render(); if (mobile.matches) { $("detail").scrollTop = 0; openSheet("detail"); } };
 ["q", "fFit", "fFmt", "fStatus", "sort"].forEach(id => $(id).addEventListener("input", render));
