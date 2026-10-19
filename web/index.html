@@ -117,11 +117,21 @@
     <form class="diary-form" id="diaryForm">
       <label class="lbl" for="diaryText">Новая запись</label>
       <textarea id="diaryText" required placeholder="Что получилось сделать? Маленькие шаги тоже считаются"></textarea>
+      <label class="check"><input type="checkbox" id="diaryGoal"> Это цель</label>
+      <div class="goal-fields" id="diaryGoalFields" hidden>
+        <span class="lbl">Приоритет</span>
+        <div class="prio" role="radiogroup" aria-label="Приоритет">
+          <label class="p-high"><input type="radio" name="prio-new" value="high"><span>Высокий</span></label>
+          <label class="p-mid"><input type="radio" name="prio-new" value="mid" checked><span>Средний</span></label>
+          <label class="p-low"><input type="radio" name="prio-new" value="low"><span>Низкий</span></label>
+        </div>
+      </div>
       <div class="row">
         <input type="date" id="diaryDay" aria-label="Дата">
         <button class="btn primary" type="submit" id="diarySave">Записать</button>
       </div>
     </form>
+    <div class="diary-list" id="diaryGoals"></div>
     <div class="diary-list" id="diaryList"></div>
   </section>
 

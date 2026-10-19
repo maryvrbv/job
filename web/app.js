@@ -421,59 +421,96 @@ function render() {
 }
 
 // ---------- «Дорогой дневник»: what I did, day by day, newest first; the form for a new entry is on top ----------
+// An entry can be a goal with a priority: open goals sit in their own block, a ticked goal moves to the log as done today.
 
 const diary = { rows: null, editing: null };
+const PRIORITIES = [["high", "Высокий"], ["mid", "Средний"], ["low", "Низкий"]];
+const PRIO_RANK = { high: 0, mid: 1, low: 2 };
+const prioLabel = p => (PRIORITIES.find(([k]) => k === p) || PRIORITIES[1])[1];
+const DIARY_COLS = "id,day,text,is_goal,priority,done";
 async function loadDiary() {
   diary.rows = diary.rows || [];
-  const { data, error } = await sb.from("diary").select("id,day,text").order("day", { ascending: false }).order("id", { ascending: false });
+  const { data, error } = await sb.from("diary").select(DIARY_COLS).order("day", { ascending: false }).order("id", { ascending: false });
   if (error) { showBanner("Не получилось загрузить дневник: " + error.message); return; }
   diary.rows = data; renderDiary();
 }
 const byNewest = (a, b) => b.day.localeCompare(a.day) || b.id - a.id;
+const isOpenGoal = r => r.is_goal && !r.done;
 const PENCIL = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
 const longDate = iso => new Date(iso + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "long", weekday: "short" });
-function renderDiary() {
-  const rows = diary.rows || [], L = $("diaryList");
-  const days = [...new Set(rows.map(r => r.day))];
-  $("diaryStats").textContent = rows.length
-    ? `${rows.length} ${plural(rows.length, "запись", "записи", "записей")} за ${days.length} ${plural(days.length, "день", "дня", "дней")}, с ${longDate(rows[rows.length - 1].day).replace(/^\S+ /, "")}. Каждая строчка — шаг вперёд.`
-    : "Записывай сюда всё, что сделала для поиска работы: отклики, портфолио, созвоны, новые навыки.";
-  L.innerHTML = days.map(d => `<div class="dday"><p class="lbl">${esc(longDate(d))}</p>${rows.filter(r => r.day === d).map(r =>
-    diary.editing === r.id
-      ? `<div class="dentry editing" data-id="${r.id}"><textarea class="dedit">${esc(r.text)}</textarea><div class="row"><input type="date" class="dday-input" value="${esc(r.day)}"><button class="btn primary" type="button" data-a="save">Сохранить</button><button class="btn" type="button" data-a="cancel">Отмена</button><button class="linkbtn danger" type="button" data-a="del">Удалить</button></div></div>`
-      : `<div class="dentry" data-id="${r.id}"><p>${esc(r.text)}</p><button class="icon-edit" type="button" data-a="edit" aria-label="Изменить запись" title="Изменить">${PENCIL}</button></div>`).join("")}</div>`).join("");
+const prioRadios = (name, cur) => `<div class="prio" role="radiogroup" aria-label="Приоритет">${PRIORITIES.map(([k, l]) =>
+  `<label class="p-${k}"><input type="radio" name="${name}" value="${k}" ${k === cur ? "checked" : ""}><span>${l}</span></label>`).join("")}</div>`;
+
+function entryHtml(r) {
+  if (diary.editing === r.id) return `<div class="dentry editing" data-id="${r.id}">
+    <textarea class="dedit">${esc(r.text)}</textarea>
+    <label class="check"><input type="checkbox" class="dgoal" ${r.is_goal ? "checked" : ""}> Это цель</label>
+    <div class="goal-fields" ${r.is_goal ? "" : "hidden"}><span class="lbl">Приоритет</span>${prioRadios("prio-" + r.id, r.priority || "mid")}</div>
+    <div class="row"><input type="date" class="dday-input" value="${esc(r.day)}"><button class="btn primary" type="button" data-a="save">Сохранить</button><button class="btn" type="button" data-a="cancel">Отмена</button><button class="linkbtn danger" type="button" data-a="del">Удалить</button></div>
+  </div>`;
+  const tick = isOpenGoal(r) ? `<button class="goal-tick" type="button" data-a="done" aria-label="Цель выполнена" title="Отметить выполненной"></button>` : "";
+  const tag = r.is_goal ? (r.done ? `<span class="gtag done">✓ Цель выполнена</span>` : `<span class="gtag p-${r.priority || "mid"}">${prioLabel(r.priority)} приоритет</span>`) : "";
+  return `<div class="dentry ${isOpenGoal(r) ? "goal" : ""}" data-id="${r.id}">${tick}<div class="dbody">${tag}<p>${esc(r.text)}</p></div><button class="icon-edit" type="button" data-a="edit" aria-label="Изменить запись" title="Изменить">${PENCIL}</button></div>`;
 }
+
+function renderDiary() {
+  const all = diary.rows || [];
+  const goals = all.filter(isOpenGoal).sort((a, b) => PRIO_RANK[a.priority || "mid"] - PRIO_RANK[b.priority || "mid"] || byNewest(a, b));
+  const log = all.filter(r => !isOpenGoal(r));
+  const days = [...new Set(log.map(r => r.day))];
+  const doneGoals = log.filter(r => r.is_goal).length;
+  $("diaryStats").textContent = log.length
+    ? `${log.length} ${plural(log.length, "запись", "записи", "записей")} за ${days.length} ${plural(days.length, "день", "дня", "дней")}, с ${longDate(log[log.length - 1].day).replace(/^\S+ /, "")}${doneGoals ? `, ${doneGoals} ${plural(doneGoals, "цель достигнута", "цели достигнуты", "целей достигнуто")}` : ""}. Каждая строчка — шаг вперёд.`
+    : "Записывай сюда всё, что сделала для поиска работы: отклики, портфолио, созвоны, новые навыки.";
+  $("diaryGoals").innerHTML = goals.length ? `<p class="lbl">Мои цели · ${goals.length}</p>` + goals.map(entryHtml).join("") : "";
+  $("diaryList").innerHTML = days.map(d => `<div class="dday"><p class="lbl">${esc(longDate(d))}</p>${log.filter(r => r.day === d).map(entryHtml).join("")}</div>`).join("");
+}
+
 $("diaryDay").value = todayIso();
+$("diaryGoal").onchange = () => { $("diaryGoalFields").hidden = !$("diaryGoal").checked; };
 $("diaryForm").onsubmit = async e => {
   e.preventDefault();
-  const text = $("diaryText").value.trim(), day = $("diaryDay").value || todayIso();
+  const text = $("diaryText").value.trim(), day = $("diaryDay").value || todayIso(), is_goal = $("diaryGoal").checked;
   if (!text) return;
+  const entry = { day, text, is_goal, priority: is_goal ? ($("diaryForm").querySelector("input[name=prio-new]:checked")?.value || "mid") : null };
   $("diarySave").disabled = true;
-  const { data, error } = await sb.from("diary").insert({ day, text }).select("id,day,text").single();
+  const { data, error } = await sb.from("diary").insert(entry).select(DIARY_COLS).single();
   $("diarySave").disabled = false;
   if (error) { showBanner("Запись не сохранилась: " + error.message); return; }
   diary.rows.push(data); diary.rows.sort(byNewest);
-  $("diaryText").value = ""; $("diaryDay").value = todayIso();
-  renderDiary(); toast("Записала. Ты молодец!");
+  $("diaryText").value = ""; $("diaryDay").value = todayIso(); $("diaryGoal").checked = false; $("diaryGoalFields").hidden = true;
+  renderDiary(); toast(is_goal ? "Цель записана. У тебя получится!" : "Записала. Ты молодец!");
 };
-$("diaryList").onclick = async e => {
+
+async function diaryAction(e) {
+  const box = e.target.closest(".dentry"); if (!box) return;
+  if (e.target.matches(".dgoal")) { box.querySelector(".goal-fields").hidden = !e.target.checked; return; }
   const b = e.target.closest("button[data-a]"); if (!b) return;
-  const box = b.closest(".dentry"), id = +box.dataset.id, row = diary.rows.find(r => r.id === id);
-  if (b.dataset.a === "edit") { diary.editing = id; renderDiary(); $("diaryList").querySelector(".dedit").focus(); return; }
-  if (b.dataset.a === "cancel") { diary.editing = null; renderDiary(); return; }
-  if (b.dataset.a === "del") {
+  const id = +box.dataset.id, row = diary.rows.find(r => r.id === id);
+  const a = b.dataset.a;
+  if (a === "edit") { diary.editing = id; renderDiary(); document.querySelector(".dedit").focus(); return; }
+  if (a === "cancel") { diary.editing = null; renderDiary(); return; }
+  if (a === "del") {
     if (!confirm("Удалить запись?")) return;
     const { error } = await sb.from("diary").delete().eq("id", id);
     if (error) { showBanner("Не удалилось: " + error.message); return; }
     diary.rows = diary.rows.filter(r => r.id !== id); diary.editing = null; renderDiary(); toast("Запись удалена"); return;
   }
-  const text = box.querySelector(".dedit").value.trim(), day = box.querySelector(".dday-input").value || row.day;
-  if (!text) return;
-  const { error } = await sb.from("diary").update({ text, day }).eq("id", id);
+  let patch;
+  if (a === "done") patch = { done: true, day: todayIso() }; // a reached goal goes into today's log
+  else {
+    const text = box.querySelector(".dedit").value.trim(); if (!text) return;
+    const is_goal = box.querySelector(".dgoal").checked;
+    patch = { text, day: box.querySelector(".dday-input").value || row.day, is_goal,
+      priority: is_goal ? (box.querySelector(`input[name=prio-${id}]:checked`)?.value || "mid") : null, done: is_goal ? row.done : false };
+  }
+  const { error } = await sb.from("diary").update(patch).eq("id", id);
   if (error) { showBanner("Не сохранилось: " + error.message); return; }
-  Object.assign(row, { text, day }); diary.rows.sort(byNewest);
-  diary.editing = null; renderDiary(); toast("Запись обновлена");
-};
+  Object.assign(row, patch); diary.rows.sort(byNewest);
+  diary.editing = null; renderDiary(); toast(a === "done" ? "Цель достигнута! Горжусь тобой" : "Запись обновлена");
+}
+$("diaryList").addEventListener("click", diaryAction); $("diaryGoals").addEventListener("click", diaryAction);
+$("diaryList").addEventListener("change", diaryAction); $("diaryGoals").addEventListener("change", diaryAction);
 
 // ---------- import from the old Google Sheet (.xlsx download) ----------
 
