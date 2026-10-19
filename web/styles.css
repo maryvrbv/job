@@ -182,13 +182,13 @@ body.locked{overflow:hidden}
 @media (max-width:860px){
   body{padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px));padding-top:max(12px,env(safe-area-inset-top,0px))}
   .wrap{gap:12px}
-  header.top{flex-wrap:nowrap;align-items:center;padding-inline:6px}
+  header.top{flex-wrap:nowrap;align-items:center}
   h1{font-size:22px}
   .top .actions{display:none}
   #menuBtn{display:inline-flex}
   .tabs{width:auto;margin-inline:-10px;padding-inline:10px;scrollbar-width:none}
   .tabs::-webkit-scrollbar{display:none}
-  .intro{font-size:13px;padding-inline:6px}
+  .intro{font-size:13px}
   .notify{padding:16px}
 
   .controls{flex-wrap:nowrap}
@@ -232,3 +232,10 @@ body.locked{overflow:hidden}
   .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .frow{grid-template-columns:120px minmax(0,1fr) 44px}
 }
+
+/* Top level switch: Вакансии / Дашборд, two equal halves */
+.segmented{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:var(--line);border-radius:14px;width:320px;max-width:100%}
+.segmented button{border:0;background:none;border-radius:10px;padding:9px 12px;font-weight:500;cursor:pointer;color:var(--muted);text-align:center}
+.segmented button:hover{color:var(--fg)}
+.segmented button[aria-selected="true"]{background:var(--surface);color:var(--fg);font-weight:600;box-shadow:0 1px 3px rgb(31 26 46 / .12)}
+@media (max-width:860px){.segmented{width:100%}}
