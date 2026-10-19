@@ -10,7 +10,6 @@ const TABS = [
   { key: "applied-uae", label: "Отклики ОАЭ", market: "uae", applied: true },
   { key: "applied-ru", label: "Отклики РФ", market: "ru", applied: true },
   { key: "archive", label: "Архив", archive: true },
-  { key: "dash", label: "Дашборд", dash: true },
 ];
 const FRESH_DAYS = 3, ARCHIVE_DAYS = 14;
 // pipeline order matters: the funnel and the "where did it stop" logic read it
@@ -22,8 +21,9 @@ const SKIP_REASONS = ["Только офис без релокации", "Не �
 const LIST_COLUMNS = "id,market,url,title,company,city,work_format,salary,experience,posted_at,applicants,domain,level,fit,why,status,applied_at,reject_stage,feedback,skip_reason,comment,letter,closed_at,updated_at";
 const CACHE_KEY = "jobs-cache-v1";
 
-const state = { tab: "today", jobs: [], sel: {}, loading: true, desc: {}, loadedAt: null };
+const state = { view: "jobs", tab: "today", jobs: [], sel: {}, loading: true, desc: {}, loadedAt: null };
 try { const t = localStorage.getItem("tab"); if (TABS.some(s => s.key === t)) state.tab = t; } catch (e) {}
+try { if (localStorage.getItem("view") === "dash") state.view = "dash"; } catch (e) {}
 try { const s = localStorage.getItem("sort"); if (s && document.querySelector(`#sort option[value="${s}"]`)) document.getElementById("sort").value = s; } catch (e) {}
 
 const $ = id => document.getElementById(id);
@@ -148,7 +148,6 @@ const isApplied = j => ![NEW, SKIP, CLOSED].includes(j.status);
 const isOld = j => (ageDays(j.posted_at) ?? 0) > ARCHIVE_DAYS;
 const tabOf = k => TABS.find(t => t.key === k);
 function jobsOf(t) {
-  if (t.dash) return [];
   if (t.key === "today") return state.jobs.filter(isHot);
   if (t.archive) return state.jobs.filter(j => !isApplied(j) && isOld(j));
   if (t.applied) return state.jobs.filter(j => j.market === t.market && isApplied(j));
@@ -219,7 +218,7 @@ function renderSummary() {
 function renderTabs() {
   const loaded = state.jobs.length > 0;
   $("tabs").innerHTML = TABS.map(t => {
-    const n = !loaded || t.dash ? null : jobsOf(t).filter(j => t.key === "today" || t.archive || (t.applied ? j.status !== REJECT : j.status === NEW)).length;
+    const n = !loaded ? null : jobsOf(t).filter(j => t.key === "today" || t.archive || (t.applied ? j.status !== REJECT : j.status === NEW)).length;
     const tail = n == null ? "" : `<span class="n">${t.key === "today" || t.archive ? n : n + (t.applied ? " в процессе" : " новых")}</span>`;
     return `<button class="tab ${t.key === "today" ? "today" : ""}" role="tab" type="button" data-k="${t.key}" aria-selected="${t.key === state.tab}">${esc(t.label)}${tail}</button>`;
   }).join("");
@@ -375,8 +374,11 @@ function setStatus(j, st) {
 
 function render() {
   renderSummary(); renderTabs();
-  const dash = !!tabOf(state.tab).dash;
-  $("summary").hidden = !dash; $("controls").hidden = $("pane").hidden = dash;
+  // top level: vacancies or the dashboard
+  const dash = state.view === "dash";
+  for (const b of $("views").children) b.setAttribute("aria-selected", String(b.dataset.v === state.view));
+  $("summary").hidden = !dash; $("tabs").hidden = $("controls").hidden = $("pane").hidden = dash;
+  if (dash) $("intro").hidden = true;
   renderFiltersCount();
   if (dash) return;
   const rows = filtered(); renderList(rows); renderDetail(rows);
@@ -466,6 +468,7 @@ $("resetForm").onsubmit = async e => {
   recovering = false; history.replaceState(null, "", location.pathname); boot();
 };
 $("logout").onclick = async () => { await sb.auth.signOut(); try { localStorage.removeItem(CACHE_KEY); } catch (e) {} location.reload(); };
+$("views").onclick = e => { const b = e.target.closest("button[data-v]"); if (!b) return; state.view = b.dataset.v; try { localStorage.setItem("view", state.view); } catch (x) {} render(); };
 $("tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; state.tab = b.dataset.k; try { localStorage.setItem("tab", state.tab); } catch (x) {} render(); };
 $("list").onclick = e => { const b = e.target.closest(".item"); if (!b) return; state.sel[state.tab] = b.dataset.id; render(); if (mobile.matches) { $("detail").scrollTop = 0; openSheet("detail"); } };
 ["q", "fFit", "fFmt", "fStatus", "sort"].forEach(id => $(id).addEventListener("input", render));
