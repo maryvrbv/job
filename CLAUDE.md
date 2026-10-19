@@ -19,7 +19,8 @@
 ## «Обнови вакансии»
 1. Окно поиска: `select market, max(created_at) from jobs group by market`. Ищи с этого момента плюс 2 часа запаса.
 2. Apify через Composio, `APIFY_RUN_ACTOR_SYNC_GET_DATASET_ITEMS`. Запрашивай только нужные поля (`fields`) и читай ответ сразу, без песочницы Composio: она требует подтверждений.
-   - **LinkedIn**: `curious_coder~linkedin-jobs-scraper`, `urls` с `geoId=104305776` и `f_TPR=r<секунды>`, `limitPerSource` ~50. Два отдельных точных запроса («product designer», «UX designer»): общий запрос через OR приносит мусор.
+   - **LinkedIn**: `curious_coder~linkedin-jobs-scraper`, `urls` с `geoId=104305776` и `f_TPR=r<секунды>`, `limitPerSource` ~50. Пять точных запросов, все пять URL в одном запуске: «product designer», «UI/UX designer», «UX/UI designer», «staff designer», «principal designer». Широкие запросы («designer», OR, NOT) не работают: LinkedIn приносит инженеров, BIM и маркетинг (проверено 17.10).
+   - Цена: LinkedIn ~$0.002 за вакансию, hh ~$0.08 за запуск + $0.002 за вакансию. Бесплатный лимит Apify $5 в месяц.
    - **hh.ru**: `abotapi~hh-ru-jobs-scraper`, `mode: search`, `areas ["113"]`, `schedule ["remote"]`, `orderBy publication_time`, `maxListings` ~60, `fetchDetails: false` (hh всё равно блокирует описания).
 3. Отсеять те, что уже есть в базе. Оценить новые самой, а не по ключевым словам. Записать все, нерелевантные с `fit='Низкий'` и причиной, чтобы не считать их новыми в следующий раз.
 4. Удаление (`DELETE`) через Supabase MCP зависает. Вместо удаления помечать `fit='Низкий'` с причиной.
