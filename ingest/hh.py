@@ -25,6 +25,8 @@ MIN_RUB = 270_000
 RUB_PER = {"RUR": 1, "USD": 80, "EUR": 90}  # rough on purpose: only clearly lower ranges should drop
 EXPERIENCE = {"noExperience": "нет", "between1And3": "1–3", "between3And6": "3–6", "moreThan6": "6+"}
 FORMATS = {"REMOTE": "удалёнка", "HYBRID": "гибрид", "ON_SITE": "офис", "FIELD_WORK": "разъездной"}
+# companies Masha does not want back (former employers and the like); matched in lower case
+SKIP_COMPANIES = {"digital chief"}
 
 
 def fetch_state(url):
@@ -82,14 +84,15 @@ def search():
             res = fetch_state("https://hh.ru/search/vacancy?" + urllib.parse.urlencode(params))["vacancySearchResult"]
             for v in res.get("vacancies", []):
                 vid = str(v["vacancyId"])
-                if below_floor(v.get("compensation")):
+                company = (v.get("company") or {}).get("visibleName") or (v.get("company") or {}).get("name", "")
+                if below_floor(v.get("compensation")) or company.lower() in SKIP_COMPANIES:
                     skipped.add(vid)
                     continue
                 jobs.setdefault(vid, {
                     "id": "hh:" + vid,
                     "url": "https://hh.ru/vacancy/" + vid,
                     "title": v.get("name", ""),
-                    "company": (v.get("company") or {}).get("visibleName") or (v.get("company") or {}).get("name", ""),
+                    "company": company,
                     "salary": salary(v.get("compensation")),
                     "experience": EXPERIENCE.get(v.get("workExperience"), ""),
                     "work_format": formats(v.get("workFormats")),
@@ -101,7 +104,7 @@ def search():
                 break
             time.sleep(1)
         time.sleep(1)
-    print(f"skipped {len(skipped)} below {MIN_RUB // 1000}k RUB", file=sys.stderr)
+    print(f"skipped {len(skipped)}: below {MIN_RUB // 1000}k RUB or a skipped company", file=sys.stderr)
     return sorted(jobs.values(), key=lambda j: j["posted_at"], reverse=True)
 
 
