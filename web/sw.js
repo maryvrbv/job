@@ -9,7 +9,9 @@ self.addEventListener("push", e => {
   try { data = e.data ? e.data.json() : {}; } catch (err) { data = { body: e.data && e.data.text() }; }
   e.waitUntil(self.registration.showNotification(data.title || "Отклики Маши", {
     body: data.body || "",
-    // no large icon: Android already shows the app's cat on the left; the badge is a white cat silhouette for the status bar
+    // Android shows the app's cat on the left. Without an icon Chrome puts a letter of the site name on the right,
+    // so the large icon is a fully transparent square. The badge is a white cat silhouette for the status bar.
+    icon: "blank-192.png",
     badge: "badge-96.png",
     data: { url: data.url || "./" },
   }));
