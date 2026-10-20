@@ -453,6 +453,7 @@ function renderDetail(rows) {
     </div>`;
 
   renderExtra(j); renderHistory(j.id);
+  D.querySelector("h2 a").onclick = openOutside;
   $("detailClose").onclick = () => closeSheet();
   $("desc").addEventListener("toggle", () => { if ($("desc").open) loadDesc(j); });
   const ta = $("letter");
@@ -518,6 +519,17 @@ function setStatus(j, st) {
   // on a phone the vacancy is a bottom sheet: once it drops out of the current list, close it,
   // otherwise the sheet quietly switches to the next vacancy and the next tap lands on it
   if (mobile.matches && sheetOpen === "detail" && !filtered().some(x => x.id === j.id)) closeSheet();
+}
+
+// In the installed app on Android a vacancy link opens in a tab layered over the app, so I cannot
+// switch back to copy the letter. An intent hands it to the system instead: the LinkedIn / hh app
+// or the browser opens as a separate window, and the app stays one swipe away.
+const isAndroid = /Android/i.test(navigator.userAgent);
+function openOutside(e) {
+  if (!isAndroid || !standalone()) return; // elsewhere target=_blank already opens a separate tab
+  e.preventDefault();
+  const u = new URL(e.currentTarget.href);
+  location.href = `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=${u.protocol.slice(0, -1)};action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(u.href)};end`;
 }
 
 function render() {
