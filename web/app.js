@@ -28,7 +28,15 @@ try { const s = localStorage.getItem("sort"); if (s && document.querySelector(`#
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2400); }
+// a short note at the bottom; with an action (like «Отменить») it stays longer and carries a button
+function toast(msg, action) {
+  const t = $("toast"); t.textContent = msg; t.hidden = false;
+  if (action) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "toast-act"; b.textContent = action.label;
+    b.onclick = () => { t.hidden = true; action.run(); }; t.append(b);
+  }
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, action ? 6000 : 2400);
+}
 const todayIso = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 // in the list the current year goes without saying: 11.10 instead of 11.10.2026
 const shortDate = iso => iso && iso.slice(0, 4) === String(new Date().getFullYear()) ? iso.slice(8, 10) + "." + iso.slice(5, 7) : ruDate(iso);
@@ -55,12 +63,12 @@ async function load() {
 }
 
 let writing = Promise.resolve();
-function save(job, patch, okMsg) {
+function save(job, patch, okMsg, action) {
   const before = { ...job }; Object.assign(job, patch); render();
   writing = writing.then(async () => {
     const { error } = await sb.from("jobs").update(patch).eq("id", job.id);
     if (error) { Object.assign(job, before); render(); showBanner("Не сохранилось: " + error.message + ". Значение вернула назад, попробуй ещё раз."); return; }
-    cacheSave(); toast(okMsg);
+    cacheSave(); toast(okMsg, action);
   });
   return writing;
 }
@@ -501,7 +509,15 @@ function setStatus(j, st) {
   if (events) events.push({ job_id: j.id, from_status: was, to_status: st, at: new Date().toISOString(), by_me: true }); // the server logs the same
   patch.closed_at = st === CLOSED ? todayIso() : null;
   if (st === REJECT && !j.reject_stage) patch.reject_stage = stageIx(was) >= 0 && was !== "Оффер" ? (was === RECRUITER ? "Откликнулась" : was) : "Откликнулась";
-  save(j, patch, st === REJECT ? "Отмечен отказ. Укажи этап и обратную связь" : st === SKIP ? "Отмечено «Не подходит». Можно написать почему" : st === CLOSED ? "Отмечено: отклики закрыты" : "Этап: " + st);
+  const back = Object.fromEntries(Object.keys(patch).map(k => [k, j[k] ?? null]));
+  const undo = { label: "Отменить", run: () => {
+    if (events) events.push({ job_id: j.id, from_status: st, to_status: was, at: new Date().toISOString(), by_me: true });
+    save(j, back, "Вернула: " + was);
+  } };
+  save(j, patch, st === REJECT ? "Отмечен отказ" : st === SKIP ? "Отмечено «Не подходит»" : st === CLOSED ? "Отмечено: отклики закрыты" : "Этап: " + st, undo);
+  // on a phone the vacancy is a bottom sheet: once it drops out of the current list, close it,
+  // otherwise the sheet quietly switches to the next vacancy and the next tap lands on it
+  if (mobile.matches && sheetOpen === "detail" && !filtered().some(x => x.id === j.id)) closeSheet();
 }
 
 function render() {
