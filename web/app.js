@@ -147,13 +147,17 @@ const isHot = j => j.fit === "Высокий" && j.status === NEW && ageDays(j.p
 const isApplied = j => ![NEW, SKIP, CLOSED].includes(j.status);
 const isOld = j => (ageDays(j.posted_at) ?? 0) > ARCHIVE_DAYS;
 const tabOf = k => TABS.find(t => t.key === k);
-function jobsOf(t) {
-  if (t.key === "today") return state.jobs.filter(isHot);
-  if (t.archive) return state.jobs.filter(j => !isApplied(j) && isOld(j));
-  if (t.applied) return state.jobs.filter(j => j.market === t.market && isApplied(j));
-  return state.jobs.filter(j => j.market === t.market && !isApplied(j) && !isOld(j));
+// «Низкий» vacancies stay in the base only so the next search does not bring them back as new:
+// they are hidden everywhere unless I applied anyway or pick «Низкое» in the filter
+const isLow = j => j.fit === "Низкий" && !isApplied(j);
+function jobsOf(t, withLow = false) {
+  const pool = withLow ? state.jobs : state.jobs.filter(j => !isLow(j));
+  if (t.key === "today") return pool.filter(isHot);
+  if (t.archive) return pool.filter(j => !isApplied(j) && isOld(j));
+  if (t.applied) return pool.filter(j => j.market === t.market && isApplied(j));
+  return pool.filter(j => j.market === t.market && !isApplied(j) && !isOld(j));
 }
-const tabJobs = () => jobsOf(tabOf(state.tab));
+const tabJobs = () => jobsOf(tabOf(state.tab), $("fFit").value === "Низкий");
 
 function filtered() {
   const q = $("q").value.trim().toLowerCase(), fit = $("fFit").value, fmt = $("fFmt").value, st = $("fStatus").value, sort = $("sort").value;
