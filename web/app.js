@@ -59,7 +59,7 @@ async function load() {
   state.loading = false;
   if (error) { showBanner("Не получилось загрузить вакансии: " + error.message); render(); return; }
   showBanner("");
-  state.jobs = data; state.loadedAt = new Date().toISOString(); cacheSave(); events = null; render(); // the activity map reloads the status log
+  state.jobs = data; state.loadedAt = new Date().toISOString(); cacheSave(); events = null; render(); loadEvents(); // the status log gives the activity map and the application times
 }
 
 let writing = Promise.resolve();
@@ -180,7 +180,11 @@ function filtered() {
   const num = s => { const n = parseInt(String(s).replace(/\D/g, ""), 10); return isNaN(n) ? 1e9 : n; };
   const byDate = (a, b) => (b.posted_at || "").localeCompare(a.posted_at || "");
   const fitRank = f => ({ "Высокий": 0, "Средний": 1 }[f] ?? 2);
-  const byApplied = (a, b) => (b.applied_at || "").localeCompare(a.applied_at || "") || byDate(a, b);
+  // when I applied: the logged move out of «Не откликалась» if there is one, else the date alone (start of that day)
+  const appliedMs = {};
+  for (const e of events || []) if (isApplyStatus(e.to_status) && !isApplyStatus(e.from_status || NEW)) appliedMs[e.job_id] = Date.parse(e.at);
+  const appliedAt = j => appliedMs[j.id] ?? (j.applied_at ? Date.parse(j.applied_at) : 0);
+  const byApplied = (a, b) => appliedAt(b) - appliedAt(a) || byDate(a, b);
   const cmp = {
     fit: (a, b) => fitRank(a.fit) - fitRank(b.fit) || byDate(a, b),
     date: byDate,
@@ -240,7 +244,7 @@ async function loadEvents() {
   events = events || [];
   const { data } = await sb.from("job_events").select("job_id,from_status,to_status,at,by_me").order("at");
   events = data || [];
-  if (state.view === "dash") renderActivity();
+  if (state.view === "dash") renderActivity(); else if (state.view === "jobs" && tabOf(state.tab).applied) render(); // «Отклики» sort by application time
   const h = $("hist"); if (h) renderHistory(h.dataset.id);
 }
 const isApplyStatus = st => ![NEW, SKIP, CLOSED].includes(st);
@@ -563,7 +567,7 @@ async function loadDiary() {
   const { data, error } = await sb.from("diary").select(DIARY_COLS).order("day", { ascending: false }).order("at_time", { ascending: false, nullsFirst: false }).order("id", { ascending: false });
   if (error) { showBanner("Не получилось загрузить дневник: " + error.message); return; }
   diary.rows = data; renderDiary();
-  if (state.view === "dash") renderActivity();
+  if (state.view === "dash") renderActivity(); else if (state.view === "jobs" && tabOf(state.tab).applied) render(); // «Отклики» sort by application time
 }
 const byNewest = (a, b) => b.day.localeCompare(a.day) || hhmm(b.at_time).localeCompare(hhmm(a.at_time)) || b.id - a.id;
 const isOpenGoal = r => r.is_goal && !r.done;
