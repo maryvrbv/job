@@ -36,8 +36,10 @@ COMPANIES = [
 UAE = re.compile(r"dubai|abu dhabi|sharjah|united arab emirates|\buae\b|,\s*ae\b|\bae$", re.I)
 KEEP = re.compile(r"design|\bux\b|\bui\b|user experience|interaction", re.I)
 DROP = re.compile(r"graphic|brand|motion|video|creative|content|marketing|interior|fashion|packag|illustrat|3d|game"
-                  r"|intern\b|junior|engineer|developer|manager(?!.*design)|analyst|research(?!.*design)"
+                  r"|intern\b|junior|manager(?!.*design)|analyst|research(?!.*design)"
                   r"|operations|emirati|uae national", re.I)
+# engineering words drop a title only when it is not a designer's ("Designer – Developer Handover" stays)
+NOT_DESIGN = re.compile(r"engineer|developer|front-?end|full.?stack", re.I)
 UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 Chrome/120 Safari/537.36",
       "Accept": "application/json"}
 
@@ -105,7 +107,8 @@ def search():
     for name, source, board in COMPANIES:
         try:
             for jid, title, loc, url, posted in LISTERS[source](board):
-                if UAE.search(loc) and KEEP.search(title) and not DROP.search(title):
+                if UAE.search(loc) and KEEP.search(title) and not DROP.search(title) \
+                        and not (NOT_DESIGN.search(title) and "designer" not in title.lower()):
                     jobs.append({"id": f"co:{source}:{board}:{jid}", "company": name, "title": title.strip(),
                                  "location": loc, "url": url, "posted_at": posted})
         except Exception as e:  # one broken board should not lose the rest
