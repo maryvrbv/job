@@ -341,7 +341,7 @@ function showHeatDay(iso, slot) {
   const d = new Date(iso + "T00:00:00").toLocaleDateString("ru-RU", { weekday: "short", day: "numeric", month: "long" });
   const part = slot ? ", " + SLOTS.find(([k]) => k === slot)[2] : "";
   const short = t => t.length > 90 ? t.slice(0, 88).trimEnd() + "…" : t;
-  $("heatDay").innerHTML = `<b>${esc(d)}${esc(part)}</b>${!apps.length && !notes.length ? " · ничего не отмечено" : ""}`
+  $("heatDay").innerHTML = `<div><b>${esc(d)}${esc(part)}</b>${!apps.length && !notes.length ? " · ничего не отмечено" : ""}</div>`
     + vacancyLines(apps)
     + notes.map(a => `<span class="hd-note">${a.row.at_time ? esc(hhmm(a.row.at_time)) + " · " : ""}${a.row.is_goal ? "✓ " : ""}${esc(short(a.row.text.replace(/\s+/g, " ")))}</span>`).join("");
   $("activity").querySelectorAll("i.sel").forEach(i => i.classList.remove("sel"));

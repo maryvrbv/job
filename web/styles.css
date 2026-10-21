@@ -128,7 +128,7 @@ details.desc .body{padding:0 14px 14px;line-height:1.55;max-height:420px;overflo
 .login input{padding:12px 14px;border:0;border-radius:var(--r-sm);background:var(--sunken)}
 .linkbtn{background:none;border:0;padding:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;align-self:flex-start;font-size:13px}
 .linkbtn:hover{color:var(--fg)}
-.top .actions{display:flex;flex-wrap:wrap;gap:8px}
+.top .actions{display:none} /* the buttons live in the settings menu (gear), on every screen */
 .updated{font-size:13px;color:var(--muted)}
 [hidden]{display:none!important}
 .stats{align-content:start}
@@ -160,7 +160,7 @@ details.desc .body .note{margin:0}
 .mrow span b{display:block;font-size:20px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums}
 
 /* Phone-only pieces stay out of the desktop layout */
-#menuBtn,.filters-btn,.sheet-bar,.filters .sheet-head,.filters .sheet-foot{display:none}
+.filters-btn,.sheet-bar,.filters .sheet-head,.filters .sheet-foot{display:none}
 .filters{display:contents}
 .icon-btn{padding:10px;justify-content:center;min-width:44px;min-height:44px}
 .grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto}
@@ -172,6 +172,15 @@ body.locked{overflow:hidden}
 /* Settings menu: a list of actions in a bottom sheet */
 .sheet.bottom{padding:10px 16px calc(16px + env(safe-area-inset-bottom,0px))}
 .sheet.bottom h2{margin:12px 4px 4px}
+#menuBtn{background:var(--surface)}
+header.top{align-items:center}
+/* on a computer the settings menu drops down under the gear instead of sliding up from the bottom */
+@media (min-width:861px){
+  .sheet.bottom{margin:76px max(16px,calc((100vw - 1280px) / 2)) auto auto;width:340px;max-width:none;border-radius:20px;padding:6px 12px 10px}
+  .sheet.bottom .grab{display:none}
+  .sheet.bottom h2{font-size:17px;margin:10px 4px 2px}
+  .menu button{font-size:15px;padding:12px 4px}
+}
 .menu{display:flex;flex-direction:column}
 .menu button{border:0;background:none;text-align:left;padding:14px 4px;font-size:16px;font-weight:500;cursor:pointer;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
 .menu button:last-child{border-bottom:0}
@@ -184,8 +193,6 @@ body.locked{overflow:hidden}
   .wrap{gap:12px}
   header.top{flex-wrap:nowrap;align-items:center}
   h1{font-size:22px}
-  .top .actions{display:none}
-  #menuBtn{display:inline-flex}
   .tabs{width:auto;max-width:none;margin-inline:-10px;padding-inline:10px;scrollbar-width:none}
   .tabs::-webkit-scrollbar{display:none}
   .intro{font-size:13px}
