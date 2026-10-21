@@ -188,7 +188,7 @@ function filtered() {
     applied: byApplied,
     few: (a, b) => num(a.applicants) - num(b.applicants),
     company: (a, b) => a.company.localeCompare(b.company, "ru"),
-  }[sort];
+  }[sort === "date" && tabOf(state.tab).applied ? "applied" : sort]; // «Отклики» default to the latest application first
   return rows.sort(cmp);
 }
 
