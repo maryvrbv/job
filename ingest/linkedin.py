@@ -25,10 +25,17 @@ PAGE = 10        # the guest search returns 10 cards per request
 KEEP = re.compile(r"product design|\bux\b|\bui\b|ui/ux|ux/ui|uiux|user experience|experience design|interaction design|"
                   r"design lead|lead designer|head of design|design manager|design director|staff designer|principal designer|"
                   r"service design|design system", re.I)
-DROP = re.compile(r"graphic|interior|landscape|architect|engineer|developer|fashion|apparel|womenswear|couture|motion|video|"
+DROP = re.compile(r"graphic|interior|landscape|fashion|apparel|womenswear|couture|motion|video|"
                   r"3d|packaging|wayfinding|facade|façade|mep\b|bim\b|structural|automotive|industrial designer|"
                   r"brand designer|creative designer|multimedia|content|marketing|nationals only|uae national|emirati|"
-                  r"intern\b|trainee|graduate|junior|front-?end|full.?stack|expert opportunity", re.I)
+                  r"intern\b|trainee|graduate|junior|expert opportunity", re.I)
+# engineering words drop a title only when it is not a designer's: "Senior UX/UI Designer – Developer Handover" stays
+NOT_DESIGN = re.compile(r"architect|engineer|developer|front-?end|full.?stack", re.I)
+DESIGNER = re.compile(r"designer", re.I)
+
+
+def keep(title):
+    return bool(KEEP.search(title)) and not DROP.search(title) and not (NOT_DESIGN.search(title) and not DESIGNER.search(title))
 MAX_PER_QUERY = 100
 
 
@@ -66,7 +73,7 @@ def search(seconds):
             for c in cards:
                 jid = first(r"urn:li:jobPosting:(\d+)", c)
                 title = text(first(r'base-search-card__title">(.*?)</h3>', c))
-                if not jid or not KEEP.search(title) or DROP.search(title):
+                if not jid or not keep(title):
                     continue
                 jobs.setdefault(jid, {
                     "id": "li:" + jid,
