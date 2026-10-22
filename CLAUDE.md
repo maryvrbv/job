@@ -53,6 +53,21 @@
   - в конце «Буду рада обсудить вакансию 🐱» и «Маша Воробьева».
 - `<slug>` — только латиница (транслит), коротко по компании или роли.
 - Если откликаешься не через hh или LinkedIn, а напрямую рекрутеру в Telegram, метка `tg-<slug>` вместо `hh-`/`li-` (и в письме, и в ссылках резюме).
+- **Вакансии про дизайн-системы**: письмо строй по этому образцу, Маше нравится, как оно написано (ответ MultiBank, `li:4481581691`). Меняй только приветствие и первую фразу под вакансию, метку и, если просят, детали из описания. Для РФ — тот же смысл по-русски, с русским блоком ссылок и подписью.
+  ```
+  Hi <Company> team,
+
+  The role sounds like a great fit: owning a design system end to end, from components and tokens to governance and adoption, is work I enjoy.
+
+  I've worked in companies with very strong design communities, and I've always followed closely how they build and scale their design systems. One of the most complex and interesting was at Alfa-Bank, where I work now. At X5 (Pyaterochka app, 10M MAU) I evolved the design system in a team of four designers and led the redesign of the HR services design system, managing two designers on the project. I also prototype in code every day with Claude Code, so I'm comfortable working close to front-end implementation.
+
+  I'm relocating to Dubai and available immediately.
+
+  Portfolio: https://marydis.com/index-en.html?from=li-<slug>
+
+  Best regards,
+  Maria Vorobyeva
+  ```
 - Без клише (excited, passionate, thrilled), без выдуманных фактов. Тон тёплый и уверенный.
 - Перед письмом на hh-вакансию возьми описание через `python3 ingest/hh.py details <id>` (или то, что Маша вставила в приложении) и опирайся на него.
 
