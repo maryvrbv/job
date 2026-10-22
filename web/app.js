@@ -443,12 +443,12 @@ function renderDetail(rows) {
     <div id="extra"></div>
     <div>
       <p class="lbl">Сопроводительное письмо ${m.lang === "en" ? "(английский)" : "(русский)"}</p>
-      <textarea class="letter" id="letter" spellcheck="true" placeholder="Письма пока нет. Нажми «Запрос для Claude»: запрос скопируется, вставь его в чат с Claude, а ответ — сюда.">${esc(j.letter)}</textarea>
+      <textarea class="letter" id="letter" spellcheck="true" placeholder="Письма пока нет. Попроси Claude в чате написать его, а ответ вставь сюда.">${esc(j.letter)}</textarea>
       <div class="row" style="margin-top:8px">
         <button class="btn primary" type="button" id="copy" ${j.letter ? "" : "disabled"}>Скопировать письмо</button>
         <button class="btn" type="button" id="saveLetter" disabled>Сохранить правки</button>
         <button class="btn" type="button" id="cv">Скачать CV</button>
-        <button class="btn" type="button" id="gen">${window.JOB_CONFIG.letterFunction ? (j.letter ? "Переписать заново" : "Написать письмо") : "Запрос для Claude ↗"}</button>
+        ${window.JOB_CONFIG.letterFunction ? `<button class="btn" type="button" id="gen">${j.letter ? "Переписать заново" : "Написать письмо"}</button>` : ""}
         <span class="note grow" id="letterNote"></span>
       </div>
     </div>
@@ -468,7 +468,7 @@ function renderDetail(rows) {
     catch (e) { ta.focus(); ta.select(); toast("Текст выделен: нажми Ctrl+C / ⌘C"); }
   };
   $("saveLetter").onclick = () => save(j, { letter: ta.value }, "Письмо сохранено");
-  $("gen").onclick = () => generate(j);
+  if ($("gen")) $("gen").onclick = () => generate(j); // only with the letter function; letters otherwise come from the Claude chat
   $("cv").onclick = () => downloadCv(j).catch(err => toast("Не получилось собрать CV: " + err.message));
   const pick = e => { const b = e.target.closest("button[data-st]"); if (b) setStatus(j, b.dataset.st); };
   $("steps").onclick = pick; $("outcomes").onclick = pick;
