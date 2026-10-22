@@ -447,6 +447,7 @@ function renderDetail(rows) {
       <div class="row" style="margin-top:8px">
         <button class="btn primary" type="button" id="copy" ${j.letter ? "" : "disabled"}>Скопировать письмо</button>
         <button class="btn" type="button" id="saveLetter" disabled>Сохранить правки</button>
+        <button class="btn" type="button" id="cv">Скачать CV</button>
         <button class="btn" type="button" id="gen">${window.JOB_CONFIG.letterFunction ? (j.letter ? "Переписать заново" : "Написать письмо") : "Запрос для Claude ↗"}</button>
         <span class="note grow" id="letterNote"></span>
       </div>
@@ -468,6 +469,7 @@ function renderDetail(rows) {
   };
   $("saveLetter").onclick = () => save(j, { letter: ta.value }, "Письмо сохранено");
   $("gen").onclick = () => generate(j);
+  $("cv").onclick = () => downloadCv(j).catch(err => toast("Не получилось собрать CV: " + err.message));
   const pick = e => { const b = e.target.closest("button[data-st]"); if (b) setStatus(j, b.dataset.st); };
   $("steps").onclick = pick; $("outcomes").onclick = pick;
   const cm = $("comment");
@@ -655,6 +657,45 @@ async function diaryAction(e) {
 $("diaryList").addEventListener("click", diaryAction); $("diaryGoals").addEventListener("click", diaryAction);
 $("diaryList").addEventListener("change", diaryAction); $("diaryGoals").addEventListener("change", diaryAction);
 
+// ---------- CV with this vacancy's link tag ----------
+// The base CVs live in the private Storage bucket "cv" (ru.pdf, en.pdf), their portfolio links carry from=cv-ru / cv-en.
+// For a vacancy the links get the same tag as its letter, so portfolio analytics shows where a visit came from;
+// the file name stays neutral, so nothing in it tells the company the CV was made for them.
+const TRANSLIT = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ы: "y", э: "e", ю: "yu", я: "ya" };
+function cvTag(j) {
+  const found = (j.letter || "").match(/from=((?:hh|li|tg)-[a-z0-9-]+)/) || (j.comment || "").match(/\b((?:hh|li|tg)-[a-z0-9-]+)/);
+  if (found) return found[1];
+  const slug = [...(j.company || "").toLowerCase()].map(c => TRANSLIT[c] ?? c).join("").replace(/[^a-z0-9]/g, "").slice(0, 20) || "cv";
+  return (j.id.startsWith("tg:") ? "tg-" : j.market === "uae" ? "li-" : "hh-") + slug;
+}
+async function downloadCv(j) {
+  const lang = j.market === "uae" ? "en" : "ru";
+  if (!window.PDFLib) await loadScript("https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js");
+  const { PDFDocument, PDFName, PDFDict, PDFString } = window.PDFLib;
+  const { data, error } = await sb.storage.from("cv").download(lang + ".pdf");
+  if (error) throw error;
+  const doc = await PDFDocument.load(await data.arrayBuffer());
+  const tag = cvTag(j);
+  for (const page of doc.getPages()) {
+    const annots = page.node.lookup(PDFName.of("Annots"));
+    for (const ref of annots ? annots.asArray() : []) {
+      const act = doc.context.lookup(ref)?.lookup(PDFName.of("A"));
+      const uri = act instanceof PDFDict && act.lookup(PDFName.of("URI"));
+      if (uri && /from=cv-/.test(uri.decodeText())) act.set(PDFName.of("URI"), PDFString.of(uri.decodeText().replace(/from=[^&#]*/, "from=" + tag)));
+    }
+  }
+  const url = URL.createObjectURL(new Blob([await doc.save()], { type: "application/pdf" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: `CV_Vorobeva_Mariia_${lang.toUpperCase()}.pdf` });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast("CV с меткой " + tag);
+}
+async function uploadCv(lang, file) {
+  const { error } = await sb.storage.from("cv").upload(lang + ".pdf", file, { upsert: true, contentType: "application/pdf" });
+  if (error) throw error;
+  toast("Резюме " + lang.toUpperCase() + " обновлено");
+}
+
 // ---------- import from the old Google Sheet (.xlsx download) ----------
 
 const loadScript = src => new Promise((ok, fail) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = fail; document.head.appendChild(s); });
@@ -806,10 +847,13 @@ menu.onclick = e => {
     notify: () => { $("notifyPanel").hidden = false; renderNotify(); scrollTo({ top: 0, behavior: "smooth" }); },
     install: () => install(),
     import: () => $("importFile").click(),
+    "cv-ru": () => { $("cvFile").dataset.lang = "ru"; $("cvFile").click(); },
+    "cv-en": () => { $("cvFile").dataset.lang = "en"; $("cvFile").click(); },
     logout: () => $("logout").click(),
   })[b.dataset.act]();
 };
 $("installSheet").onclick = e => { if (e.target === $("installSheet")) $("installSheet").close(); };
+$("cvFile").onchange = e => { const f = e.target.files[0]; if (f) uploadCv(e.target.dataset.lang, f).catch(err => showBanner("Резюме не загрузилось: " + err.message)); e.target.value = ""; };
 $("importFile").onchange = e => { const f = e.target.files[0]; if (f) importXlsx(f).catch(err => showBanner("Импорт не удался: " + err.message)); e.target.value = ""; };
 sb.auth.onAuthStateChange((event) => {
   if (event === "PASSWORD_RECOVERY") recovering = true;
