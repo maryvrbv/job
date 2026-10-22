@@ -208,9 +208,23 @@ function reached(j) {
 }
 
 // funnel source: everything, regular applications or referrals only
-let funnelSrc = "all";
+let funnelSrc = "all", funnelStage = null; // funnelStage: the stage row opened to show its companies
 const FUNNEL_SRC = [["all", "Все"], ["plain", "Обычные"], ["ref", "Рефералки"]];
 const pct = (a, b) => b ? Math.round(a / b * 100) + "%" : "—";
+// companies that reached a funnel stage, latest application first; a tap opens the vacancy
+function stageJobs(pool, i) {
+  const js = pool.filter(j => reached(j) >= i).sort((a, b) => (b.applied_at || "").localeCompare(a.applied_at || ""));
+  if (!js.length) return '<div class="fjobs"><p class="note">Пока никого</p></div>';
+  return `<div class="fjobs">${js.map(j => `<button type="button" class="fjob" data-id="${esc(j.id)}"><span class="fj-c">${esc(j.company)}${j.referral ? ' <span class="chip ref">реф.</span>' : ""}<small>${esc(j.title)}</small></span><span class="pill ${statusCls(j.status)}">${esc(j.status === REJECT ? "Отказ: " + short(j.reject_stage || STAGES[0]) : short(j.status))}</span></button>`).join("")}</div>`;
+}
+function openJob(id) {
+  const j = state.jobs.find(x => x.id === id); if (!j) return;
+  const t = TABS.find(t => t.key !== "today" && jobsOf(t, true).includes(j)); if (!t) return;
+  state.view = "jobs"; state.tab = t.key; state.sel[t.key] = id;
+  if (j.fit === "Низкий" && !isApplied(j)) $("fFit").value = "Низкий";
+  render(); scrollTo({ top: 0 });
+  if (mobile.matches) { $("detail").scrollTop = 0; openSheet("detail"); }
+}
 function renderSummary() {
   const all = state.jobs, sent = all.filter(j => reached(j) >= 0);
   const procAll = all.filter(j => stageIx(j.status) >= 1 && j.status !== "Оффер"), procRef = procAll.filter(j => j.referral).length;
@@ -231,7 +245,7 @@ function renderSummary() {
     <div class="fsrc" role="tablist">${FUNNEL_SRC.map(([k, l]) => `<button type="button" data-src="${k}" aria-selected="${k === funnelSrc}">${l}</button>`).join("")}</div>` + STAGES.map((s, i) => {
     const got = pool.filter(j => reached(j) >= i).length;
     const lost = pool.filter(j => j.status === REJECT && reached(j) === i).length;
-    return `<div class="frow"><span>${esc(short(s))}</span><span class="bar" title="${got} дошли, ${lost} отказов на этом этапе"><i style="width:${(got - lost) / max * 100}%"></i><i class="x" style="width:${lost / max * 100}%"></i></span><span class="num"><b>${got}</b>${lost ? " · −" + lost : ""}</span></div>`;
+    return `<button type="button" class="frow" data-stage="${i}" aria-expanded="${funnelStage === i}"><span>${esc(short(s))}</span><span class="bar" title="${got} дошли, ${lost} отказов на этом этапе"><i style="width:${(got - lost) / max * 100}%"></i><i class="x" style="width:${lost / max * 100}%"></i></span><span class="num"><b>${got}</b>${lost ? " · −" + lost : ""}</span></button>${funnelStage === i ? stageJobs(pool, i) : ""}`;
   }).join("") + (rS ? `<p class="fcmp">Дошли до HR и дальше: рефералки <b>${rT} из ${rS}</b> (${pct(rT, rS)}) · обычные <b>${pT} из ${pS}</b> (${pct(pT, pS)})</p>` : "");
   // per market: fresh relevant vacancies still waiting for me, and how my applications go
   const row = m => {
@@ -367,7 +381,12 @@ function showHeatDay(iso, slot) {
   if (slot) $("activity").querySelector(`i[data-d="${iso}"][data-s="${slot}"]`)?.classList.add("sel");
 }
 const pickHeat = e => { const c = e.target.closest("i[data-d]"); if (c) showHeatDay(c.dataset.d, c.dataset.s); };
-$("funnel").addEventListener("click", e => { const b = e.target.closest("[data-src]"); if (b) { funnelSrc = b.dataset.src; renderSummary(); } });
+$("funnel").addEventListener("click", e => {
+  const src = e.target.closest("[data-src]"), row = e.target.closest("[data-stage]"), job = e.target.closest(".fjob");
+  if (src) { funnelSrc = src.dataset.src; renderSummary(); }
+  else if (row) { const i = +row.dataset.stage; funnelStage = funnelStage === i ? null : i; renderSummary(); }
+  else if (job) openJob(job.dataset.id);
+});
 $("activity").addEventListener("click", pickHeat);
 $("activity").addEventListener("mouseover", pickHeat);
 
@@ -560,7 +579,8 @@ function render() {
   renderSummary(); renderTabs();
   // top level: vacancies, the dashboard or the diary
   const v = state.view, jobsView = v === "jobs";
-  for (const b of $("views").children) b.setAttribute("aria-selected", String(b.dataset.v === v));
+  for (const b of $("views").querySelectorAll("button")) b.setAttribute("aria-selected", String(b.dataset.v === v));
+  moveThumb();
   $("summary").hidden = v !== "dash"; $("diary").hidden = v !== "diary";
   $("tabs").hidden = $("controls").hidden = $("pane").hidden = !jobsView;
   if (!jobsView) $("intro").hidden = true;
@@ -798,6 +818,14 @@ $("resetForm").onsubmit = async e => {
   recovering = false; history.replaceState(null, "", location.pathname); boot();
 };
 $("logout").onclick = async () => { await sb.auth.signOut(); try { localStorage.removeItem(CACHE_KEY); } catch (e) {} location.reload(); };
+// the white thumb of the segmented control slides to the chosen section
+function moveThumb() {
+  const cur = $("views").querySelector('[aria-selected="true"]'), t = $("viewsThumb");
+  if (!cur || !cur.offsetWidth) return;
+  t.style.width = cur.offsetWidth + "px"; t.style.transform = `translateX(${cur.offsetLeft}px)`;
+  if (!t.classList.contains("ready")) requestAnimationFrame(() => t.classList.add("ready")); // no slide on the first paint
+}
+addEventListener("resize", moveThumb); document.fonts?.ready.then(moveThumb);
 $("views").onclick = e => {
   const b = e.target.closest("button[data-v]"); if (!b) return;
   state.view = b.dataset.v; try { localStorage.setItem("view", state.view); } catch (x) {}
