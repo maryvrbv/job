@@ -6,6 +6,7 @@ const MARKETS = [
 ];
 const TABS = [
   { key: "today", label: "Откликнуться сегодня" },
+  { key: "process", label: "В процессе", process: true },
   ...MARKETS.map(m => ({ key: m.key, label: m.label, market: m.key })),
   { key: "applied-uae", label: "Отклики ОАЭ", market: "uae", applied: true },
   { key: "applied-ru", label: "Отклики РФ", market: "ru", applied: true },
@@ -14,11 +15,14 @@ const TABS = [
 const FRESH_DAYS = 3, ARCHIVE_DAYS = 14;
 // pipeline order matters: the funnel and the "where did it stop" logic read it
 const STAGES = ["Откликнулась", "Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес", "Оффер"];
+// short stage names for the interface; the base keeps the full ones
+const SHORT = { "Откликнулась": "Отклик", "Скрининг с HR": "HR", "Собес с лидом": "Команда", "Финальный собес": "Финал" };
+const short = s => SHORT[s] || s;
 const NEW = "Не откликалась", REJECT = "Отказ", SKIP = "Не подходит", RECRUITER = "Написала рекрутеру", CLOSED = "Отклики закрыты";
 const ENDED = [SKIP, REJECT, CLOSED];
 const SKIP_REASONS = ["Только офис без релокации", "Не мой домен", "Слишком джуниорская роль", "Низкая зарплата", "Нужен арабский", "Это агентство/аутстаф", "Уже откликалась раньше"];
 // everything except the long description, which loads when the panel opens
-const LIST_COLUMNS = "id,market,url,title,company,city,work_format,salary,experience,posted_at,applicants,domain,level,fit,why,status,applied_at,reject_stage,feedback,skip_reason,comment,letter,closed_at,updated_at";
+const LIST_COLUMNS = "id,market,url,title,company,city,work_format,salary,experience,posted_at,applicants,domain,level,fit,why,status,applied_at,reject_stage,feedback,skip_reason,comment,letter,closed_at,updated_at,referral";
 const CACHE_KEY = "jobs-cache-v1";
 
 const state = { view: "jobs", tab: "today", jobs: [], sel: {}, loading: true, desc: {}, loadedAt: null };
@@ -153,6 +157,8 @@ const isHot = j => j.fit === "Высокий" && j.status === NEW && ageDays(j.p
 // "Отклики" tabs: everything I applied to, rejections included, whatever the age.
 // Vacancies I never applied to go to "Архив" once they are older than ARCHIVE_DAYS.
 const isApplied = j => ![NEW, SKIP, CLOSED].includes(j.status);
+// a hiring stage past the application is going on (an offer included): these live in «В процессе», not in «Отклики»
+const inProcess = j => stageIx(j.status) >= 1;
 const isOld = j => (ageDays(j.posted_at) ?? 0) > ARCHIVE_DAYS;
 const tabOf = k => TABS.find(t => t.key === k);
 // «Низкий» vacancies stay in the base only so the next search does not bring them back as new:
@@ -162,9 +168,11 @@ function jobsOf(t, withLow = false) {
   const pool = withLow ? state.jobs : state.jobs.filter(j => !isLow(j));
   if (t.key === "today") return pool.filter(isHot);
   if (t.archive) return pool.filter(j => !isApplied(j) && isOld(j));
-  if (t.applied) return pool.filter(j => j.market === t.market && isApplied(j));
+  if (t.process) return pool.filter(inProcess);
+  if (t.applied) return pool.filter(j => j.market === t.market && isApplied(j) && !inProcess(j));
   return pool.filter(j => j.market === t.market && !isApplied(j) && !isOld(j));
 }
+const byApplyTime = () => { const t = tabOf(state.tab); return t.applied || t.process; };
 const tabJobs = () => jobsOf(tabOf(state.tab), $("fFit").value === "Низкий");
 
 function filtered() {
@@ -192,7 +200,7 @@ function filtered() {
     applied: byApplied,
     few: (a, b) => num(a.applicants) - num(b.applicants),
     company: (a, b) => a.company.localeCompare(b.company, "ru"),
-  }[sort === "date" && tabOf(state.tab).applied ? "applied" : sort]; // «Отклики» default to the latest application first
+  }[sort === "date" && byApplyTime() ? "applied" : sort]; // «Отклики» and «В процессе» default to the latest application first
   return rows.sort(cmp);
 }
 
@@ -216,7 +224,7 @@ function renderSummary() {
   $("funnel").innerHTML = `<div class="head"><span>Воронка по этапам</span><span>дошли · отказы на этапе</span></div>` + STAGES.map((s, i) => {
     const got = all.filter(j => reached(j) >= i).length;
     const lost = all.filter(j => j.status === REJECT && reached(j) === i).length;
-    return `<div class="frow"><span>${esc(s)}</span><span class="bar" title="${got} дошли, ${lost} отказов на этом этапе"><i style="width:${(got - lost) / max * 100}%"></i><i class="x" style="width:${lost / max * 100}%"></i></span><span class="num"><b>${got}</b>${lost ? " · −" + lost : ""}</span></div>`;
+    return `<div class="frow"><span>${esc(short(s))}</span><span class="bar" title="${got} дошли, ${lost} отказов на этом этапе"><i style="width:${(got - lost) / max * 100}%"></i><i class="x" style="width:${lost / max * 100}%"></i></span><span class="num"><b>${got}</b>${lost ? " · −" + lost : ""}</span></div>`;
   }).join("");
   // per market: fresh relevant vacancies still waiting for me, and how my applications go
   const row = m => {
@@ -244,7 +252,7 @@ async function loadEvents() {
   events = events || [];
   const { data } = await sb.from("job_events").select("job_id,from_status,to_status,at,by_me").order("at");
   events = data || [];
-  if (state.view === "dash") renderActivity(); else if (state.view === "jobs" && tabOf(state.tab).applied) render(); // «Отклики» sort by application time
+  if (state.view === "dash") renderActivity(); else if (state.view === "jobs" && byApplyTime()) render(); // «Отклики» sort by application time
   const h = $("hist"); if (h) renderHistory(h.dataset.id);
 }
 const isApplyStatus = st => ![NEW, SKIP, CLOSED].includes(st);
@@ -360,8 +368,8 @@ function plural(n, one, few, many) { const a = n % 10, b = n % 100; return a ===
 function renderTabs() {
   const loaded = state.jobs.length > 0;
   $("tabs").innerHTML = TABS.map(t => {
-    const n = !loaded ? null : jobsOf(t).filter(j => t.key === "today" || t.archive || (t.applied ? j.status !== REJECT : j.status === NEW)).length;
-    const tail = n == null ? "" : `<span class="n">${t.key === "today" || t.archive ? n : n + (t.applied ? " в процессе" : " новых")}</span>`;
+    const n = !loaded ? null : jobsOf(t).filter(j => t.key === "today" || t.archive || t.process || (t.applied ? j.status !== REJECT : j.status === NEW)).length;
+    const tail = n == null ? "" : `<span class="n">${t.key === "today" || t.archive || t.process ? n : n + (t.applied ? " ждут ответа" : " новых")}</span>`;
     return `<button class="tab ${t.key === "today" ? "today" : ""}" role="tab" type="button" data-k="${t.key}" aria-selected="${t.key === state.tab}">${esc(t.label)}${tail}</button>`;
   }).join("");
   // keep the chosen tab visible in the scrolling row on phones, without moving the page
@@ -383,10 +391,10 @@ function renderList(rows) {
   }
   const sel = state.sel[state.tab];
   L.innerHTML = rows.map(j => {
-    const bits = [j.company, j.city, j.work_format && j.work_format !== "не указан" ? j.work_format : "", j.salary].filter(Boolean).map(esc).join(" · ");
+    const bits = [j.company, j.city, j.work_format && j.work_format !== "не указан" ? j.work_format : "", j.salary, j.referral ? "рефералка" : ""].filter(Boolean).map(esc).join(" · ");
     const meta = state.tab === "today"
       ? `<span class="src">${marketOf(j.market).short}</span><span class="age">${ageText(ageDays(j.posted_at))}</span>`
-      : `${tabOf(state.tab).archive ? `<span class="src">${marketOf(j.market).short}</span>` : ""}${j.status === NEW ? "" : `<span class="pill ${statusCls(j.status)}">${esc(j.status)}</span>`}${isApplied(j) && j.applied_at ? `<span class="applied-on">отклик ${esc(shortDate(j.applied_at))}</span>` : esc(shortDate(j.posted_at))}`;
+      : `${tabOf(state.tab).archive || tabOf(state.tab).process ? `<span class="src">${marketOf(j.market).short}</span>` : ""}${j.status === NEW ? "" : `<span class="pill ${statusCls(j.status)}">${esc(short(j.status))}</span>`}${isApplied(j) && j.applied_at ? `<span class="applied-on">отклик ${esc(shortDate(j.applied_at))}</span>` : esc(shortDate(j.posted_at))}`;
     return `<button class="item" type="button" data-id="${esc(j.id)}" aria-current="${j.id === sel}">
       <span class="stripe ${j.fit === "Высокий" ? "high" : ""}" title="Совпадение: ${esc(j.fit)}"></span>
       <span style="min-width:0"><span class="t">${esc(j.title)}</span><span class="c">${bits}</span></span>
@@ -401,7 +409,7 @@ function stepsHtml(j) {
   return STAGES.map((s, i) => {
     let cls = "";
     if (i === failAt) cls = "failed"; else if ((cur >= 0 && i < cur) || (failAt >= 0 && i < failAt)) cls = "done";
-    return `<button type="button" data-st="${esc(s)}" class="${cls}" aria-pressed="${i === cur && j.status !== RECRUITER}">${esc(s)}</button>`;
+    return `<button type="button" data-st="${esc(s)}" class="${cls}" aria-pressed="${i === cur && j.status !== RECRUITER}">${esc(short(s))}</button>`;
   }).join('<span class="sep" aria-hidden="true">→</span>');
 }
 
@@ -425,7 +433,7 @@ function renderDetail(rows) {
       <p class="lbl">${esc(m.label)} · ${esc(j.company)}</p>
       <h2><a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)} ↗</a></h2>
     </div>
-    <div class="chips">${appliedChip}${fmtChip}${chips}</div>
+    <div class="chips">${j.referral ? '<span class="chip ref">Рефералка</span>' : ""}${appliedChip}${fmtChip}${chips}</div>
     ${j.why ? `<p class="why">${esc(j.why)}</p>` : ""}
     <details class="desc" id="desc"><summary>Описание вакансии</summary><div class="body" id="descBody">Загружаю…</div></details>
     <div>
@@ -455,6 +463,7 @@ function renderDetail(rows) {
     <div>
       <p class="lbl"><label for="comment">Комментарий</label></p>
       <input class="comment" id="comment" value="${esc(j.comment)}" placeholder="Например: написала Патрисии в LinkedIn">
+      <label class="check"><input type="checkbox" id="referral" ${j.referral ? "checked" : ""}> По рекомендации (рефералка)</label>
     </div>`;
 
   renderExtra(j); renderHistory(j.id);
@@ -469,6 +478,7 @@ function renderDetail(rows) {
   };
   $("saveLetter").onclick = () => save(j, { letter: ta.value }, "Письмо сохранено");
   if ($("gen")) $("gen").onclick = () => generate(j); // only with the letter function; letters otherwise come from the Claude chat
+  $("referral").onchange = e => save(j, { referral: e.target.checked }, e.target.checked ? "Отмечено: рефералка" : "Отметка снята");
   $("cv").onclick = () => downloadCv(j).catch(err => toast("Не получилось собрать CV: " + err.message));
   const pick = e => { const b = e.target.closest("button[data-st]"); if (b) setStatus(j, b.dataset.st); };
   $("steps").onclick = pick; $("outcomes").onclick = pick;
@@ -482,7 +492,7 @@ function renderExtra(j) {
   if (j.status === REJECT) {
     X.innerHTML = `<div class="panel bad">
       <label for="rjStage">На каком этапе отказали</label>
-      <select id="rjStage">${STAGES.slice(0, -1).map(s => `<option ${s === (j.reject_stage || "Откликнулась") ? "selected" : ""}>${esc(s)}</option>`).join("")}</select>
+      <select id="rjStage">${STAGES.slice(0, -1).map(s => `<option value="${esc(s)}" ${s === (j.reject_stage || "Откликнулась") ? "selected" : ""}>${esc(short(s))}</option>`).join("")}</select>
       <label for="fb">Обратная связь от компании</label>
       <textarea id="fb" placeholder="Что сказали: почему отказ, что понравилось, что улучшить">${esc(j.feedback)}</textarea>
       <div class="row"><button class="btn" type="button" id="saveFb" disabled>Сохранить</button></div>
@@ -569,7 +579,7 @@ async function loadDiary() {
   const { data, error } = await sb.from("diary").select(DIARY_COLS).order("day", { ascending: false }).order("at_time", { ascending: false, nullsFirst: false }).order("id", { ascending: false });
   if (error) { showBanner("Не получилось загрузить дневник: " + error.message); return; }
   diary.rows = data; renderDiary();
-  if (state.view === "dash") renderActivity(); else if (state.view === "jobs" && tabOf(state.tab).applied) render(); // «Отклики» sort by application time
+  if (state.view === "dash") renderActivity(); else if (state.view === "jobs" && byApplyTime()) render(); // «Отклики» sort by application time
 }
 const byNewest = (a, b) => b.day.localeCompare(a.day) || hhmm(b.at_time).localeCompare(hhmm(a.at_time)) || b.id - a.id;
 const isOpenGoal = r => r.is_goal && !r.done;

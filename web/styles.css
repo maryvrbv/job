@@ -95,6 +95,9 @@ button,select,input,textarea{font:inherit;color:inherit}
 .chip strong{color:var(--fg);font-weight:500}
 .chip.fmt{background:var(--info-soft);color:var(--info)}
 .chip.applied{background:var(--accent-soft);color:var(--fg)}
+.chip.ref{background:var(--lime-soft);color:var(--lime-ink)}
+label.check{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;color:var(--muted);cursor:pointer}
+label.check input{width:16px;height:16px;accent-color:var(--accent);margin:0}
 .applied-on{color:var(--fg);font-weight:500}
 .chip.fmt strong{color:var(--info)}
 .why{background:var(--lime-soft);border-radius:var(--r-sm);padding:12px 14px;margin:0}
