@@ -15,6 +15,15 @@
   color-scheme:light;
 }
 *{box-sizing:border-box}
+/* Quiet scrollbars: a thin lilac-grey thumb, no track, darker only under the pointer */
+@supports (-moz-appearance:none){*{scrollbar-width:thin;scrollbar-color:#D9D3E6 transparent}} /* Firefox; in Chrome these would bring back the arrows */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#D9D3E6;border-radius:999px}
+::-webkit-scrollbar-thumb:hover{background:#BDB4CF}
+::-webkit-scrollbar-corner{background:transparent}
+.tabs{scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
 body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 32px}
 .wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
@@ -251,7 +260,7 @@ header.top{align-items:center}
 .activity{grid-column:1/-1;background:var(--surface);border-radius:var(--r);padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .activity .head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;font-size:12px;color:var(--muted)}
 .activity .head span:first-child{color:var(--fg);font-weight:500;font-size:13px}
-.heat-scroll{overflow-x:auto;scrollbar-width:thin;padding:3px}
+.heat-scroll{overflow-x:auto;padding:3px}
 .heat{display:grid;grid-template-columns:auto max-content;grid-template-areas:"k m" "d c";gap:4px 4px;width:max-content}
 .heat-months{grid-area:m;display:grid;column-gap:3px;font-size:10px;color:var(--muted);height:14px}
 .heat-months span{white-space:nowrap}
