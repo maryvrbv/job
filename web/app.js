@@ -471,7 +471,7 @@ function renderDetail(rows) {
     <div>
       <p class="lbl"><label for="comment">Комментарий</label></p>
       <input class="comment" id="comment" value="${esc(j.comment)}" placeholder="Например: написала Патрисии в LinkedIn">
-      <label class="check"><input type="checkbox" id="referral" ${j.referral ? "checked" : ""}> По рекомендации (рефералка)</label>
+      <label class="check ref-check"><input type="checkbox" id="referral" ${j.referral ? "checked" : ""}> По рекомендации (рефералка)</label>
     </div>`;
 
   renderExtra(j); renderHistory(j.id);
