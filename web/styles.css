@@ -32,6 +32,10 @@ h1{font-family:var(--font-display);font-weight:600;font-size:28px;margin:0;lette
 .sub{color:var(--muted);margin:4px 0 0}
 .sub a{color:inherit}
 button,select,input,textarea{font:inherit;color:inherit}
+/* own chevron instead of the native one, which sits tight against the right edge */
+select{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:38px!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%236B6578' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;background-size:12px 8px}
 .btn{border:0;background:var(--surface);border-radius:var(--r-sm);padding:10px 16px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .btn:hover{background:var(--sunken)}
 .btn.primary{background:var(--lime);color:var(--lime-ink);font-weight:600}
@@ -69,7 +73,7 @@ button,select,input,textarea{font:inherit;color:inherit}
 .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .controls input[type=search]{flex:1 1 220px;min-width:0;padding:11px 16px;border:0;border-radius:var(--r-sm);background:var(--surface)}
 .controls input::placeholder,textarea::placeholder,input::placeholder{color:var(--muted)}
-.controls select{padding:10px 12px;border:0;border-radius:var(--r-sm);background:var(--surface);max-width:100%}
+.controls select{padding:10px 12px;border:0;border-radius:var(--r-sm);background-color:var(--surface);max-width:100%}
 .pane{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:16px;align-items:start}
 @media (max-width:860px){.pane{grid-template-columns:minmax(0,1fr)}}
 .list{display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 120px);overflow:auto;padding:2px}
@@ -121,7 +125,7 @@ label.check input{width:16px;height:16px;accent-color:var(--accent);margin:0}
 .panel{border:0;border-radius:var(--r-sm);padding:14px;display:flex;flex-direction:column;gap:8px;background:var(--sunken)}
 .panel.bad{background:var(--bad-soft)}
 .panel label{font-size:13px;font-weight:500}
-.panel select,.panel textarea{width:100%;border:0;border-radius:var(--r-xs);padding:8px 10px;background:var(--surface)}
+.panel select,.panel textarea{width:100%;border:0;border-radius:var(--r-xs);padding:8px 10px;background-color:var(--surface)}
 .panel textarea{min-height:84px;resize:vertical}
 .quick{display:flex;flex-wrap:wrap;gap:6px}
 .quick button{border:1px dashed var(--muted);background:transparent;border-radius:var(--r-xs);padding:3px 10px;font-size:12px;cursor:pointer;color:var(--muted)}
@@ -231,7 +235,7 @@ header.top{align-items:center}
   .filters{display:flex;flex-direction:column;gap:10px;padding:0 16px calc(16px + env(safe-area-inset-bottom,0px))}
   .filters .sheet-head{display:block;padding:10px 0 4px}
   .filters .sheet-head h2{font-size:20px;margin:14px 0 0;letter-spacing:-.01em}
-  .filters select{width:100%;padding:14px;background:var(--sunken);font-size:16px}
+  .filters select{width:100%;padding:14px;background-color:var(--sunken);font-size:16px}
   .filters .sheet-foot{display:flex;margin-top:6px}
   .filters .sheet-foot .btn{justify-content:center;padding-block:14px;background:var(--sunken)}
   .filters .sheet-foot .btn.primary{background:var(--lime)}
