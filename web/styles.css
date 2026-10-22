@@ -15,6 +15,8 @@
   color-scheme:light;
 }
 *{box-sizing:border-box}
+/* keep room for the page scrollbar on every screen, so switching tabs or views never shifts the layout sideways */
+html{scrollbar-gutter:stable;overflow-y:scroll}
 /* Quiet scrollbars: a thin lilac-grey thumb, no track, darker only under the pointer */
 @supports (-moz-appearance:none){*{scrollbar-width:thin;scrollbar-color:#D9D3E6 transparent}} /* Firefox; in Chrome these would bring back the arrows */
 ::-webkit-scrollbar{width:6px;height:6px}
