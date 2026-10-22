@@ -210,22 +210,32 @@ function reached(j) {
   return stageIx(j.status);
 }
 
+// funnel source: everything, regular applications or referrals only
+let funnelSrc = "all";
+const FUNNEL_SRC = [["all", "Все"], ["plain", "Обычные"], ["ref", "Рефералки"]];
+const pct = (a, b) => b ? Math.round(a / b * 100) + "%" : "—";
 function renderSummary() {
   const all = state.jobs, sent = all.filter(j => reached(j) >= 0);
+  const procAll = all.filter(j => stageIx(j.status) >= 1 && j.status !== "Оффер"), procRef = procAll.filter(j => j.referral).length;
   const items = [
     ["Откликнуться сегодня", all.filter(isHot).length],
     ["Откликов отправлено", sent.length],
-    ["В процессе", all.filter(j => stageIx(j.status) >= 1 && j.status !== "Оффер").length],
+    ["В процессе", procAll.length, procRef ? `${procRef} реф.` : ""],
     ["Офферов", all.filter(j => j.status === "Оффер").length],
   ];
   const dash = state.loading && !all.length;
-  $("stats").innerHTML = items.map(([l, n]) => `<div class="stat"><b>${dash ? "–" : n}</b><span>${l}</span></div>`).join("");
-  const max = Math.max(1, sent.length);
-  $("funnel").innerHTML = `<div class="head"><span>Воронка по этапам</span><span>дошли · отказы на этапе</span></div>` + STAGES.map((s, i) => {
-    const got = all.filter(j => reached(j) >= i).length;
-    const lost = all.filter(j => j.status === REJECT && reached(j) === i).length;
+  $("stats").innerHTML = items.map(([l, n, note]) => `<div class="stat"><b>${dash ? "–" : n}${note && !dash ? `<small>${note}</small>` : ""}</b><span>${l}</span></div>`).join("");
+  const pool = funnelSrc === "all" ? all : all.filter(j => !!j.referral === (funnelSrc === "ref"));
+  const max = Math.max(1, pool.filter(j => reached(j) >= 0).length);
+  // does a referral get further than a cold application: share of sent ones that reached at least an HR call
+  const cmp = list => { const s = list.filter(j => reached(j) >= 0); return [s.filter(j => reached(j) >= 1).length, s.length]; };
+  const [rT, rS] = cmp(all.filter(j => j.referral)), [pT, pS] = cmp(all.filter(j => !j.referral));
+  $("funnel").innerHTML = `<div class="head"><span>Воронка по этапам</span><span>дошли · отказы на этапе</span></div>
+    <div class="fsrc" role="tablist">${FUNNEL_SRC.map(([k, l]) => `<button type="button" data-src="${k}" aria-selected="${k === funnelSrc}">${l}</button>`).join("")}</div>` + STAGES.map((s, i) => {
+    const got = pool.filter(j => reached(j) >= i).length;
+    const lost = pool.filter(j => j.status === REJECT && reached(j) === i).length;
     return `<div class="frow"><span>${esc(short(s))}</span><span class="bar" title="${got} дошли, ${lost} отказов на этом этапе"><i style="width:${(got - lost) / max * 100}%"></i><i class="x" style="width:${lost / max * 100}%"></i></span><span class="num"><b>${got}</b>${lost ? " · −" + lost : ""}</span></div>`;
-  }).join("");
+  }).join("") + (rS ? `<p class="fcmp">Дошли до HR и дальше: рефералки <b>${rT} из ${rS}</b> (${pct(rT, rS)}) · обычные <b>${pT} из ${pS}</b> (${pct(pT, pS)})</p>` : "");
   // per market: fresh relevant vacancies still waiting for me, and how my applications go
   const row = m => {
     const js = all.filter(j => j.market === m.key);
@@ -360,6 +370,7 @@ function showHeatDay(iso, slot) {
   if (slot) $("activity").querySelector(`i[data-d="${iso}"][data-s="${slot}"]`)?.classList.add("sel");
 }
 const pickHeat = e => { const c = e.target.closest("i[data-d]"); if (c) showHeatDay(c.dataset.d, c.dataset.s); };
+$("funnel").addEventListener("click", e => { const b = e.target.closest("[data-src]"); if (b) { funnelSrc = b.dataset.src; renderSummary(); } });
 $("activity").addEventListener("click", pickHeat);
 $("activity").addEventListener("mouseover", pickHeat);
 
