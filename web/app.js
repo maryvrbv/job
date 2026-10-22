@@ -176,12 +176,9 @@ const byApplyTime = () => { const t = tabOf(state.tab); return t.applied || t.pr
 const tabJobs = () => jobsOf(tabOf(state.tab), $("fFit").value === "Низкий");
 
 function filtered() {
-  const q = $("q").value.trim().toLowerCase(), fit = $("fFit").value, fmt = $("fFmt").value, st = $("fStatus").value, sort = $("sort").value;
-  const okStatus = j => !st ? true
-    : st === "active" ? !ENDED.includes(j.status)
-    : st === "new" ? j.status === NEW
-    : st === "process" ? ![NEW, ...ENDED].includes(j.status)
-    : ENDED.includes(j.status);
+  const q = $("q").value.trim().toLowerCase(), fit = $("fFit").value, fmt = $("fFmt").value, sort = $("sort").value;
+  // the tabs split by status now: «Отклики» keep rejections (their feedback matters), elsewhere «Не подходит» and closed stay hidden
+  const okStatus = j => tabOf(state.tab).applied || !ENDED.includes(j.status);
   const rows = tabJobs().filter(j =>
     (!q || (j.company + " " + j.title).toLowerCase().includes(q)) &&
     (!fit || j.fit === fit) && (!fmt || (j.work_format || "").includes(fmt)) && okStatus(j));
@@ -397,7 +394,7 @@ function renderList(rows) {
   if (!rows.length) {
     L.innerHTML = state.tab === "today"
       ? '<div class="empty">Свежих вакансий с высоким совпадением сейчас нет. Новые приходят каждое утро; пока можно пройтись по вкладкам ОАЭ и России.</div>'
-      : '<div class="empty">Под эти фильтры ничего не подходит. Попробуй «Все статусы» или очисти поиск.</div>';
+      : '<div class="empty">Под эти фильтры ничего не подходит. Попробуй сбросить фильтры или очистить поиск.</div>';
     return;
   }
   const sel = state.sel[state.tab];
@@ -808,7 +805,7 @@ $("views").onclick = e => {
 };
 $("tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; state.tab = b.dataset.k; try { localStorage.setItem("tab", state.tab); } catch (x) {} render(); };
 $("list").onclick = e => { const b = e.target.closest(".item"); if (!b) return; state.sel[state.tab] = b.dataset.id; render(); if (mobile.matches) { $("detail").scrollTop = 0; openSheet("detail"); } };
-["q", "fFit", "fFmt", "fStatus", "sort"].forEach(id => $(id).addEventListener("input", render));
+["q", "fFit", "fFmt", "sort"].forEach(id => $(id).addEventListener("input", render));
 $("sort").addEventListener("change", () => { try { localStorage.setItem("sort", $("sort").value); } catch (e) {} });
 $("reload").onclick = load;
 
@@ -844,7 +841,7 @@ for (const id of ["detail", "filters"]) {
   });
 }
 
-const FILTER_DEFAULTS = { fFit: "", fFmt: "", fStatus: "active", sort: "date" };
+const FILTER_DEFAULTS = { fFit: "", fFmt: "", sort: "date" };
 function renderFiltersCount() {
   const n = Object.entries(FILTER_DEFAULTS).filter(([id, v]) => $(id).value !== v).length;
   $("filtersCount").textContent = n; $("filtersCount").hidden = !n;
