@@ -27,7 +27,7 @@ const CACHE_KEY = "jobs-cache-v1";
 
 const state = { view: "jobs", tab: "today", jobs: [], sel: {}, loading: true, desc: {}, loadedAt: null };
 try { const t = localStorage.getItem("tab"); if (TABS.some(s => s.key === t)) state.tab = t; } catch (e) {}
-try { const v = localStorage.getItem("view"); if (v === "dash" || v === "diary") state.view = v; } catch (e) {}
+try { const v = localStorage.getItem("view"); if (["dash", "diary", "folio"].includes(v)) state.view = v; } catch (e) {}
 try { const s = localStorage.getItem("sort"); if (s && document.querySelector(`#sort option[value="${s}"]`)) document.getElementById("sort").value = s; } catch (e) {}
 
 const $ = id => document.getElementById(id);
@@ -63,7 +63,7 @@ async function load() {
   state.loading = false;
   if (error) { showBanner("Не получилось загрузить вакансии: " + error.message); render(); return; }
   showBanner("");
-  state.jobs = data; state.loadedAt = new Date().toISOString(); cacheSave(); events = null; render(); loadEvents(); // the status log gives the activity map and the application times
+  state.jobs = data; state.loadedAt = new Date().toISOString(); cacheSave(); events = null; render(); loadEvents(); if (!folio.data) loadFolio(); // the status log gives the activity map and the application times
 }
 
 let writing = Promise.resolve();
@@ -430,6 +430,11 @@ function renderList(rows) {
   }).join("");
 }
 
+function visitsChip(j) {
+  if (!folio.data) return "";
+  const v = folioVisits(j, tagJobs());
+  return v ? `<span class="chip seen">Открывали портфолио: <strong>${v.sessions} ${plural(v.sessions, "раз", "раза", "раз")}, ${minSec(v.seconds)}, ${esc(shortDate(v.last))}</strong></span>` : "";
+}
 function stepsHtml(j) {
   const cur = j.status === REJECT ? -1 : stageIx(j.status);
   const failAt = j.status === REJECT ? reached(j) : -1;
@@ -460,7 +465,7 @@ function renderDetail(rows) {
       <p class="lbl">${esc(m.label)} · ${esc(j.company)}</p>
       <h2><a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)} ↗</a></h2>
     </div>
-    <div class="chips">${j.referral ? '<span class="chip ref">Рефералка</span>' : ""}${appliedChip}${fmtChip}${chips}</div>
+    <div class="chips">${j.referral ? '<span class="chip ref">Рефералка</span>' : ""}${visitsChip(j)}${appliedChip}${fmtChip}${chips}</div>
     ${j.why ? `<p class="why">${esc(j.why)}</p>` : ""}
     <details class="desc" id="desc"><summary>Описание вакансии</summary><div class="body" id="descBody">Загружаю…</div></details>
     <div>
@@ -581,15 +586,88 @@ function render() {
   const v = state.view, jobsView = v === "jobs";
   for (const b of $("views").querySelectorAll("button")) b.setAttribute("aria-selected", String(b.dataset.v === v));
   moveThumb();
-  $("summary").hidden = v !== "dash"; $("diary").hidden = v !== "diary";
+  $("summary").hidden = v !== "dash"; $("diary").hidden = v !== "diary"; $("folio").hidden = v !== "folio";
   $("tabs").hidden = $("controls").hidden = $("pane").hidden = !jobsView;
   if (!jobsView) $("intro").hidden = true;
   renderFiltersCount();
   if (v === "diary" && !diary.rows) loadDiary();
+  if (v === "folio") folio.data ? renderFolio() : loadFolio();
   if (v === "dash") $("heatScroll").scrollLeft = $("heatScroll").scrollWidth; // today on the right, once it is visible
   if (!jobsView) return;
   const rows = filtered(); renderList(rows); renderDetail(rows);
 }
+
+// ---------- «Портфолио»: who visits marydis.com and mariadis.gitverse.site ----------
+// Claude copies a Google Analytics snapshot into portfolio_stats twice a day (ingest/portfolio_stats.py);
+// link tags (from=<tag> in letters and CVs) are matched back to vacancies, so a visit reads as «Etihad opened it».
+const folio = { data: null, at: null };
+async function loadFolio() {
+  const { data, error } = await sb.from("portfolio_stats").select("data,updated_at").eq("id", "snapshot").maybeSingle();
+  if (error) { showBanner("Не получилось загрузить статистику портфолио: " + error.message); return; }
+  folio.data = data?.data || null; folio.at = data?.updated_at || null;
+  renderFolio(); if (state.view === "jobs") render(); // vacancy cards show visits too
+}
+const GENERIC_TAGS = { "hh": "Профиль на hh", "cv-ru": "Резюме RU", "cv-en": "Резюме EN", "socium": "Socium" };
+const tagLabel = t => GENERIC_TAGS[t] || (/-$/.test(t) ? GENERIC_TAGS[t.slice(0, -1)] + " (старая ссылка)" : "");
+// tag → vacancies whose letter, CV or cover letter carries it
+function tagJobs() {
+  const map = {};
+  for (const j of state.jobs) {
+    const tags = new Set([...(j.letter || "").matchAll(/from=((?:hh|li|tg)-[a-z0-9-]+)/g)].map(m => m[1]));
+    if (j.letter || j.comment || isApplied(j)) tags.add(cvTag(j));
+    for (const t of tags) (map[t] = map[t] || []).push(j);
+  }
+  return map;
+}
+const jobsForTag = (map, t) => map[t] || map[t.replace(/-cl$/, "")] || [];
+const minSec = s => s >= 60 ? Math.round(s / 60) + " мин" : s + " с";
+function folioVisits(j, map) {
+  const tags = (folio.data?.tags || []).filter(g => jobsForTag(map, g.tag).includes(j));
+  if (!tags.length) return null;
+  return { sessions: tags.reduce((a, g) => a + g.sessions, 0), seconds: tags.reduce((a, g) => a + g.seconds, 0), last: tags.map(g => g.last).sort().pop() };
+}
+function renderFolio() {
+  const d = folio.data;
+  if (!d) { $("folioNote").textContent = "Статистики пока нет: она появится после ближайшего обновления вакансий."; return; }
+  const sum = k => d.sites.reduce((a, x) => a + x[k], 0);
+  const sess = sum("sessions"), avg = sess ? d.sites.reduce((a, x) => a + x.avg_session * x.sessions, 0) / sess : 0;
+  $("folioNote").textContent = `marydis.com и mariadis.gitverse.site за 30 дней, без черновиков главной. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
+  $("folioStats").innerHTML = [["Посетителей", sum("users")], ["Визитов", sess], ["Просмотров", sum("views")], ["Средний визит", minSec(Math.round(avg))]]
+    .map(([l, n]) => `<div class="stat"><b>${esc(n)}</b><span>${l}</span></div>`).join("");
+
+  // users per day for 60 days, the two sites stacked
+  const days = [], by = {};
+  for (const r of d.daily) (by[r.day] = by[r.day] || {})[r.host] = r.users;
+  for (let i = 59; i >= 0; i--) { const t = new Date(); t.setDate(t.getDate() - i); days.push(isoOf(t)); }
+  const max = Math.max(1, ...days.map(k => (by[k]?.["marydis.com"] || 0) + (by[k]?.["mariadis.gitverse.site"] || 0)));
+  $("folioDaily").innerHTML = `<div class="head"><span>Посетители по дням</span><span class="legend"><i class="h1"></i>marydis.com <i class="h2"></i>gitverse</span></div>
+    <div class="bars">${days.map(k => { const a = by[k]?.["marydis.com"] || 0, b = by[k]?.["mariadis.gitverse.site"] || 0;
+      return `<span title="${esc(ruDate(k))}: ${a + b}"><i class="h2" style="height:${b / max * 100}%"></i><i class="h1" style="height:${a / max * 100}%"></i></span>`; }).join("")}</div>
+    <div class="bars-axis"><span>${esc(shortDate(days[0]))}</span><span>сегодня</span></div>`;
+
+  // link tags, matched to vacancies
+  const map = tagJobs();
+  const rows = d.tags.map(g => {
+    const js = jobsForTag(map, g.tag), j = js[0];
+    const who = j ? `${esc(j.company)}<small>${esc(j.title)}${/-cl$/.test(g.tag) ? " · cover letter" : ""}</small>` : esc(tagLabel(g.tag) || g.tag) + `<small>${esc(g.tag)}</small>`;
+    const did = [g.events.case_open && `кейсов открыто: ${g.events.case_open}`, g.events.cv_click && `резюме: ${g.events.cv_click}`,
+      g.scroll && `прокрутка до ${g.scroll}%`, g.read && `читали ${minSec(g.read)}+`].filter(Boolean).join(" · ");
+    const pages = g.pages.map(([p]) => p === "/" || /index/.test(p) ? "" : p.replace(/^\/|\.html$/g, "")).filter(Boolean).join(", ");
+    return `<button type="button" class="ftag" ${j ? `data-id="${esc(j.id)}"` : "disabled"}>
+      <span class="ft-who">${who}</span>
+      <span class="ft-num"><b>${g.sessions}</b> ${plural(g.sessions, "визит", "визита", "визитов")} · ${minSec(g.seconds)}<small>${esc(shortDate(g.last))}${g.visitors > 1 ? ` · ${g.visitors} чел.` : ""}</small></span>
+      ${did || pages ? `<span class="ft-did">${esc(did)}${did && pages ? " · " : ""}${pages ? "страницы: " + esc(pages) : ""}</span>` : ""}
+    </button>`;
+  });
+  $("folioTags").innerHTML = `<div class="head"><span>Кто открывал по ссылкам из откликов</span><span>визиты · время</span></div>${rows.join("") || '<p class="note">Пока никто</p>'}`;
+
+  const list = (title, items) => `<div class="head"><span>${title}</span></div>` + items.map(([k, n]) => `<div class="frow-s"><span>${esc(k)}</span><b>${n}</b></div>`).join("");
+  $("folioPages").innerHTML = list("Страницы", d.pages.slice(0, 10).map(p => [(p.host === "marydis.com" ? "" : "gitverse ") + p.path, p.users]));
+  const DEV = { desktop: "Компьютер", mobile: "Телефон", tablet: "Планшет" };
+  $("folioWhere").innerHTML = list("Страны", d.countries.filter(c => c.country !== "(not set)").slice(0, 8).map(c => [c.country, c.users]))
+    + list("Устройства", d.devices.map(x => [DEV[x.device] || x.device, x.users]));
+}
+$("folioTags").addEventListener("click", e => { const b = e.target.closest(".ftag[data-id]"); if (b) openJob(b.dataset.id); });
 
 // ---------- «Дорогой дневник»: what I did, day by day, newest first; the form for a new entry is on top ----------
 // An entry can be a goal with a priority: open goals sit in a horizontal strip on top, a ticked goal moves to the log as done today
