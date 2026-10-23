@@ -433,7 +433,10 @@ function renderList(rows) {
 function visitsChip(j) {
   if (!folio.data) return "";
   const v = folioVisits(j, tagJobs());
-  return v ? `<span class="chip seen">Открывали портфолио: <strong>${v.sessions} ${plural(v.sessions, "раз", "раза", "раз")}, ${minSec(v.seconds)}, ${esc(shortDate(v.last))}</strong></span>` : "";
+  if (!v) return "";
+  return v.people
+    ? `<span class="chip seen">Портфолио смотрели: <strong>${v.people} ${plural(v.people, "человек", "человека", "человек")}, ${minSec(v.seconds)}, ${esc(shortDate(v.last))}</strong></span>`
+    : `<span class="chip">Ссылку открыл только робот-превью</span>`;
 }
 function stepsHtml(j) {
   const cur = j.status === REJECT ? -1 : stageIx(j.status);
@@ -621,53 +624,71 @@ function tagJobs() {
 }
 const jobsForTag = (map, t) => map[t] || map[t.replace(/-cl$/, "")] || [];
 const minSec = s => s >= 60 ? Math.round(s / 60) + " мин" : s + " с";
+function folioTags(j, map) { return (folio.data?.tags || []).filter(g => jobsForTag(map, g.tag).includes(j)); }
 function folioVisits(j, map) {
-  const tags = (folio.data?.tags || []).filter(g => jobsForTag(map, g.tag).includes(j));
+  const tags = folioTags(j, map);
   if (!tags.length) return null;
-  return { sessions: tags.reduce((a, g) => a + g.sessions, 0), seconds: tags.reduce((a, g) => a + g.seconds, 0), last: tags.map(g => g.last).sort().pop() };
+  const sum = k => tags.reduce((a, g) => a + (g[k] || 0), 0);
+  return { people: sum("people"), robots: sum("robots"), sessions: sum("sessions"), seconds: sum("seconds"),
+    last: tags.map(g => g.last || "").sort().pop(), reading: tags.flatMap(g => g.reading || []) };
 }
+// «Как читают страницы»: people per page and how often they passed each scroll and read mark
+const MARKS = [["s25", "25%"], ["s50", "50%"], ["s75", "75%"], ["s100", "100%"], ["r30", "30 с"], ["r60", "1 мин"], ["r120", "2 мин"], ["r300", "5 мин"]];
+function readingTable(rows) {
+  if (!rows?.length) return '<p class="note">Пока никто из людей не читал</p>';
+  const site = h => h === "marydis.com" ? '<i class="dot h1"></i>marydis.com' : '<i class="dot h2"></i>gitverse';
+  return `<div class="rtable-wrap"><table class="rtable"><thead><tr><th>Сайт</th><th>Страница</th><th>Люди</th>${MARKS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead><tbody>
+    ${rows.map(r => `<tr><td class="site">${site(r.host)}</td><td>${esc(r.path)}</td><td class="n">${r.users}</td>${MARKS.map(([k]) => `<td>${r[k] ? `<b>${r[k]}</b>` : ""}</td>`).join("")}</tr>`).join("")}
+  </tbody></table></div>`;
+}
+let folioOpen = null; // the link tag whose reading table is unfolded
 function renderFolio() {
   const d = folio.data;
-  if (!d) { $("folioNote").textContent = "Статистики пока нет: она появится после ближайшего обновления вакансий."; return; }
-  const sum = k => d.sites.reduce((a, x) => a + x[k], 0);
-  const sess = sum("sessions"), avg = sess ? d.sites.reduce((a, x) => a + x.avg_session * x.sessions, 0) / sess : 0;
-  $("folioNote").textContent = `marydis.com и mariadis.gitverse.site за 30 дней, без черновиков главной. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
-  $("folioStats").innerHTML = [["Посетителей", sum("users")], ["Визитов", sess], ["Просмотров", sum("views")], ["Средний визит", minSec(Math.round(avg))]]
-    .map(([l, n]) => `<div class="stat"><b>${esc(n)}</b><span>${l}</span></div>`).join("");
+  if (!d || !d.totals) { $("folioNote").textContent = "Статистики пока нет: она появится после ближайшего обновления вакансий."; return; }
+  const t = d.totals;
+  $("folioNote").textContent = `marydis.com и mariadis.gitverse.site за 30 дней. Люди — те, кто прокрутил страницу или что-то нажал. Роботы — превью ссылок и проверки почты (LinkedIn, Outlook, Google): открывают ссылку, но не листают. Твои собственные заходы не считаются. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
+  $("folioStats").innerHTML = [["Людей", t.people], ["Роботов и превью", t.robots], ["Визитов людей", t.sessions], ["Средний визит", minSec(t.avg_session)]]
+    .map(([l, n], i) => `<div class="stat${i === 1 ? " muted" : ""}"><b>${esc(n)}</b><span>${l}</span></div>`).join("");
 
-  // users per day for 60 days, the two sites stacked
-  const days = [], by = {};
-  for (const r of d.daily) (by[r.day] = by[r.day] || {})[r.host] = r.users;
-  for (let i = 59; i >= 0; i--) { const t = new Date(); t.setDate(t.getDate() - i); days.push(isoOf(t)); }
-  const max = Math.max(1, ...days.map(k => (by[k]?.["marydis.com"] || 0) + (by[k]?.["mariadis.gitverse.site"] || 0)));
-  $("folioDaily").innerHTML = `<div class="head"><span>Посетители по дням</span><span class="legend"><i class="h1"></i>marydis.com <i class="h2"></i>gitverse</span></div>
-    <div class="bars">${days.map(k => { const a = by[k]?.["marydis.com"] || 0, b = by[k]?.["mariadis.gitverse.site"] || 0;
-      return `<span title="${esc(ruDate(k))}: ${a + b}"><i class="h2" style="height:${b / max * 100}%"></i><i class="h1" style="height:${a / max * 100}%"></i></span>`; }).join("")}</div>
-    <div class="bars-axis"><span>${esc(shortDate(days[0]))}</span><span>сегодня</span></div>`;
+  // people and robots per day for 60 days
+  const by = Object.fromEntries(d.daily.map(r => [r.day, r])), days = [];
+  for (let i = 59; i >= 0; i--) { const x = new Date(); x.setDate(x.getDate() - i); days.push(isoOf(x)); }
+  const max = Math.max(1, ...days.map(k => (by[k]?.people || 0) + (by[k]?.robots || 0)));
+  $("folioDaily").innerHTML = `<div class="head"><span>Заходы по дням</span><span class="legend"><i class="h1"></i>люди <i class="bot"></i>роботы</span></div>
+    <div class="bars">${days.map(k => { const p = by[k]?.people || 0, r = by[k]?.robots || 0;
+      return `<span title="${esc(ruDate(k))}: людей ${p}, роботов ${r}"><i class="bot" style="height:${r / max * 100}%"></i><i class="h1" style="height:${p / max * 100}%"></i></span>`; }).join("")}</div>
+    <div class="bars-axis"><span>${esc(shortDate(days[0]))}</span><span>людей и роботов различаем с 14.10</span><span>сегодня</span></div>`;
 
-  // link tags, matched to vacancies
+  // link tags, matched to vacancies; a tap unfolds how this company read the portfolio
   const map = tagJobs();
   const rows = d.tags.map(g => {
-    const js = jobsForTag(map, g.tag), j = js[0];
+    const j = jobsForTag(map, g.tag)[0];
     const who = j ? `${esc(j.company)}<small>${esc(j.title)}${/-cl$/.test(g.tag) ? " · cover letter" : ""}</small>` : esc(tagLabel(g.tag) || g.tag) + `<small>${esc(g.tag)}</small>`;
-    const did = [g.events.case_open && `кейсов открыто: ${g.events.case_open}`, g.events.cv_click && `резюме: ${g.events.cv_click}`,
-      g.scroll && `прокрутка до ${g.scroll}%`, g.read && `читали ${minSec(g.read)}+`].filter(Boolean).join(" · ");
-    const pages = g.pages.map(([p]) => p === "/" || /index/.test(p) ? "" : p.replace(/^\/|\.html$/g, "")).filter(Boolean).join(", ");
-    return `<button type="button" class="ftag" ${j ? `data-id="${esc(j.id)}"` : "disabled"}>
-      <span class="ft-who">${who}</span>
-      <span class="ft-num"><b>${g.sessions}</b> ${plural(g.sessions, "визит", "визита", "визитов")} · ${minSec(g.seconds)}<small>${esc(shortDate(g.last))}${g.visitors > 1 ? ` · ${g.visitors} чел.` : ""}</small></span>
-      ${did || pages ? `<span class="ft-did">${esc(did)}${did && pages ? " · " : ""}${pages ? "страницы: " + esc(pages) : ""}</span>` : ""}
-    </button>`;
+    const num = g.people
+      ? `<b>${g.people}</b> ${plural(g.people, "человек", "человека", "человек")} · ${minSec(g.seconds)}<small>${esc(shortDate(g.last))}${g.robots ? ` · ещё роботов: ${g.robots}` : ""}</small>`
+      : `<span class="bot-only">только ${g.robots ? "робот" : "без данных"}</span><small>${esc(shortDate(g.seen))}</small>`;
+    const did = [g.did?.case_open && `кейсов открыто: ${g.did.case_open}`, g.did?.cv_click && `резюме: ${g.did.cv_click}`,
+      (g.did?.email_click || g.did?.telegram_click || g.did?.linkedin_click) && "нажимали контакты", g.cities?.length && g.cities.join(", ")].filter(Boolean).join(" · ");
+    const open = folioOpen === g.tag;
+    return `<div class="ftag-wrap${g.people ? "" : " dim"}">
+      <button type="button" class="ftag" data-tag="${esc(g.tag)}" aria-expanded="${open}" ${g.people ? "" : "disabled"}>
+        <span class="ft-who">${who}</span><span class="ft-num">${num}</span>${did ? `<span class="ft-did">${esc(did)}</span>` : ""}
+      </button>
+      ${open ? `<div class="ft-more">${readingTable(g.reading)}${j ? `<button type="button" class="btn" data-open="${esc(j.id)}">Открыть вакансию</button>` : ""}</div>` : ""}
+    </div>`;
   });
-  $("folioTags").innerHTML = `<div class="head"><span>Кто открывал по ссылкам из откликов</span><span>визиты · время</span></div>${rows.join("") || '<p class="note">Пока никто</p>'}`;
+  $("folioTags").innerHTML = `<div class="head"><span>Кто открывал по ссылкам из откликов</span><span>люди · время</span></div>${rows.join("") || '<p class="note">Пока никто</p>'}`;
 
+  $("folioPages").innerHTML = `<div class="head"><span>Как читают страницы</span><span>сколько раз прокрутили до отметки и читали дольше</span></div>${readingTable(d.reading)}`;
   const list = (title, items) => `<div class="head"><span>${title}</span></div>` + items.map(([k, n]) => `<div class="frow-s"><span>${esc(k)}</span><b>${n}</b></div>`).join("");
-  $("folioPages").innerHTML = list("Страницы", d.pages.slice(0, 10).map(p => [(p.host === "marydis.com" ? "" : "gitverse ") + p.path, p.users]));
   const DEV = { desktop: "Компьютер", mobile: "Телефон", tablet: "Планшет" };
-  $("folioWhere").innerHTML = list("Страны", d.countries.filter(c => c.country !== "(not set)").slice(0, 8).map(c => [c.country, c.users]))
-    + list("Устройства", d.devices.map(x => [DEV[x.device] || x.device, x.users]));
+  $("folioWhere").innerHTML = list("Страны", d.countries.filter(([c]) => c !== "(not set)").slice(0, 8)) + list("Устройства", d.devices.map(([k, n]) => [DEV[k] || k, n]));
 }
-$("folioTags").addEventListener("click", e => { const b = e.target.closest(".ftag[data-id]"); if (b) openJob(b.dataset.id); });
+$("folioTags").addEventListener("click", e => {
+  const o = e.target.closest("[data-open]"); if (o) return openJob(o.dataset.open);
+  const b = e.target.closest(".ftag[data-tag]"); if (!b || b.disabled) return;
+  folioOpen = folioOpen === b.dataset.tag ? null : b.dataset.tag; renderFolio();
+});
 
 // ---------- «Дорогой дневник»: what I did, day by day, newest first; the form for a new entry is on top ----------
 // An entry can be a goal with a priority: open goals sit in a horizontal strip on top, a ticked goal moves to the log as done today
