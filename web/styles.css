@@ -484,3 +484,13 @@ i.bot{background:#D9D3E6}
 .htag{font-size:12px;background:var(--accent-soft);color:var(--accent);border-radius:6px;padding:1px 7px;font-weight:500}
 .htag.none{background:var(--sunken);color:var(--muted);font-weight:400}
 .hbody .linkbtn{align-self:flex-start}
+.panel-card .legend i.dot{width:8px;height:8px;border-radius:50%;margin-left:8px;margin-right:2px}
+.hguest{border:0;background:none;padding:0;font:inherit;font-size:12px;color:var(--accent);text-align:left;cursor:pointer;align-self:flex-start}
+.hguest:hover{text-decoration:underline;text-underline-offset:3px}
+.gtitle{margin:4px 0 2px;font-size:20px;font-weight:600;letter-spacing:-.01em}
+.gfacts{display:flex;flex-wrap:wrap;gap:8px 24px;margin:4px 0}
+.gfacts div{display:flex;flex-direction:column}
+.gfacts b{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+.gfacts span{font-size:12px;color:var(--muted)}
+.gwhy{font-size:13px;line-height:1.5;background:var(--sunken);border-radius:var(--r-sm);padding:10px 12px;margin:8px 0 12px}
+.gwhy code{font-family:var(--font-mono);background:var(--surface);border-radius:4px;padding:1px 4px}

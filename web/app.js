@@ -615,7 +615,7 @@ function render() {
 // ---------- «Портфолио»: who visits marydis.com and mariadis.gitverse.site ----------
 // Claude copies a Google Analytics snapshot into portfolio_stats twice a day (ingest/portfolio_stats.py);
 // link tags (from=<tag> in letters and CVs) are matched back to vacancies, so a visit reads as «Etihad opened it».
-const folio = { data: null, at: null, period: "30" };
+const folio = { data: null, at: null, period: "30", guest: null }; // guest: the visitor whose own history is open
 async function loadFolio() {
   const { data, error } = await sb.from("portfolio_stats").select("data,updated_at").eq("id", "snapshot").maybeSingle();
   if (error) { showBanner("Не получилось загрузить статистику портфолио: " + error.message); return; }
@@ -674,7 +674,31 @@ const dayTitle = iso => {
   return age === 0 ? "Сегодня, " + date : age === 1 ? "Вчера, " + date : date[0].toUpperCase() + date.slice(1);
 };
 const nth = n => n + "-й";
-function historyHtml(h) {
+// one guest's own story over 90 days, day by day, and how we know it is the same person
+function guestHtml(n, g) {
+  const sum = k => g.days.reduce((a, d) => a + (d[k] || 0), 0);
+  const uniq = k => [...new Set(g.days.flatMap(d => Array.isArray(d[k]) ? d[k] : d[k] ? [d[k]] : []))];
+  const where = [...uniq("city").map(c => CITIES[c] || c), ...uniq("device").map(x => DEV[x] || x)];
+  const came = [...uniq("tags"), ...uniq("sources").map(sourceLabel)];
+  const mark = g.mark.length > 12 ? g.mark.slice(0, 5) + "…" + g.mark.slice(-4) : g.mark;
+  const facts = [["Впервые", shortDate(g.first)], ["Дней с визитами", g.days.length], ["Визитов", sum("sessions")], ["Всего", minSec(sum("seconds"))]];
+  const days = g.days.map(d => {
+    const pages = (d.pages || []).map(p => `<span class="rp"><i class="dot ${p.host === "marydis.com" ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
+    const how = [...d.tags.map(t => `<span class="htag">${esc(t)}</span>`), ...d.sources.map(x => `<span class="htag none">${esc(sourceLabel(x))}</span>`)].join("");
+    const meta = [CITIES[d.city] || d.city, DEV[d.device] || d.device, d.sessions + " " + plural(d.sessions, "визит", "визита", "визитов"), "всего " + minSec(d.seconds)].filter(Boolean).map(esc).join(" · ");
+    return `<div class="hitem person"><span class="htime">${esc(shortDate(d.day))}</span><span class="hicon">${ICON.person}</span>
+      <div class="hbody"><div class="hwho">${how}</div>${pages ? `<div class="rv-pages">${pages}</div>` : ""}<div class="rv-meta">${meta}</div></div></div>`;
+  }).join("");
+  return `<div class="head"><button type="button" class="linkbtn" data-guest="">← Все гости</button>${siteLegend}</div>
+    <h3 class="gtitle">Гость ${esc(n)}</h3>
+    <div class="gfacts">${facts.map(([l, v]) => `<div><b>${esc(v)}</b><span>${l}</span></div>`).join("")}</div>
+    <p class="rv-meta">${esc([where.join(", "), came.length ? "приходил: " + came.join(", ") : ""].filter(Boolean).join(" · "))}</p>
+    <div class="gwhy"><b>Как понятно, что это один и тот же человек.</b> При первом заходе сайт сохраняет в браузере случайный номер, у этого гостя <code>${esc(mark)}</code>, и присылает его в аналитику при каждом визите. Тот же браузер на том же устройстве — тот же гость. Другой браузер, телефон или очищенная история — уже новый гость, а город может не определиться, если включён VPN.</div>
+    <div class="hlist">${days}</div>`;
+}
+const siteLegend = '<span class="legend"><i class="dot h2"></i>gitverse <i class="dot h1"></i>marydis.com</span>';
+function historyHtml(h, guests = {}) {
+  if (folio.guest && guests[folio.guest]) return guestHtml(folio.guest, guests[folio.guest]);
   const map = tagJobs();
   let lastDay = "";
   const items = h.entries.map(e => {
@@ -686,18 +710,20 @@ function historyHtml(h) {
       : e.tag ? [tagLabel(e.tag) || "Ссылка с меткой", ""]
       : [sourceLabel(e.source), e.source && !/^\(/.test(e.source) ? "переход с " + e.source : "ссылку вставили сами или открыли из закладок"];
     const tag = e.tag ? `<span class="htag">${esc(e.tag)}</span>` : e.who === "person" ? '<span class="htag none">без метки</span>' : "";
-    const again = e.who === "person" ? (e.visit > 1 ? `гость ${e.guest} · вернулся, ${nth(e.visit)} визит` : `гость ${e.guest} · первый визит`) : "";
+    // «first visit» only if this hour is their very first one; otherwise they are coming back, maybe from before the 3 days
+    const first = guests[e.guest]?.first, back = e.visit > 1 || (first && first < day);
+    const again = e.who === "person" ? `гость ${e.guest} · ${back ? (first && first < h.from ? "возвращается, впервые был " + shortDate(first) : `вернулся, ${nth(e.visit)} визит`) : "первый визит"}` : "";
     const pages = (e.pages || []).map(p => `<span class="rp"><i class="dot ${p.host === "marydis.com" ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
     const meta = [CITIES[e.city] || e.city, DEV[e.device] || e.device, e.seconds ? "всего " + minSec(e.seconds) : ""].filter(Boolean).map(esc).join(" · ");
     return `${head}<div class="hitem ${e.who}">
       <span class="htime">${esc(e.at.slice(11, 16))}</span>
       <span class="hicon" title="${e.who === "robot" ? "робот" : "человек"}">${ICON[e.who]}</span>
       <div class="hbody"><div class="hwho"><span class="hname">${esc(who)}</span>${tag}</div>${sub ? `<div class="hsub">${esc(sub)}</div>` : ""}
-        ${again ? `<div class="rv-meta">${esc(again)}</div>` : ""}${pages ? `<div class="rv-pages">${pages}</div>` : ""}${meta ? `<div class="rv-meta">${meta}</div>` : ""}
+        ${again ? (guests[e.guest] ? `<button type="button" class="hguest" data-guest="${e.guest}">${esc(again)} →</button>` : `<div class="rv-meta">${esc(again)}</div>`) : ""}${pages ? `<div class="rv-pages">${pages}</div>` : ""}${meta ? `<div class="rv-meta">${meta}</div>` : ""}
         ${j && e.who === "person" ? `<button type="button" class="linkbtn" data-open="${esc(j.id)}">Открыть вакансию →</button>` : ""}</div>
     </div>`;
   }).join("");
-  return `<div class="head"><span>История за 3 дня</span><span>${h.people} ${plural(h.people, "человек", "человека", "человек")} · роботов ${h.robots}</span></div>
+  return `<div class="head"><span>История за 3 дня · ${h.people} ${plural(h.people, "человек", "человека", "человек")}, роботов ${h.robots}</span>${siteLegend}</div>
     ${items ? `<div class="hlist">${items}</div>` : '<p class="note">За эти дни никого не было</p>'}`;
 }
 // «Кто открывает сайты»: inner ring is the site, outer ring splits each site into people (full colour) and robots (pale);
@@ -735,7 +761,7 @@ function renderFolio() {
   // the period switch drives everything below the 3-day list; older snapshots without periods fall back to 30 days
   const n = +folio.period, P = d.periods?.[folio.period] || { totals: d.totals, countries: d.countries, devices: d.devices, reading: d.reading, sites: [] };
   const t = P.totals;
-  $("folioRecent").hidden = !d.history; if (d.history) $("folioRecent").innerHTML = historyHtml(d.history);
+  $("folioRecent").hidden = !d.history; if (d.history) $("folioRecent").innerHTML = historyHtml(d.history, d.guests);
   $("folioPeriod").querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", b.dataset.p === folio.period));
   moveThumb();
   $("folioNote").textContent = `marydis.com и mariadis.gitverse.site: сначала история за 3 дня, ниже — за выбранный период. Люди — те, кто прокрутил страницу или что-то нажал. Роботы — превью ссылок и проверки почты (LinkedIn, Outlook, Google): открывают ссылку, но не листают. Твои собственные заходы не считаются. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
@@ -777,7 +803,12 @@ function renderFolio() {
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
   $("folioWhere").innerHTML = list("Страны", P.countries.filter(([c]) => c !== "(not set)").slice(0, 8)) + list("Устройства", P.devices.map(([k, n]) => [cap(DEV[k] || k), n]));
 }
-$("folioRecent").addEventListener("click", e => { const o = e.target.closest("[data-open]"); if (o) openJob(o.dataset.open); });
+$("folioRecent").addEventListener("click", e => {
+  const o = e.target.closest("[data-open]"); if (o) return openJob(o.dataset.open);
+  const g = e.target.closest("[data-guest]"); if (!g) return;
+  folio.guest = g.dataset.guest || null; renderFolio();
+  $("folioRecent").scrollIntoView({ block: "start", behavior: "smooth" });
+});
 $("folioTags").addEventListener("click", e => {
   const o = e.target.closest("[data-open]"); if (o) return openJob(o.dataset.open);
   const b = e.target.closest(".ftag[data-tag]"); if (!b || b.disabled) return;
