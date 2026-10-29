@@ -620,7 +620,7 @@ async function loadFolio() {
   const { data, error } = await sb.from("portfolio_stats").select("data,updated_at").eq("id", "snapshot").maybeSingle();
   if (error) { showBanner("Не получилось загрузить статистику портфолио: " + error.message); return; }
   folio.data = data?.data || null; folio.at = data?.updated_at || null;
-  renderFolio(); if (state.view === "jobs") render(); // vacancy cards show visits too
+  renderFolio(); loadAvatars().catch(() => {}); if (state.view === "jobs") render(); // vacancy cards show visits too
 }
 const GENERIC_TAGS = { "hh": "Профиль на hh", "cv-ru": "Резюме RU", "cv-en": "Резюме EN", "socium": "Socium" };
 const tagLabel = t => GENERIC_TAGS[t] || (/-$/.test(t) ? GENERIC_TAGS[t.slice(0, -1)] + " (старая ссылка)" : "");
@@ -671,6 +671,63 @@ const ICON = {
 };
 // the icon says who and how: a robot, or the device a person came from
 const iconOf = (who, device) => who === "robot" ? ICON.robot : device === "mobile" || device === "tablet" ? ICON.phone : ICON.laptop;
+// guests are named after Harry Potter characters (ingest/portfolio_stats.py); their avatar is a home-made badge
+// in the house colours with the first letter, and a small device mark in the corner
+const HOUSES = {
+  g: ["Гриффиндор", "Гарри Гермиона Рон Джинни Невилл Дамблдор Хагрид Сириус Люпин Макгонагалл Минерва Фред Джордж Перси Билл Чарли Лаванда Симус Дин Оливер Ли Кэти Анджелина Колин Парвати Кингсли Аберфорт"],
+  s: ["Слизерин", "Драко Снейп Слизнорт Беллатриса"],
+  r: ["Когтевран", "Луна Чжоу Флитвик Падма Сибилла"],
+  h: ["Пуффендуй", "Седрик Тонкс Помона Ханна Эрни"],
+};
+const OTHERS = { "Добби": "домовой эльф", "Кикимер": "домовой эльф", "Петуния": "магл", "Дадли": "магл", "Флёр": "Шармбатон", "Виктор": "Дурмстранг", "Грюм": "мракоборец" };
+const houseOf = name => { for (const [k, [title, names]] of Object.entries(HOUSES)) if (names.split(" ").includes(name)) return [k, title]; return ["o", OTHERS[name] || "волшебник"]; };
+// Masha can give a character her own picture: it lives in the private «avatars» bucket as <slug>.jpg
+const avatars = {}; // slug → signed url
+async function loadAvatars() {
+  const { data } = await sb.storage.from("avatars").list("", { limit: 200 });
+  const files = (data || []).filter(f => /\.jpg$/.test(f.name));
+  if (!files.length) return;
+  const { data: urls } = await sb.storage.from("avatars").createSignedUrls(files.map(f => f.name), 60 * 60 * 24);
+  for (const u of urls || []) if (u.signedUrl) avatars[u.path.replace(/\.jpg$/, "")] = u.signedUrl + "&v=" + Date.now();
+  renderFolio();
+}
+// a home-made wizard portrait: house-coloured background and striped scarf, a robe, and a face, hair and maybe a hat
+// picked from a hash of the name, so every guest keeps the same look (original drawings, not the film characters)
+const HOUSE_COL = { g: ["#A6262C", "#F2C14E"], s: ["#1E6B47", "#C9CFCB"], r: ["#2A4B8D", "#C8A165"], h: ["#E8B92F", "#2B2B2B"], o: ["#8A7F72", "#E9E1D4"] };
+const SKIN = ["#F6D7C3", "#EBC0A0", "#D9A27E", "#B97D5A", "#8D5B3E"], HAIR = ["#2A1D16", "#5B3A22", "#A0522D", "#D9A441", "#E6D3A3", "#B23A1E", "#7A7A7A"];
+function wizardSvg(name, k) {
+  let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const pick = (arr, sh) => arr[(h >>> sh) % arr.length], [bg, ac] = HOUSE_COL[k];
+  const skin = pick(SKIN, 3), hair = pick(HAIR, 7), style = (h >>> 11) % 4, hat = (h >>> 14) % 3 === 0;
+  const hairPath = [
+    '<path d="M11 19c0-6 4-10 9-10s9 4 9 10c-2-3-5-5-9-5s-7 2-9 5z"/>',
+    '<path d="M10 22c-1-8 3-13 10-13s11 5 10 13l-2-1c0-5-3-8-8-8s-8 3-8 8z"/><path d="M10 22h3v7h-3zM27 22h3v7h-3z"/>',
+    '<path d="M11 18c0-5 4-9 9-9s9 4 9 9c-3-2-6-3-9-3s-6 1-9 3z"/><circle cx="20" cy="8" r="3.5"/>',
+    '<path d="M12 17c1-5 4-8 8-8s7 3 8 8c-2-1-3-3-4-3-2 2-6 2-8 0-1 0-3 2-4 3z"/>'][style];
+  return `<svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" fill="${bg}"/>
+    <path d="M6 40c1-8 7-12 14-12s13 4 14 12z" fill="#26232E"/>
+    <path d="M13 29l7 4 7-4 1 3-8 4-8-4z" fill="${ac}"/><path d="M15.5 30.4l2 1.1-1 2-2-1.1zM22.5 31.5l2-1.1 1 2-2 1.1z" fill="${bg}"/>
+    <circle cx="20" cy="19" r="8" fill="${skin}"/>
+    <g fill="${hair}">${hairPath}</g>
+    <circle cx="17" cy="19.5" r="1" fill="#2B2B2B"/><circle cx="23" cy="19.5" r="1" fill="#2B2B2B"/>
+    <path d="M17.5 23c1.5 1 3.5 1 5 0" stroke="#7A4A3A" stroke-width="1" fill="none" stroke-linecap="round"/>
+    ${hat ? '<path d="M9 13h22l-3-2-8-10-8 10z" fill="#26232E"/><rect x="13" y="11" width="14" height="2" fill="' + ac + '"/>' : ""}</svg>`;
+}
+function avatar(name, device, big) {
+  const [k, title] = houseOf(name), dev = device === "mobile" || device === "tablet" ? ICON.phone : ICON.laptop, pic = avatars[slug(name)];
+  return `<span class="ava house-${k}${big ? " big" : ""}${pic ? " pic" : ""}" title="${esc(title)}" aria-hidden="true">${pic ? `<img src="${esc(pic)}" alt="">` : wizardSvg(name, k)}<i class="ava-dev">${dev}</i></span>`;
+}
+// a picked image is cropped to a square and shrunk to 256 px before upload, so the bucket stays small
+async function setAvatar(name, file) {
+  const img = await createImageBitmap(file), side = Math.min(img.width, img.height), c = document.createElement("canvas");
+  c.width = c.height = 256;
+  c.getContext("2d").drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 256, 256);
+  const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.88));
+  const { error } = await sb.storage.from("avatars").upload(slug(name) + ".jpg", blob, { upsert: true, contentType: "image/jpeg" });
+  if (error) { toast("Не получилось сохранить картинку: " + error.message); return; }
+  avatars[slug(name)] = URL.createObjectURL(blob); toast("Аватарка сохранена");
+  renderFolio(); const g = folio.data?.guests?.[name]; if (g) $("guestSheet").innerHTML = guestHtml(name, g);
+}
 const dayTitle = iso => {
   const d = new Date(iso + "T00:00:00"), age = ageDays(iso);
   const date = d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
@@ -693,7 +750,7 @@ function guestHtml(n, g) {
       <div class="hbody"><div class="hwho"><span class="htime">${esc(shortDate(d.day))}</span>${how}</div>${pages ? `<div class="rv-pages">${pages}</div>` : ""}<div class="rv-meta">${meta}</div></div></div>`;
   }).join("");
   return `<div class="sheet-bar"><div class="grab" aria-hidden="true"></div><button class="btn icon-btn" type="button" data-close aria-label="Закрыть">✕</button></div>
-    <div class="ghead"><h3 class="gtitle">${esc(n)}</h3>${siteLegend}</div>
+    <div class="ghead"><div class="gname"><label class="ava-pick" title="Поставить свою картинку">${avatar(n, g.days[0]?.device, true)}<input type="file" accept="image/*" data-avatar="${esc(n)}" hidden></label><div><h3 class="gtitle">${esc(n)}</h3><span class="rv-meta">${esc(houseOf(n)[1])} · <label class="ava-link">${avatars[slug(n)] ? "сменить картинку" : "поставить картинку"}<input type="file" accept="image/*" data-avatar="${esc(n)}" hidden></label></span></div></div>${siteLegend}</div>
     <div class="gfacts">${facts.map(([l, v]) => `<div><b>${esc(v)}</b><span>${l}</span></div>`).join("")}</div>
     <p class="rv-meta">${esc([where.join(", "), came.length ? "приходил: " + came.join(", ") : ""].filter(Boolean).join(" · "))}</p>
     <div class="gwhy"><b>Как понятно, что это один и тот же человек.</b> При первом заходе сайт сохраняет в браузере случайный номер, у этого гостя <code>${esc(mark)}</code>, и присылает его в аналитику при каждом визите. Тот же браузер на том же устройстве — тот же гость. Другой браузер, телефон или очищенная история — уже новый гость, а город может не определиться, если включён VPN.</div>
@@ -720,7 +777,7 @@ function historyHtml(h, guests = {}) {
     const pages = (e.pages || []).map(p => `<span class="rp"><i class="dot ${p.host === "marydis.com" ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
     const meta = [CITIES[e.city] || e.city, DEV[e.device] || e.device, e.seconds ? "всего " + minSec(e.seconds) : ""].filter(Boolean).map(esc).join(" · ");
     return `${head}<div class="hitem ${e.who}">
-      <span class="hicon" title="${e.who === "robot" ? "робот" : DEV[e.device] || "человек"}">${iconOf(e.who, e.device)}</span>
+      ${e.who === "person" && e.guest ? avatar(e.guest, e.device) : `<span class="hicon" title="${e.who === "robot" ? "робот" : DEV[e.device] || "человек"}">${iconOf(e.who, e.device)}</span>`}
       <div class="hbody"><div class="hwho"><span class="htime">${esc(time)}</span>${name}${tag}</div>
         <div class="hsub">${esc(e.who === "robot" ? "Открыл ссылку, чтобы показать превью" : from[0].toUpperCase() + from.slice(1) + " · " + again)}</div>
         ${pages ? `<div class="rv-pages">${pages}</div>` : ""}${meta ? `<div class="rv-meta">${meta}</div>` : ""}
@@ -814,6 +871,7 @@ $("folioRecent").addEventListener("click", e => {
   $("guestSheet").innerHTML = guestHtml(g.dataset.guest, guest); $("guestSheet").scrollTop = 0; openSheet("guestSheet");
 });
 $("guestSheet").addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheet(); });
+$("guestSheet").addEventListener("change", e => { const f = e.target.closest("[data-avatar]"); if (f?.files?.[0]) setAvatar(f.dataset.avatar, f.files[0]).catch(err => toast("Не получилось: " + err.message)); });
 $("folioTags").addEventListener("click", e => {
   const o = e.target.closest("[data-open]"); if (o) return openJob(o.dataset.open);
   const b = e.target.closest(".ftag[data-tag]"); if (!b || b.disabled) return;
