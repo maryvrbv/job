@@ -23,7 +23,7 @@ unless said otherwise; robots left out everywhere except the robot counts):
   tags      every link tag (from=<tag> in letters, CVs and cover letters), last 90 days: people, robots,
             visits and time of people, first and last visit, cities, what people did, and the same
             reading table for that tag alone
-  history   the last 3 days as a feed, one entry per visit (minutes less than 30 apart are one visit), with its
+  history   the last 14 days as a feed (the app shows 3 days and more on «Смотреть ещё»; people and robots counted for 3 days), one entry per visit (minutes less than 30 apart are one visit), with its
             real start and end in Moscow time: person or robot, the guest's name and which of their visits it is,
             city, device, the link tag or the site they came from (direct visits too), and every page opened
             with time, scroll and read marks
@@ -217,7 +217,7 @@ snap["tags"] = sorted(out, key=lambda g: (g["people"] > 0, g["seen"]), reverse=T
 
 # the last 3 days as a feed. GA reports time in the property's zone (Europe/Helsinki), Masha reads Moscow time
 HEL, MSK = ZoneInfo("Europe/Helsinki"), ZoneInfo("Europe/Moscow")
-d3 = ago(2)
+d3, d14 = ago(2), ago(13)
 V, M = "customEvent:visitor_id", "dateHourMinute"
 GAP = 30  # minutes of silence that start a new visit
 
@@ -244,10 +244,17 @@ def name_of(v):
 
 
 mins = [r for r in rep([V, M, "sessionSource", "customEvent:link_tag", "city", "deviceCategory"],
-                       ["sessions", "userEngagementDuration"], SITE, start=day(d3)) if r[V] not in me and r[V] not in NOID]
-pages = [r for r in rep([V, M, "hostname", "pagePath"], ["userEngagementDuration"], SITE, start=day(d3)) if r[V] not in me]
+                       ["sessions", "userEngagementDuration"], SITE, start=day(d14)) if r[V] not in me and r[V] not in NOID]
+pages = [r for r in rep([V, M, "hostname", "pagePath"], ["userEngagementDuration"], SITE, start=day(d14)) if r[V] not in me]
 marks = [r for r in rep([V, M, "hostname", "pagePath", "eventName", "customEvent:scroll_percent", "customEvent:read_seconds"],
-                        ["eventCount"], SITE, start=day(d3)) if r[V] not in me]
+                        ["eventCount"], SITE, start=day(d14)) if r[V] not in me]
+# names go out in order of the first visit in 90 days, so long-time guests keep theirs when new ones arrive
+firstseen = {}
+for r in visits:
+    if r[V] not in firstseen or r["date"] < firstseen[r[V]]:
+        firstseen[r[V]] = r["date"]
+for v in sorted({r[V] for r in mins if kind(r[V]) == "person"}, key=lambda v: (firstseen.get(v, "9"), v)):
+    name_of(v)
 # split each visitor's minutes into visits
 visit_of, entries, last = {}, [], {}
 for r in sorted(mins, key=lambda r: (r[V], r[M])):
@@ -294,14 +301,21 @@ count = defaultdict(int)
 for e in sorted(entries, key=lambda e: e["start"]):
     count[e["v"]] += 1
     e["visit"] = count[e["v"]]
+def slim(ps, keep):
+    """at most `keep` pages, host as m (marydis.com) or g (gitverse), empty fields dropped: the snapshot stays small"""
+    return [{"host": "m" if p["host"] == "marydis.com" else "g", "path": p["path"], "seconds": p["seconds"],
+             **({"scroll": p["scroll"]} if p.get("scroll") else {})} for p in ps[:keep]]
+
+
 history = []
 for e in entries:
     history.append({"at": e["start"].astimezone(MSK).strftime("%Y-%m-%d %H:%M"), "end": e["end"].astimezone(MSK).strftime("%H:%M"),
                     "who": e["who"], "guest": e["guest"], "visit": e["visit"], "city": e["city"], "device": e["device"],
                     "tag": e["tag"], "source": e["source"], "seconds": e["seconds"],
-                    "pages": sorted(({"host": h, "path": pth, **p} for (h, pth), p in e["pages"].items()), key=lambda p: -p["seconds"])})
-snap["history"] = {"from": day(d3), "people": len({e["v"] for e in entries if e["who"] == "person"}),
-                   "robots": len({e["v"] for e in entries if e["who"] == "robot"}),
+                    "pages": slim(sorted(({"host": h, "path": pth, **p} for (h, pth), p in e["pages"].items()), key=lambda p: -p["seconds"]), 5)})
+last3 = [e for e in entries if e["start"].strftime("%Y%m%d") >= d3]
+snap["history"] = {"from": day(d3), "since": day(d14), "people": len({e["v"] for e in last3 if e["who"] == "person"}),
+                   "robots": len({e["v"] for e in last3 if e["who"] == "robot"}),
                    "entries": sorted(history, key=lambda e: e["at"], reverse=True)}
 
 # every person in the history, day by day over 90 days: the app shows this when a guest is tapped
@@ -332,6 +346,8 @@ for v, n in keys.items():
                     "pages": sorted(({"host": r["hostname"], "path": r["pagePath"], "seconds": int(num(r["userEngagementDuration"])),
                                       "scroll": gscroll[(v, d_, r["hostname"], r["pagePath"])]} for r in gpages if r[V] == v and r["date"] == d_),
                                     key=lambda p: -p["seconds"])})
+    for d_ in out:
+        d_["pages"] = slim(d_["pages"], 4)
     guests[str(n)] = {"mark": v, "first": out[-1]["day"] if out else "", "days": out}
 snap["guests"] = guests
 print(json.dumps(snap, ensure_ascii=False, separators=(",", ":")))

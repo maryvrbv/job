@@ -615,7 +615,7 @@ function render() {
 // ---------- «Портфолио»: who visits marydis.com and mariadis.gitverse.site ----------
 // Claude copies a Google Analytics snapshot into portfolio_stats twice a day (ingest/portfolio_stats.py);
 // link tags (from=<tag> in letters and CVs) are matched back to vacancies, so a visit reads as «Etihad opened it».
-const folio = { data: null, at: null, period: "30" };
+const folio = { data: null, at: null, period: "30", histDays: 3 };
 async function loadFolio() {
   const { data, error } = await sb.from("portfolio_stats").select("data,updated_at").eq("id", "snapshot").maybeSingle();
   if (error) { showBanner("Не получилось загрузить статистику портфолио: " + error.message); return; }
@@ -743,8 +743,8 @@ function guestHtml(n, g) {
   const mark = g.mark.length > 12 ? g.mark.slice(0, 5) + "…" + g.mark.slice(-4) : g.mark;
   const facts = [["Впервые", shortDate(g.first)], ["Дней с визитами", g.days.length], ["Визитов", sum("sessions")], ["Всего", minSec(sum("seconds"))]];
   const days = g.days.map(d => {
-    const pages = (d.pages || []).map(p => `<span class="rp"><i class="dot ${p.host === "marydis.com" ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
-    const how = d.tags.map(t => `<span class="htag">${esc(t)}</span>`).join("");
+    const pages = (d.pages || []).map(p => `<span class="rp"><i class="dot ${isMary(p.host) ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
+    const how = (d.tags || []).map(t => `<span class="htag">${esc(t)}</span>`).join("");
     const meta = [CITIES[d.city] || d.city, DEV[d.device] || d.device, d.sessions + " " + plural(d.sessions, "визит", "визита", "визитов"), "всего " + minSec(d.seconds)].filter(Boolean).map(esc).join(" · ");
     return `<div class="hitem person"><span class="hicon">${iconOf("person", d.device)}</span>
       <div class="hbody"><div class="hwho"><span class="htime">${esc(shortDate(d.day))}</span>${how}</div>${pages ? `<div class="rv-pages">${pages}</div>` : ""}<div class="rv-meta">${meta}</div></div></div>`;
@@ -756,36 +756,44 @@ function guestHtml(n, g) {
     <div class="gwhy"><b>Как понятно, что это один и тот же человек.</b> При первом заходе сайт сохраняет в браузере случайный номер, у этого гостя <code>${esc(mark)}</code>, и присылает его в аналитику при каждом визите. Тот же браузер на том же устройстве — тот же гость. Другой браузер, телефон или очищенная история — уже новый гость, а город может не определиться, если включён VPN.</div>
     <div class="hlist">${days}</div>`;
 }
+// the snapshot shortens hosts to "m" (marydis.com) and "g" (gitverse) to stay small
+const isMary = h => h === "marydis.com" || h === "m";
 const siteLegend = '<span class="legend"><i class="dot h2"></i>gitverse <i class="dot h1"></i>marydis.com</span>';
 function historyHtml(h, guests = {}) {
   const map = tagJobs();
   let lastDay = "";
-  const items = h.entries.map(e => {
+  const shown = h.entries.filter(e => ageDays(e.at.slice(0, 10)) < folio.histDays);
+  const more = shown.length < h.entries.length;
+  const items = shown.map(e => {
     const day = e.at.slice(0, 10), head = day !== lastDay ? `<div class="hday">${esc(dayTitle(day))}</div>` : "";
     lastDay = day;
     const j = e.tag ? jobsForTag(map, e.tag)[0] : null;
     const time = e.at.slice(11, 16) + (e.end && e.end !== e.at.slice(11, 16) ? "–" + e.end : "");
-    // where they came from: a vacancy, a known link, another site, or straight in
-    const from = j ? j.company + " · " + j.title : e.tag ? tagLabel(e.tag) || "по ссылке с меткой"
-      : e.source && !/^\(/.test(e.source) ? "переход с " + sourceLabel(e.source) : "прямой заход";
-    // «first visit» only if this visit is their very first one; otherwise they are coming back, maybe from before the 3 days
+    // with a tag the chip already says where they came from; without one, say how they got here
+    const from = e.tag ? "" : e.source && !/^\(/.test(e.source) ? "переход с " + sourceLabel(e.source) : "прямой заход";
+    // «first visit» only if this visit is their very first one; otherwise they are coming back, maybe from before the shown days
     const first = guests[e.guest]?.first, back = e.visit > 1 || (first && first < day);
-    const again = !back ? "первый визит" : first && first < h.from ? "возвращается, впервые был " + shortDate(first) : `вернулся, ${nth(e.visit)} визит`;
+    const again = !back ? "первый визит" : first && first < (h.since || h.from) ? "возвращается, впервые был " + shortDate(first) : `вернулся, ${nth(e.visit)} визит`;
+    const sub = e.who === "robot" ? "Открыл ссылку, чтобы показать превью" : [from, again].filter(Boolean).join(" · ");
     const name = e.who === "robot" ? '<span class="hname">Робот-превью</span>'
       : guests[e.guest] ? `<button type="button" class="hname hguest" data-guest="${esc(e.guest)}">${esc(e.guest)}</button>` : `<span class="hname">${esc(e.guest)}</span>`;
     const tag = e.tag ? `<span class="htag">${esc(e.tag)}</span>` : ""; // a chip only when the link carried a tag
-    const pages = (e.pages || []).map(p => `<span class="rp"><i class="dot ${p.host === "marydis.com" ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
+    const pages = (e.pages || []).map(p => `<span class="rp"><i class="dot ${isMary(p.host) ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
     const meta = [CITIES[e.city] || e.city, DEV[e.device] || e.device, e.seconds ? "всего " + minSec(e.seconds) : ""].filter(Boolean).map(esc).join(" · ");
     return `${head}<div class="hitem ${e.who}">
       ${e.who === "person" && e.guest ? avatar(e.guest, e.device) : `<span class="hicon" title="${e.who === "robot" ? "робот" : DEV[e.device] || "человек"}">${iconOf(e.who, e.device)}</span>`}
       <div class="hbody"><div class="hwho"><span class="htime">${esc(time)}</span>${name}${tag}</div>
-        <div class="hsub">${esc(e.who === "robot" ? "Открыл ссылку, чтобы показать превью" : from[0].toUpperCase() + from.slice(1) + " · " + again)}</div>
+        <div class="hsub">${esc(sub[0].toUpperCase() + sub.slice(1))}</div>
         ${pages ? `<div class="rv-pages">${pages}</div>` : ""}${meta ? `<div class="rv-meta">${meta}</div>` : ""}
         ${j && e.who === "person" ? `<button type="button" class="linkbtn" data-open="${esc(j.id)}">Открыть вакансию →</button>` : ""}</div>
     </div>`;
   }).join("");
-  return `<div class="head"><span>История за 3 дня · ${h.people} ${plural(h.people, "человек", "человека", "человек")}, роботов ${h.robots}</span>${siteLegend}</div>
-    ${items ? `<div class="hlist">${items}</div>` : '<p class="note">За эти дни никого не было</p>'}`;
+  const robots = h.robots ? `${h.robots} ${plural(h.robots, "робот", "робота", "роботов")}` : "роботов не было";
+  return `<h2 class="fsec">История просмотров</h2>
+    <p class="fsec-sub">За последние 3 дня: ${h.people} ${plural(h.people, "человек", "человека", "человек")}, ${robots}</p>
+    ${siteLegend}
+    <div class="panel-card">${items ? `<div class="hlist">${items}</div>` : '<p class="note">За эти дни никого не было</p>'}
+      ${more ? '<button type="button" class="btn hmore" data-more>Смотреть ещё</button>' : ""}</div>`;
 }
 // «Кто открывает сайты»: inner ring is the site, outer ring splits each site into people (full colour) and robots (pale);
 // a visitor who opened both sites counts on each. The table next to it carries the exact numbers, so colour is never the only cue.
@@ -825,7 +833,7 @@ function renderFolio() {
   $("folioRecent").hidden = !d.history; if (d.history) $("folioRecent").innerHTML = historyHtml(d.history, d.guests);
   $("folioPeriod").querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", b.dataset.p === folio.period));
   moveThumb();
-  $("folioNote").textContent = `marydis.com и mariadis.gitverse.site: сначала история за 3 дня, ниже — за выбранный период. Люди — те, кто прокрутил страницу или что-то нажал. Роботы — превью ссылок и проверки почты (LinkedIn, Outlook, Google): открывают ссылку, но не листают. Твои собственные заходы не считаются. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
+  $("folioNote").textContent = `marydis.com и mariadis.gitverse.site: сначала история просмотров, ниже — статистика за выбранный период. Люди — те, кто прокрутил страницу или что-то нажал. Роботы — превью ссылок и проверки почты (LinkedIn, Outlook, Google): открывают ссылку, но не листают. Твои собственные заходы не считаются. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
   $("folioStats").innerHTML = [["Людей", t.people], ["Роботов и превью", t.robots], ["Визитов людей", t.sessions], ["Средний визит", minSec(t.avg_session)]]
     .map(([l, v], i) => `<div class="stat${i === 1 ? " muted" : ""}"><b>${esc(v)}</b><span>${l}</span></div>`).join("");
   $("folioSites").innerHTML = sitesHtml(P.sites || []);
@@ -865,6 +873,11 @@ function renderFolio() {
   $("folioWhere").innerHTML = list("Страны", P.countries.filter(([c]) => c !== "(not set)").slice(0, 8)) + list("Устройства", P.devices.map(([k, n]) => [cap(DEV[k] || k), n]));
 }
 $("folioRecent").addEventListener("click", e => {
+  if (e.target.closest("[data-more]")) {
+    // three more days, or up to the next day that had anyone, so the button never shows nothing new
+    const next = folio.data.history.entries.map(x => ageDays(x.at.slice(0, 10))).filter(a => a >= folio.histDays);
+    folio.histDays = Math.max(folio.histDays + 3, Math.min(...next) + 1); return renderFolio();
+  }
   const o = e.target.closest("[data-open]"); if (o) return openJob(o.dataset.open);
   const g = e.target.closest("[data-guest]"), guest = g && folio.data?.guests?.[g.dataset.guest]; if (!guest) return;
   // a guest's own story slides up as a bottom sheet over the feed
