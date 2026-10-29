@@ -10,6 +10,7 @@ const TABS = [
   ...MARKETS.map(m => ({ key: m.key, label: m.label, market: m.key })),
   { key: "applied-uae", label: "Отклики ОАЭ", market: "uae", applied: true },
   { key: "applied-ru", label: "Отклики РФ", market: "ru", applied: true },
+  { key: "reserve", label: "Резерв", reserve: true },
   { key: "archive", label: "Архив", archive: true },
 ];
 const FRESH_DAYS = 3, ARCHIVE_DAYS = 14;
@@ -22,7 +23,7 @@ const NEW = "Не откликалась", REJECT = "Отказ", SKIP = "Не �
 const ENDED = [SKIP, REJECT, CLOSED];
 const SKIP_REASONS = ["Только офис без релокации", "Не мой домен", "Слишком джуниорская роль", "Низкая зарплата", "Нужен арабский", "Это агентство/аутстаф", "Уже откликалась раньше"];
 // everything except the long description, which loads when the panel opens
-const LIST_COLUMNS = "id,market,url,title,company,city,work_format,salary,experience,posted_at,applicants,domain,level,fit,why,status,applied_at,reject_stage,feedback,skip_reason,comment,letter,closed_at,updated_at,referral";
+const LIST_COLUMNS = "id,market,url,title,company,city,work_format,salary,experience,posted_at,applicants,domain,level,fit,why,status,applied_at,reject_stage,feedback,skip_reason,comment,letter,closed_at,updated_at,referral,reserve";
 const CACHE_KEY = "jobs-cache-v1";
 
 const state = { view: "jobs", tab: "today", jobs: [], sel: {}, loading: true, desc: {}, loadedAt: null };
@@ -164,8 +165,12 @@ const tabOf = k => TABS.find(t => t.key === k);
 // «Низкий» vacancies stay in the base only so the next search does not bring them back as new:
 // they are hidden everywhere unless I applied anyway or pick «Низкое» in the filter
 const isLow = j => j.fit === "Низкий" && !isApplied(j);
+// put aside for later: until I apply, such a vacancy lives only in «Резерв»
+const isReserved = j => j.reserve && !isApplied(j);
 function jobsOf(t, withLow = false) {
-  const pool = withLow ? state.jobs : state.jobs.filter(j => !isLow(j));
+  const all = withLow ? state.jobs : state.jobs.filter(j => !isLow(j) || isReserved(j));
+  if (t.reserve) return all.filter(isReserved);
+  const pool = all.filter(j => !isReserved(j));
   if (t.key === "today") return pool.filter(isHot);
   if (t.archive) return pool.filter(j => !isApplied(j) && isOld(j));
   if (t.process) return pool.filter(inProcess);
@@ -395,8 +400,8 @@ function plural(n, one, few, many) { const a = n % 10, b = n % 100; return a ===
 function renderTabs() {
   const loaded = state.jobs.length > 0;
   $("tabs").innerHTML = TABS.map(t => {
-    const n = !loaded ? null : jobsOf(t).filter(j => t.key === "today" || t.archive || t.process || (t.applied ? j.status !== REJECT : j.status === NEW)).length;
-    const tail = n == null ? "" : `<span class="n">${t.key === "today" || t.archive || t.process ? n : n + (t.applied ? " ждут ответа" : " новых")}</span>`;
+    const n = !loaded ? null : jobsOf(t).filter(j => t.key === "today" || t.archive || t.process || t.reserve || (t.applied ? j.status !== REJECT : j.status === NEW)).length;
+    const tail = n == null ? "" : `<span class="n">${t.key === "today" || t.archive || t.process || t.reserve ? n : n + (t.applied ? " ждут ответа" : " новых")}</span>`;
     return `<button class="tab ${t.key === "today" ? "today" : ""}" role="tab" type="button" data-k="${t.key}" aria-selected="${t.key === state.tab}">${esc(t.label)}${tail}</button>`;
   }).join("");
   // keep the chosen tab visible in the scrolling row on phones, without moving the page
@@ -413,6 +418,8 @@ function renderList(rows) {
   if (!rows.length) {
     L.innerHTML = state.tab === "today"
       ? '<div class="empty">Свежих вакансий с высоким совпадением сейчас нет. Новые приходят каждое утро; пока можно пройтись по вкладкам ОАЭ и России.</div>'
+      : state.tab === "reserve" && !tabJobs().length
+      ? '<div class="empty">В резерве пусто. Отложить вакансию на потом можно галочкой «Отложить в резерв» в её карточке.</div>'
       : '<div class="empty">Под эти фильтры ничего не подходит. Попробуй сбросить фильтры или очистить поиск.</div>';
     return;
   }
@@ -421,7 +428,7 @@ function renderList(rows) {
     const bits = [j.company, j.city, j.work_format && j.work_format !== "не указан" ? j.work_format : "", j.salary, j.referral ? "рефералка" : ""].filter(Boolean).map(esc).join(" · ");
     const meta = state.tab === "today"
       ? `<span class="src">${marketOf(j.market).short}</span><span class="age">${ageText(ageDays(j.posted_at))}</span>`
-      : `${tabOf(state.tab).archive || tabOf(state.tab).process ? `<span class="src">${marketOf(j.market).short}</span>` : ""}${j.status === NEW ? "" : `<span class="pill ${statusCls(j.status)}">${esc(short(j.status))}</span>`}${isApplied(j) && j.applied_at ? `<span class="applied-on">отклик ${esc(shortDate(j.applied_at))}</span>` : esc(shortDate(j.posted_at))}`;
+      : `${tabOf(state.tab).archive || tabOf(state.tab).process || tabOf(state.tab).reserve ? `<span class="src">${marketOf(j.market).short}</span>` : ""}${j.status === NEW ? "" : `<span class="pill ${statusCls(j.status)}">${esc(short(j.status))}</span>`}${isApplied(j) && j.applied_at ? `<span class="applied-on">отклик ${esc(shortDate(j.applied_at))}</span>` : esc(shortDate(j.posted_at))}`;
     return `<button class="item" type="button" data-id="${esc(j.id)}" aria-current="${j.id === sel}">
       <span class="stripe ${j.fit === "Высокий" ? "high" : ""}" title="Совпадение: ${esc(j.fit)}"></span>
       <span style="min-width:0"><span class="t">${esc(j.title)}</span><span class="c">${bits}</span></span>
@@ -499,6 +506,7 @@ function renderDetail(rows) {
       <p class="lbl"><label for="comment">Комментарий</label></p>
       <input class="comment" id="comment" value="${esc(j.comment)}" placeholder="Например: написала Патрисии в LinkedIn">
       <label class="check ref-check"><input type="checkbox" id="referral" ${j.referral ? "checked" : ""}> По рекомендации (рефералка)</label>
+      ${isApplied(j) ? "" : `<label class="check ref-check"><input type="checkbox" id="reserve" ${j.reserve ? "checked" : ""}> Отложить в резерв</label>`}
     </div>`;
 
   renderExtra(j); renderHistory(j.id);
@@ -514,6 +522,10 @@ function renderDetail(rows) {
   $("saveLetter").onclick = () => save(j, { letter: ta.value }, "Письмо сохранено");
   if ($("gen")) $("gen").onclick = () => generate(j); // only with the letter function; letters otherwise come from the Claude chat
   $("referral").onchange = e => save(j, { referral: e.target.checked }, e.target.checked ? "Отмечено: рефералка" : "Отметка снята");
+  if ($("reserve")) $("reserve").onchange = e => {
+    const on = e.target.checked;
+    save(j, { reserve: on }, on ? "Отложено во вкладку «Резерв»" : "Вернула из резерва", { label: "Отменить", run: () => save(j, { reserve: !on }, "Отменено") });
+  };
   $("cv").onclick = () => downloadCv(j).catch(err => toast("Не получилось собрать CV: " + err.message));
   const pick = e => { const b = e.target.closest("button[data-st]"); if (b) setStatus(j, b.dataset.st); };
   $("steps").onclick = pick; $("outcomes").onclick = pick;
