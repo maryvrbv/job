@@ -662,22 +662,43 @@ const sourceLabel = s => (SOURCES.find(([re]) => re.test(s)) || [, s])[1];
 const DEV = { desktop: "компьютер", mobile: "телефон", tablet: "планшет" };
 const CITIES = { "Moscow": "Москва", "Saint Petersburg": "Санкт-Петербург", "Novosibirsk": "Новосибирск", "Nizhny Novgorod": "Нижний Новгород",
   "Yekaterinburg": "Екатеринбург", "Kazan": "Казань", "Tula": "Тула", "Dubai": "Дубай", "Abu Dhabi": "Абу-Даби" };
-const whenText = (a, b) => { const f = x => x.slice(8, 10) + "." + x.slice(5, 7) + ", " + x.slice(11, 16); return a === b ? f(a) : f(a) + " – " + f(b); };
-function recentHtml(r) {
+// «История за 3 дня»: a feed, newest first, grouped by day; one entry per visitor per hour with a person or robot icon,
+// where they came from (vacancy, link tag or site), what they opened and for how long
+const ICON = {
+  person: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5.2" r="2.8"/><path d="M2.6 14c.3-3 2.6-5 5.4-5s5.1 2 5.4 5z"/></svg>',
+  robot: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="2.5" y="4" width="11" height="9" rx="2.5"/><circle cx="6" cy="8.5" r="1.1" fill="var(--surface)"/><circle cx="10" cy="8.5" r="1.1" fill="var(--surface)"/></svg>',
+};
+const dayTitle = iso => {
+  const d = new Date(iso + "T00:00:00"), age = ageDays(iso);
+  const date = d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+  return age === 0 ? "Сегодня, " + date : age === 1 ? "Вчера, " + date : date[0].toUpperCase() + date.slice(1);
+};
+const nth = n => n + "-й";
+function historyHtml(h) {
   const map = tagJobs();
-  const rows = r.visits.map(v => {
-    const j = v.tag ? jobsForTag(map, v.tag)[0] : null;
-    const who = j ? `${esc(j.company)}<small>${esc(j.title)}</small>`
-      : v.tag ? (tagLabel(v.tag) ? esc(tagLabel(v.tag)) : `${esc(v.tag)}<small>метка из ссылки, вакансия не нашлась</small>`)
-      : `${esc(sourceLabel(v.source))}<small>${v.source && !/^\(/.test(v.source) ? "переход с " + esc(v.source) : "без метки: ссылку вставили сами или открыли из закладок"}</small>`;
-    const meta = [whenText(v.first, v.last), CITIES[v.city] || v.city, DEV[v.device] || v.device, v.sessions > 1 ? v.sessions + " " + plural(v.sessions, "визит", "визита", "визитов") : ""].filter(Boolean).map(esc).join(" · ");
-    const pages = (v.pages || []).map(p => `<span class="rp"><i class="dot ${p.host === "marydis.com" ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)} <b>${minSec(p.seconds)}</b>${p.scroll ? ` · до ${p.scroll}%` : ""}${p.read >= 60 ? ` · читали ${minSec(p.read)}+` : ""}</span>`).join("");
-    return `<div class="rvisit"><div class="rv-top"><span class="ft-who">${who}</span><span class="ft-num"><b>${minSec(v.seconds)}</b></span></div>
-      <div class="rv-meta">${meta}</div>${pages ? `<div class="rv-pages">${pages}</div>` : ""}${j ? `<button type="button" class="btn rv-open" data-open="${esc(j.id)}">Открыть вакансию</button>` : ""}</div>`;
-  });
-  const bots = r.robot_tags?.length ? `<p class="note">Роботы-превью: ${r.robot_tags.map(([t, n]) => esc(t) + (n > 1 ? " ×" + n : "")).join(", ")}</p>` : "";
-  return `<div class="head"><span>Последние 3 дня, с ${esc(shortDate(r.from))}</span><span>${r.people} ${plural(r.people, "человек", "человека", "человек")} · роботов ${r.robots}</span></div>
-    ${rows.join("") || '<p class="note">За эти дни людей не было</p>'}${bots}`;
+  let lastDay = "";
+  const items = h.entries.map(e => {
+    const day = e.at.slice(0, 10), head = day !== lastDay ? `<div class="hday">${esc(dayTitle(day))}</div>` : "";
+    lastDay = day;
+    const j = e.tag ? jobsForTag(map, e.tag)[0] : null;
+    const [who, sub] = e.who === "robot" ? ["Робот-превью открыл ссылку", ""]
+      : j ? [j.company, j.title]
+      : e.tag ? [tagLabel(e.tag) || "Ссылка с меткой", ""]
+      : [sourceLabel(e.source), e.source && !/^\(/.test(e.source) ? "переход с " + e.source : "ссылку вставили сами или открыли из закладок"];
+    const tag = e.tag ? `<span class="htag">${esc(e.tag)}</span>` : e.who === "person" ? '<span class="htag none">без метки</span>' : "";
+    const again = e.who === "person" ? (e.visit > 1 ? `гость ${e.guest} · вернулся, ${nth(e.visit)} визит` : `гость ${e.guest} · первый визит`) : "";
+    const pages = (e.pages || []).map(p => `<span class="rp"><i class="dot ${p.host === "marydis.com" ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
+    const meta = [CITIES[e.city] || e.city, DEV[e.device] || e.device, e.seconds ? "всего " + minSec(e.seconds) : ""].filter(Boolean).map(esc).join(" · ");
+    return `${head}<div class="hitem ${e.who}">
+      <span class="htime">${esc(e.at.slice(11, 16))}</span>
+      <span class="hicon" title="${e.who === "robot" ? "робот" : "человек"}">${ICON[e.who]}</span>
+      <div class="hbody"><div class="hwho"><span class="hname">${esc(who)}</span>${tag}</div>${sub ? `<div class="hsub">${esc(sub)}</div>` : ""}
+        ${again ? `<div class="rv-meta">${esc(again)}</div>` : ""}${pages ? `<div class="rv-pages">${pages}</div>` : ""}${meta ? `<div class="rv-meta">${meta}</div>` : ""}
+        ${j && e.who === "person" ? `<button type="button" class="linkbtn" data-open="${esc(j.id)}">Открыть вакансию →</button>` : ""}</div>
+    </div>`;
+  }).join("");
+  return `<div class="head"><span>История за 3 дня</span><span>${h.people} ${plural(h.people, "человек", "человека", "человек")} · роботов ${h.robots}</span></div>
+    ${items ? `<div class="hlist">${items}</div>` : '<p class="note">За эти дни никого не было</p>'}`;
 }
 // «Кто открывает сайты»: inner ring is the site, outer ring splits each site into people (full colour) and robots (pale);
 // a visitor who opened both sites counts on each. The table next to it carries the exact numbers, so colour is never the only cue.
@@ -714,10 +735,10 @@ function renderFolio() {
   // the period switch drives everything below the 3-day list; older snapshots without periods fall back to 30 days
   const n = +folio.period, P = d.periods?.[folio.period] || { totals: d.totals, countries: d.countries, devices: d.devices, reading: d.reading, sites: [] };
   const t = P.totals;
-  $("folioRecent").hidden = !d.recent; if (d.recent) $("folioRecent").innerHTML = recentHtml(d.recent);
+  $("folioRecent").hidden = !d.history; if (d.history) $("folioRecent").innerHTML = historyHtml(d.history);
   $("folioPeriod").querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", b.dataset.p === folio.period));
   moveThumb();
-  $("folioNote").textContent = `marydis.com и mariadis.gitverse.site: сначала последние 3 дня визит за визитом, ниже — за выбранный период. Люди — те, кто прокрутил страницу или что-то нажал. Роботы — превью ссылок и проверки почты (LinkedIn, Outlook, Google): открывают ссылку, но не листают. Твои собственные заходы не считаются. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
+  $("folioNote").textContent = `marydis.com и mariadis.gitverse.site: сначала история за 3 дня, ниже — за выбранный период. Люди — те, кто прокрутил страницу или что-то нажал. Роботы — превью ссылок и проверки почты (LinkedIn, Outlook, Google): открывают ссылку, но не листают. Твои собственные заходы не считаются. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
   $("folioStats").innerHTML = [["Людей", t.people], ["Роботов и превью", t.robots], ["Визитов людей", t.sessions], ["Средний визит", minSec(t.avg_session)]]
     .map(([l, v], i) => `<div class="stat${i === 1 ? " muted" : ""}"><b>${esc(v)}</b><span>${l}</span></div>`).join("");
   $("folioSites").innerHTML = sitesHtml(P.sites || []);

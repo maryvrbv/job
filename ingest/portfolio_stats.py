@@ -23,9 +23,9 @@ unless said otherwise; robots left out everywhere except the robot counts):
   tags      every link tag (from=<tag> in letters, CVs and cover letters), last 90 days: people, robots,
             visits and time of people, first and last visit, cities, what people did, and the same
             reading table for that tag alone
-  recent    the last 3 days visit by visit: each person with time (Moscow), city, device, the link tag
-            or the site they came from (direct visits too), and every page they read: time, scroll, read marks;
-            robots only as a count per tag
+  history   the last 3 days as a feed, one entry per visitor per hour (Moscow time): person or robot, which visitor
+            and which of their visits it is, city, device, the link tag or the site they came from (direct visits
+            too), and every page opened in that hour with time, scroll and read marks
 """
 import json
 from collections import defaultdict
@@ -210,44 +210,43 @@ for g in tags.values():
                 "cities": sorted(g["cities"]), "did": dict(did), "reading": reading_table(events, g["people"])[:8]})
 snap["tags"] = sorted(out, key=lambda g: (g["people"] > 0, g["seen"]), reverse=True)
 
-# the last 3 days, visit by visit. GA reports hours in the property's zone (Europe/Helsinki), Masha reads Moscow time
+# the last 3 days as a feed. GA reports hours in the property's zone (Europe/Helsinki), Masha reads Moscow time
 HEL, MSK = ZoneInfo("Europe/Helsinki"), ZoneInfo("Europe/Moscow")
 d3 = ago(2)
-hours = [r for r in rep(["customEvent:visitor_id", "dateHour", "sessionSource", "customEvent:link_tag", "city", "deviceCategory"],
-                        ["sessions", "userEngagementDuration"], SITE, start=day(d3)) if r["customEvent:visitor_id"] not in me]
-pages = [r for r in rep(["customEvent:visitor_id", "hostname", "pagePath"], ["userEngagementDuration", "screenPageViews"], SITE, start=day(d3))
-         if r["customEvent:visitor_id"] not in me]
+V = "customEvent:visitor_id"
+hours = [r for r in rep([V, "dateHour", "sessionSource", "customEvent:link_tag", "city", "deviceCategory"],
+                        ["sessions", "userEngagementDuration"], SITE, start=day(d3)) if r[V] not in me and r[V] not in NOID]
+pages = [r for r in rep([V, "dateHour", "hostname", "pagePath"], ["userEngagementDuration", "screenPageViews"], SITE, start=day(d3))
+         if r[V] not in me]
 marks = defaultdict(lambda: {"scroll": 0, "read": 0})
-for r in events:
-    if r["date"] >= d3:
-        m = marks[(r["customEvent:visitor_id"], r["hostname"], r["pagePath"])]
-        if r["eventName"] == "scroll_depth":
-            m["scroll"] = max(m["scroll"], int(num(r["customEvent:scroll_percent"])))
-        elif r["eventName"] == "read_time":
-            m["read"] = max(m["read"], int(num(r["customEvent:read_seconds"])))
-recent, robots = {}, defaultdict(set)
+for r in rep([V, "dateHour", "hostname", "pagePath", "eventName", "customEvent:scroll_percent", "customEvent:read_seconds"],
+             ["eventCount"], SITE, start=day(d3)):
+    m = marks[(r[V], r["dateHour"], r["hostname"], r["pagePath"])]
+    if r["eventName"] == "scroll_depth":
+        m["scroll"] = max(m["scroll"], int(num(r["customEvent:scroll_percent"])))
+    elif r["eventName"] == "read_time":
+        m["read"] = max(m["read"], int(num(r["customEvent:read_seconds"])))
+entries, guests, seen = {}, {}, defaultdict(int)
 for r in sorted(hours, key=lambda r: r["dateHour"]):
-    v, k = r["customEvent:visitor_id"], kind(r["customEvent:visitor_id"])
-    if k != "person":
-        if k == "robot":
-            robots[tag_of(r) or r["sessionSource"]].add(v)
-        continue
-    h = r["dateHour"]
-    at = datetime(int(h[:4]), int(h[4:6]), int(h[6:8]), int(h[8:]), tzinfo=HEL).astimezone(MSK).strftime("%Y-%m-%d %H:00")
-    g = recent.setdefault(v, {"first": at, "last": at, "city": "", "device": r["deviceCategory"], "tag": "", "source": "",
-                              "sessions": 0, "seconds": 0})
-    g["last"] = at
-    g["sessions"] += int(r["sessions"]); g["seconds"] += int(num(r["userEngagementDuration"]))
+    v, h = r[V], r["dateHour"]
+    e = entries.get((v, h))
+    if not e:
+        guests.setdefault(v, len(guests) + 1)
+        seen[v] += 1
+        at = datetime(int(h[:4]), int(h[4:6]), int(h[6:8]), int(h[8:]), tzinfo=HEL).astimezone(MSK).strftime("%Y-%m-%d %H:00")
+        e = entries[(v, h)] = {"at": at, "who": "person" if kind(v) == "person" else "robot", "guest": guests[v], "visit": seen[v],
+                               "city": "", "device": r["deviceCategory"], "tag": "", "source": "", "seconds": 0}
+    e["seconds"] += int(num(r["userEngagementDuration"]))
     if r["city"] != "(not set)":
-        g["city"] = g["city"] or r["city"]
-    g["tag"] = g["tag"] or tag_of(r)
-    if g["source"] in ("", "(direct)", "(not set)"):  # a real referrer beats a direct visit
-        g["source"] = r["sessionSource"]
-for v, g in recent.items():
-    g["pages"] = sorted(({"host": r["hostname"], "path": r["pagePath"], "seconds": int(num(r["userEngagementDuration"])),
-                          "views": int(r["screenPageViews"]), **marks[(v, r["hostname"], r["pagePath"])]}
-                         for r in pages if r["customEvent:visitor_id"] == v), key=lambda p: -p["seconds"])
-snap["recent"] = {"from": day(d3), "people": len(recent), "robots": sum(len(x) for x in robots.values()),
-                  "robot_tags": sorted(([t, len(x)] for t, x in robots.items()), key=lambda x: -x[1]),
-                  "visits": sorted(recent.values(), key=lambda g: g["last"], reverse=True)}
+        e["city"] = e["city"] or r["city"]
+    e["tag"] = e["tag"] or tag_of(r)
+    if e["source"] in ("", "(direct)", "(not set)"):  # a real referrer beats a direct visit
+        e["source"] = r["sessionSource"]
+for (v, h), e in entries.items():
+    e["pages"] = sorted(({"host": r["hostname"], "path": r["pagePath"], "seconds": int(num(r["userEngagementDuration"])),
+                          **marks[(v, h, r["hostname"], r["pagePath"])]}
+                         for r in pages if r[V] == v and r["dateHour"] == h), key=lambda p: -p["seconds"])
+snap["history"] = {"from": day(d3), "people": len({k[0] for k, e in entries.items() if e["who"] == "person"}),
+                   "robots": len({k[0] for k, e in entries.items() if e["who"] == "robot"}),
+                   "entries": sorted(entries.values(), key=lambda e: e["at"], reverse=True)}
 print(json.dumps(snap, ensure_ascii=False, separators=(",", ":")))
