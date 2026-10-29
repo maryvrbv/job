@@ -505,3 +505,24 @@ i.bot{background:#D9D3E6}
 .ghead .legend{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)}
 .ghead .legend i.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:8px;margin-right:2px}
 @media (min-width:861px){.gsheet{left:50%;right:auto;width:720px;margin-left:-360px}}
+/* guest avatars: house colours, first letter, device in the corner */
+.ava{position:relative;z-index:1;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;line-height:1;box-shadow:inset 0 0 0 2px var(--ava-ring)}
+.ava.big{width:52px;height:52px;font-size:22px;box-shadow:inset 0 0 0 3px var(--ava-ring)}
+.ava-dev{position:absolute;right:-4px;bottom:-4px;width:15px;height:15px;border-radius:50%;background:var(--surface);color:var(--muted);display:grid;place-items:center;box-shadow:0 0 0 1px var(--line)}
+.ava-dev svg{width:10px;height:10px;fill:currentColor}
+.ava.big .ava-dev{width:22px;height:22px;right:-3px;bottom:-3px}
+.ava.big .ava-dev svg{width:14px;height:14px}
+.house-g{background:#A6262C;color:#F2C14E;--ava-ring:#F2C14E}
+.house-s{background:#1E6B47;color:#E4E6E3;--ava-ring:#B9C0BC}
+.house-r{background:#2A4B8D;color:#D9B27A;--ava-ring:#C8A165}
+.house-h{background:#E8B92F;color:#2B2B2B;--ava-ring:#2B2B2B}
+.house-o{background:#8A7F72;color:#FFFFFF;--ava-ring:#D8D0C4}
+.gname{display:flex;align-items:center;gap:12px}
+.gname .gtitle{margin:0}
+.ava.pic,.ava{overflow:visible}
+.ava.pic img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.ava-pick{cursor:pointer;border-radius:50%}
+.ava-pick:hover .ava{filter:brightness(1.08)}
+.ava-link{color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--accent-soft)}
+.ava > svg{width:100%;height:100%;border-radius:50%;display:block}
+.ava:not(.pic) > svg{box-shadow:inset 0 0 0 2px var(--ava-ring)}
