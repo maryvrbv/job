@@ -468,25 +468,25 @@ i.bot{background:#D9D3E6}
 .hlist{display:flex;flex-direction:column}
 .hday{font-size:13px;font-weight:600;margin:14px 0 6px}
 .hlist .hday:first-child{margin-top:2px}
-.hitem{display:grid;grid-template-columns:44px 28px minmax(0,1fr);gap:0 10px;position:relative;padding-bottom:14px}
+.hitem{display:grid;grid-template-columns:28px minmax(0,1fr);gap:0 12px;position:relative;padding-bottom:14px}
 /* the feed line runs through the icons */
-.hitem::before{content:"";position:absolute;left:67px;top:28px;bottom:0;width:2px;background:var(--line)}
+.hitem::before{content:"";position:absolute;left:13px;top:28px;bottom:0;width:2px;background:var(--line)}
 .hitem:last-child::before,.hitem:has(+ .hday)::before{display:none}
-.htime{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;padding-top:5px}
+.htime{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .hicon{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);position:relative;z-index:1}
 .hicon svg{width:16px;height:16px;fill:currentColor}
 .hitem.robot .hicon{background:var(--sunken);color:var(--muted)}
 .hitem.robot .hname{color:var(--muted);font-weight:400}
 .hbody{display:flex;flex-direction:column;gap:4px;min-width:0;padding-top:4px}
 .hwho{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.hname{font-weight:500}
+.hname{font-weight:600}
 .hsub{font-size:12px;color:var(--muted);margin-top:-3px}
 .htag{font-size:12px;background:var(--accent-soft);color:var(--accent);border-radius:6px;padding:1px 7px;font-weight:500}
 .htag.none{background:var(--sunken);color:var(--muted);font-weight:400}
 .hbody .linkbtn{align-self:flex-start}
 .panel-card .legend i.dot{width:8px;height:8px;border-radius:50%;margin-left:8px;margin-right:2px}
-.hguest{border:0;background:none;padding:0;font:inherit;font-size:12px;color:var(--accent);text-align:left;cursor:pointer;align-self:flex-start}
-.hguest:hover{text-decoration:underline;text-underline-offset:3px}
+.hguest{border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--accent);text-align:left;cursor:pointer;text-decoration:underline;text-decoration-color:var(--accent-soft);text-underline-offset:3px}
+.hguest:hover{text-decoration-color:var(--accent)}
 .gtitle{margin:4px 0 2px;font-size:20px;font-weight:600;letter-spacing:-.01em}
 .gfacts{display:flex;flex-wrap:wrap;gap:8px 24px;margin:4px 0}
 .gfacts div{display:flex;flex-direction:column}
