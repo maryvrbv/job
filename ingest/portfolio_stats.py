@@ -26,6 +26,9 @@ unless said otherwise; robots left out everywhere except the robot counts):
   history   the last 3 days as a feed, one entry per visitor per hour (Moscow time): person or robot, which visitor
             and which of their visits it is, city, device, the link tag or the site they came from (direct visits
             too), and every page opened in that hour with time, scroll and read marks
+  guests    for every person in the history: the browser mark that tells it is the same visitor (visitor_id,
+            a random number the site keeps in the browser), first visit, and all their days in the last 90 days:
+            visits, time, link tags and sources, city, device, pages with time and scroll
 """
 import json
 from collections import defaultdict
@@ -249,4 +252,37 @@ for (v, h), e in entries.items():
 snap["history"] = {"from": day(d3), "people": len({k[0] for k, e in entries.items() if e["who"] == "person"}),
                    "robots": len({k[0] for k, e in entries.items() if e["who"] == "robot"}),
                    "entries": sorted(entries.values(), key=lambda e: e["at"], reverse=True)}
+# every person in the history, day by day over 90 days: the app shows this when a guest is tapped
+keys = {}
+for (v, _), e in entries.items():
+    if e["who"] == "person":
+        keys[v] = e["guest"]
+gpages = [r for r in rep([V, "date", "hostname", "pagePath"], ["userEngagementDuration"], SITE) if r[V] in keys] if keys else []
+gscroll = defaultdict(int)
+for r in events:
+    if r[V] in keys and r["eventName"] == "scroll_depth":
+        k = (r[V], r["date"], r["hostname"], r["pagePath"])
+        gscroll[k] = max(gscroll[k], int(num(r["customEvent:scroll_percent"])))
+guests = {}
+for v, n in keys.items():
+    days = defaultdict(lambda: {"sessions": 0, "seconds": 0, "tags": set(), "sources": set(), "city": "", "device": ""})
+    for r in visits:
+        if r[V] == v:
+            g = days[r["date"]]
+            g["sessions"] += int(r["sessions"]); g["seconds"] += int(num(r["userEngagementDuration"]))
+            if tag_of(r):
+                g["tags"].add(tag_of(r))
+            elif r["sessionSource"] not in ("(not set)",):
+                g["sources"].add(r["sessionSource"])
+            g["city"] = g["city"] or ("" if r["city"] == "(not set)" else r["city"])
+            g["device"] = g["device"] or r["deviceCategory"]
+    out = []
+    for d_, g in sorted(days.items(), reverse=True):
+        out.append({"day": day(d_), "sessions": g["sessions"], "seconds": g["seconds"], "tags": sorted(g["tags"]), "sources": sorted(g["sources"]),
+                    "city": g["city"], "device": g["device"],
+                    "pages": sorted(({"host": r["hostname"], "path": r["pagePath"], "seconds": int(num(r["userEngagementDuration"])),
+                                      "scroll": gscroll[(v, d_, r["hostname"], r["pagePath"])]} for r in gpages if r[V] == v and r["date"] == d_),
+                                    key=lambda p: -p["seconds"])})
+    guests[str(n)] = {"mark": v, "first": out[-1]["day"] if out else "", "days": out}
+snap["guests"] = guests
 print(json.dumps(snap, ensure_ascii=False, separators=(",", ":")))
