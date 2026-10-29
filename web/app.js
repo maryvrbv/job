@@ -687,7 +687,7 @@ function guestHtml(n, g) {
   const facts = [["Впервые", shortDate(g.first)], ["Дней с визитами", g.days.length], ["Визитов", sum("sessions")], ["Всего", minSec(sum("seconds"))]];
   const days = g.days.map(d => {
     const pages = (d.pages || []).map(p => `<span class="rp"><i class="dot ${p.host === "marydis.com" ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
-    const how = [...d.tags.map(t => `<span class="htag">${esc(t)}</span>`), ...d.sources.map(x => `<span class="htag none">${esc(sourceLabel(x))}</span>`)].join("");
+    const how = d.tags.map(t => `<span class="htag">${esc(t)}</span>`).join("");
     const meta = [CITIES[d.city] || d.city, DEV[d.device] || d.device, d.sessions + " " + plural(d.sessions, "визит", "визита", "визитов"), "всего " + minSec(d.seconds)].filter(Boolean).map(esc).join(" · ");
     return `<div class="hitem person"><span class="hicon">${iconOf("person", d.device)}</span>
       <div class="hbody"><div class="hwho"><span class="htime">${esc(shortDate(d.day))}</span>${how}</div>${pages ? `<div class="rv-pages">${pages}</div>` : ""}<div class="rv-meta">${meta}</div></div></div>`;
@@ -716,7 +716,7 @@ function historyHtml(h, guests = {}) {
     const again = !back ? "первый визит" : first && first < h.from ? "возвращается, впервые был " + shortDate(first) : `вернулся, ${nth(e.visit)} визит`;
     const name = e.who === "robot" ? '<span class="hname">Робот-превью</span>'
       : guests[e.guest] ? `<button type="button" class="hname hguest" data-guest="${esc(e.guest)}">${esc(e.guest)}</button>` : `<span class="hname">${esc(e.guest)}</span>`;
-    const tag = e.tag ? `<span class="htag">${esc(e.tag)}</span>` : e.who === "person" ? '<span class="htag none">без метки</span>' : "";
+    const tag = e.tag ? `<span class="htag">${esc(e.tag)}</span>` : ""; // a chip only when the link carried a tag
     const pages = (e.pages || []).map(p => `<span class="rp"><i class="dot ${p.host === "marydis.com" ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
     const meta = [CITIES[e.city] || e.city, DEV[e.device] || e.device, e.seconds ? "всего " + minSec(e.seconds) : ""].filter(Boolean).map(esc).join(" · ");
     return `${head}<div class="hitem ${e.who}">
