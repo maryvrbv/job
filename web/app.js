@@ -679,17 +679,20 @@ function recentHtml(r) {
   return `<div class="head"><span>Последние 3 дня, с ${esc(shortDate(r.from))}</span><span>${r.people} ${plural(r.people, "человек", "человека", "человек")} · роботов ${r.robots}</span></div>
     ${rows.join("") || '<p class="note">За эти дни людей не было</p>'}${bots}`;
 }
-// which site people open: a two-slice donut with direct labels, so colour is never the only cue
-function hostsHtml(hosts) {
-  const name = h => h === "marydis.com" ? "marydis.com" : "gitverse (из России)";
-  const total = hosts.reduce((a, [, n]) => a + n, 0) || 1;
+// a small donut with direct labels and shares, so colour is never the only cue; slices: [label, n, colour class]
+function donutHtml(title, sub, slices) {
+  const total = slices.reduce((a, [, n]) => a + n, 0) || 1;
   const R = 42, C = 2 * Math.PI * R, GAP = 2;
   let off = 0;
-  const arcs = hosts.map(([h, n]) => { const len = n / total * C, a = `<circle r="${R}" cx="60" cy="60" fill="none" stroke-width="16" class="arc ${h === "marydis.com" ? "h1" : "h2"}" stroke-dasharray="${Math.max(0, len - GAP)} ${C}" stroke-dashoffset="${-off}"><title>${esc(name(h))}: ${n} ${plural(n, "человек", "человека", "человек")}</title></circle>`; off += len; return a; }).join("");
-  const legend = hosts.map(([h, n]) => `<div class="frow-s"><span><i class="dot ${h === "marydis.com" ? "h1" : "h2"}"></i>${esc(name(h))}</span><b>${n} · ${Math.round(n / total * 100)}%</b></div>`).join("");
-  return `<div class="head"><span>Какой сайт открывают</span><span>люди за 30 дней</span></div>
-    <div class="donut"><svg viewBox="0 0 120 120" role="img" aria-label="${esc(hosts.map(([h, n]) => name(h) + " " + n).join(", "))}"><g transform="rotate(-90 60 60)">${arcs}</g></svg><div class="donut-legend">${legend}</div></div>`;
+  const arcs = slices.map(([l, n, cls]) => { const len = n / total * C, a = `<circle r="${R}" cx="60" cy="60" fill="none" stroke-width="16" class="arc ${cls}" stroke-dasharray="${Math.max(0, len - GAP)} ${C}" stroke-dashoffset="${-off}"><title>${esc(l)}: ${n}</title></circle>`; off += len; return a; }).join("");
+  const legend = slices.map(([l, n, cls]) => `<div class="frow-s"><span><i class="dot ${cls}"></i>${esc(l)}</span><b>${n} · ${Math.round(n / total * 100)}%</b></div>`).join("");
+  return `<div class="head"><span>${title}</span><span>${sub}</span></div>
+    <div class="donut"><svg viewBox="0 0 120 120" role="img" aria-label="${esc(slices.map(([l, n]) => l + " " + n).join(", "))}"><g transform="rotate(-90 60 60)">${arcs}</g></svg><div class="donut-legend">${legend}</div></div>`;
 }
+const hostsHtml = hosts => donutHtml("Какой сайт открывают", "люди за 30 дней",
+  hosts.map(([h, n]) => [h === "marydis.com" ? "marydis.com" : "gitverse (из России)", n, h === "marydis.com" ? "h1" : "h2"]));
+// people against link previews and mail scanners, same colours as the daily bars
+const kindsHtml = t => donutHtml("Люди и роботы", "за 30 дней", [["Люди", t.people, "h1"], ["Роботы и превью", t.robots, "bot"]]);
 let folioOpen = null; // the link tag whose reading table is unfolded
 function renderFolio() {
   const d = folio.data;
@@ -697,6 +700,7 @@ function renderFolio() {
   const t = d.totals;
   $("folioRecent").hidden = !d.recent; if (d.recent) $("folioRecent").innerHTML = recentHtml(d.recent);
   $("folioHosts").hidden = !d.hosts?.length; if (d.hosts?.length) $("folioHosts").innerHTML = hostsHtml(d.hosts);
+  $("folioKinds").innerHTML = kindsHtml(t);
   $("folioNote").textContent = `marydis.com и mariadis.gitverse.site: сначала последние 3 дня визит за визитом, ниже — 30 дней. Люди — те, кто прокрутил страницу или что-то нажал. Роботы — превью ссылок и проверки почты (LinkedIn, Outlook, Google): открывают ссылку, но не листают. Твои собственные заходы не считаются. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
   $("folioStats").innerHTML = [["Людей", t.people], ["Роботов и превью", t.robots], ["Визитов людей", t.sessions], ["Средний визит", minSec(t.avg_session)]]
     .map(([l, n], i) => `<div class="stat${i === 1 ? " muted" : ""}"><b>${esc(n)}</b><span>${l}</span></div>`).join("");
