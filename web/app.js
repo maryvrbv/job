@@ -615,7 +615,7 @@ function render() {
 // ---------- «Портфолио»: who visits marydis.com and mariadis.gitverse.site ----------
 // Claude copies a Google Analytics snapshot into portfolio_stats twice a day (ingest/portfolio_stats.py);
 // link tags (from=<tag> in letters and CVs) are matched back to vacancies, so a visit reads as «Etihad opened it».
-const folio = { data: null, at: null, period: "30", guest: null }; // guest: the visitor whose own history is open
+const folio = { data: null, at: null, period: "30" };
 async function loadFolio() {
   const { data, error } = await sb.from("portfolio_stats").select("data,updated_at").eq("id", "snapshot").maybeSingle();
   if (error) { showBanner("Не получилось загрузить статистику портфолио: " + error.message); return; }
@@ -689,8 +689,8 @@ function guestHtml(n, g) {
     return `<div class="hitem person"><span class="htime">${esc(shortDate(d.day))}</span><span class="hicon">${ICON.person}</span>
       <div class="hbody"><div class="hwho">${how}</div>${pages ? `<div class="rv-pages">${pages}</div>` : ""}<div class="rv-meta">${meta}</div></div></div>`;
   }).join("");
-  return `<div class="head"><button type="button" class="linkbtn" data-guest="">← Все гости</button>${siteLegend}</div>
-    <h3 class="gtitle">Гость ${esc(n)}</h3>
+  return `<div class="sheet-bar"><div class="grab" aria-hidden="true"></div><button class="btn icon-btn" type="button" data-close aria-label="Закрыть">✕</button></div>
+    <div class="ghead"><h3 class="gtitle">Гость ${esc(n)}</h3>${siteLegend}</div>
     <div class="gfacts">${facts.map(([l, v]) => `<div><b>${esc(v)}</b><span>${l}</span></div>`).join("")}</div>
     <p class="rv-meta">${esc([where.join(", "), came.length ? "приходил: " + came.join(", ") : ""].filter(Boolean).join(" · "))}</p>
     <div class="gwhy"><b>Как понятно, что это один и тот же человек.</b> При первом заходе сайт сохраняет в браузере случайный номер, у этого гостя <code>${esc(mark)}</code>, и присылает его в аналитику при каждом визите. Тот же браузер на том же устройстве — тот же гость. Другой браузер, телефон или очищенная история — уже новый гость, а город может не определиться, если включён VPN.</div>
@@ -698,7 +698,6 @@ function guestHtml(n, g) {
 }
 const siteLegend = '<span class="legend"><i class="dot h2"></i>gitverse <i class="dot h1"></i>marydis.com</span>';
 function historyHtml(h, guests = {}) {
-  if (folio.guest && guests[folio.guest]) return guestHtml(folio.guest, guests[folio.guest]);
   const map = tagJobs();
   let lastDay = "";
   const items = h.entries.map(e => {
@@ -805,10 +804,11 @@ function renderFolio() {
 }
 $("folioRecent").addEventListener("click", e => {
   const o = e.target.closest("[data-open]"); if (o) return openJob(o.dataset.open);
-  const g = e.target.closest("[data-guest]"); if (!g) return;
-  folio.guest = g.dataset.guest || null; renderFolio();
-  $("folioRecent").scrollIntoView({ block: "start", behavior: "smooth" });
+  const g = e.target.closest("[data-guest]"), guest = g && folio.data?.guests?.[g.dataset.guest]; if (!guest) return;
+  // a guest's own story slides up as a bottom sheet over the feed
+  $("guestSheet").innerHTML = guestHtml(g.dataset.guest, guest); $("guestSheet").scrollTop = 0; openSheet("guestSheet");
 });
+$("guestSheet").addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheet(); });
 $("folioTags").addEventListener("click", e => {
   const o = e.target.closest("[data-open]"); if (o) return openJob(o.dataset.open);
   const b = e.target.closest(".ftag[data-tag]"); if (!b || b.disabled) return;
@@ -1087,9 +1087,9 @@ function closeSheet(fromHistory) {
 addEventListener("popstate", () => closeSheet(true));
 addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
 $("backdrop").onclick = () => closeSheet();
-mobile.addEventListener("change", () => { if (!mobile.matches) closeSheet(); });
+mobile.addEventListener("change", () => { if (!mobile.matches && sheetOpen !== "guestSheet") closeSheet(); });
 // pull the sheet down by its top bar to close it
-for (const id of ["detail", "filters"]) {
+for (const id of ["detail", "filters", "guestSheet"]) {
   const el = $(id); let y0 = null;
   el.addEventListener("touchstart", e => { if (!e.target.closest(".sheet-bar, .sheet-head")) return; y0 = e.touches[0].clientY; el.style.transition = "none"; }, { passive: true });
   el.addEventListener("touchmove", e => { if (y0 != null) el.style.transform = `translateY(${Math.max(0, e.touches[0].clientY - y0)}px)`; }, { passive: true });

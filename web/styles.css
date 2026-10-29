@@ -494,3 +494,15 @@ i.bot{background:#D9D3E6}
 .gfacts span{font-size:12px;color:var(--muted)}
 .gwhy{font-size:13px;line-height:1.5;background:var(--sunken);border-radius:var(--r-sm);padding:10px 12px;margin:8px 0 12px}
 .gwhy code{font-family:var(--font-mono);background:var(--surface);border-radius:4px;padding:1px 4px}
+/* a guest's history: a bottom sheet on every screen, centred on a computer */
+.gsheet{position:fixed;left:0;right:0;bottom:0;z-index:20;max-height:88dvh;overflow:auto;overscroll-behavior:contain;background:var(--surface);
+  border-radius:24px 24px 0 0;box-shadow:0 -12px 40px rgb(0 0 0 / .12);padding:0 18px calc(20px + env(safe-area-inset-bottom,0px));
+  transform:translateY(100%);visibility:hidden;transition:transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s .28s}
+.gsheet.open{transform:none;visibility:visible;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.gsheet .sheet-bar{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;position:sticky;top:0;z-index:2;background:var(--surface);margin:0 -18px;padding:8px 10px 4px}
+.gsheet .sheet-bar .grab{grid-column:2}
+.gsheet .sheet-bar .icon-btn{grid-column:3;background:var(--sunken);border-radius:999px;min-width:36px;min-height:36px;padding:0;font-size:14px}
+.ghead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.ghead .legend{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)}
+.ghead .legend i.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:8px;margin-right:2px}
+@media (min-width:861px){.gsheet{left:50%;right:auto;width:720px;margin-left:-360px}}
