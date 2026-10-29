@@ -15,9 +15,10 @@ Visits without a visitor id (before 14 October, or blocked) can't be told apart 
 What is in the snapshot (sites marydis.com and mariadis.gitverse.site, no draft home pages, last 30 days
 unless said otherwise; robots left out everywhere except the robot counts):
   totals    people, robots, unknown, people's visits, views and average visit
-  daily     people and robots per day, last 60 days
+  daily     people and robots per day, last 90 days
   countries, devices, pages
-  hosts     people per site (marydis.com and gitverse)
+  periods   the same totals, plus people and robots per site, countries, devices and the reading table,
+            for the last 3, 7, 30 and 90 days: the period switch in the app reads these
   reading   per page: people who opened it, scroll marks 25/50/75/100 and read marks 30 s/1/2/5 min
   tags      every link tag (from=<tag> in letters, CVs and cover letters), last 90 days: people, robots,
             visits and time of people, first and last visit, cities, what people did, and the same
@@ -95,7 +96,7 @@ from datetime import date, timedelta
 def ago(n):
     t = date(int(today[:4]), int(today[4:6]), int(today[6:])) - timedelta(days=n)
     return t.strftime("%Y%m%d")
-d30, d60 = ago(29), ago(59)
+d30, d90 = ago(29), ago(89)
 
 
 def reading_table(evs, people):
@@ -132,7 +133,7 @@ snap = {"totals": {
 
 daily = defaultdict(lambda: {"people": set(), "robots": set()})
 for r in visits:
-    if r["date"] >= d60 and kind(r["customEvent:visitor_id"]) != "unknown":
+    if r["date"] >= d90 and kind(r["customEvent:visitor_id"]) != "unknown":
         daily[day(r["date"])]["people" if kind(r["customEvent:visitor_id"]) == "person" else "robots"].add(r["customEvent:visitor_id"])
 snap["daily"] = [{"day": k, "people": len(v["people"]), "robots": len(v["robots"])} for k, v in sorted(daily.items())]
 
@@ -148,7 +149,36 @@ def count_by(field):
 snap["countries"] = count_by("country")[:10]
 snap["devices"] = count_by("deviceCategory")
 snap["reading"] = reading_table(e30, people30)[:15]
-snap["hosts"] = count_by("hostname")
+
+
+def period(n):
+    """everything the period switch shows, for the last n days: people and robots per site counted per site"""
+    since = ago(n - 1)
+    vs, es = [r for r in visits if r["date"] >= since], [r for r in events if r["date"] >= since]
+    who = {r["customEvent:visitor_id"] for r in vs}
+    ppl = {v for v in who if kind(v) == "person"}
+    s_ = sum(int(r["sessions"]) for r in vs if r["customEvent:visitor_id"] in ppl)
+    t_ = sum(num(r["userEngagementDuration"]) for r in vs if r["customEvent:visitor_id"] in ppl)
+    sites = defaultdict(lambda: {"people": set(), "robots": set()})
+    for r in vs:
+        k = kind(r["customEvent:visitor_id"])
+        if k != "unknown":
+            sites[r["hostname"]]["people" if k == "person" else "robots"].add(r["customEvent:visitor_id"])
+
+    def by(field):
+        c = defaultdict(set)
+        for r in vs:
+            if r["customEvent:visitor_id"] in ppl:
+                c[r[field]].add(r["customEvent:visitor_id"])
+        return sorted(([k, len(v)] for k, v in c.items()), key=lambda x: -x[1])
+    return {"totals": {"people": len(ppl), "robots": len({v for v in who if kind(v) == "robot"}),
+                       "unknown_visits": sum(int(r["sessions"]) for r in vs if kind(r["customEvent:visitor_id"]) == "unknown"),
+                       "sessions": s_, "avg_session": round(t_ / s_) if s_ else 0},
+            "sites": sorted(([h, len(g["people"]), len(g["robots"])] for h, g in sites.items()), key=lambda x: x[0] != "marydis.com"),
+            "countries": by("country")[:10], "devices": by("deviceCategory"), "reading": reading_table(es, ppl)[:15]}
+
+
+snap["periods"] = {str(n): period(n) for n in (3, 7, 30, 90)}
 
 # link tags, 90 days
 tags = {}

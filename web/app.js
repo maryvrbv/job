@@ -615,7 +615,7 @@ function render() {
 // ---------- «Портфолио»: who visits marydis.com and mariadis.gitverse.site ----------
 // Claude copies a Google Analytics snapshot into portfolio_stats twice a day (ingest/portfolio_stats.py);
 // link tags (from=<tag> in letters and CVs) are matched back to vacancies, so a visit reads as «Etihad opened it».
-const folio = { data: null, at: null };
+const folio = { data: null, at: null, period: "30" };
 async function loadFolio() {
   const { data, error } = await sb.from("portfolio_stats").select("data,updated_at").eq("id", "snapshot").maybeSingle();
   if (error) { showBanner("Не получилось загрузить статистику портфолио: " + error.message); return; }
@@ -679,40 +679,57 @@ function recentHtml(r) {
   return `<div class="head"><span>Последние 3 дня, с ${esc(shortDate(r.from))}</span><span>${r.people} ${plural(r.people, "человек", "человека", "человек")} · роботов ${r.robots}</span></div>
     ${rows.join("") || '<p class="note">За эти дни людей не было</p>'}${bots}`;
 }
-// a small donut with direct labels and shares, so colour is never the only cue; slices: [label, n, colour class]
-function donutHtml(title, sub, slices) {
-  const total = slices.reduce((a, [, n]) => a + n, 0) || 1;
-  const R = 42, C = 2 * Math.PI * R, GAP = 2;
-  let off = 0;
-  const arcs = slices.map(([l, n, cls]) => { const len = n / total * C, a = `<circle r="${R}" cx="60" cy="60" fill="none" stroke-width="16" class="arc ${cls}" stroke-dasharray="${Math.max(0, len - GAP)} ${C}" stroke-dashoffset="${-off}"><title>${esc(l)}: ${n}</title></circle>`; off += len; return a; }).join("");
-  const legend = slices.map(([l, n, cls]) => `<div class="frow-s"><span><i class="dot ${cls}"></i>${esc(l)}</span><b>${n} · ${Math.round(n / total * 100)}%</b></div>`).join("");
-  return `<div class="head"><span>${title}</span><span>${sub}</span></div>
-    <div class="donut"><svg viewBox="0 0 120 120" role="img" aria-label="${esc(slices.map(([l, n]) => l + " " + n).join(", "))}"><g transform="rotate(-90 60 60)">${arcs}</g></svg><div class="donut-legend">${legend}</div></div>`;
+// «Кто открывает сайты»: inner ring is the site, outer ring splits each site into people (full colour) and robots (pale);
+// a visitor who opened both sites counts on each. The table next to it carries the exact numbers, so colour is never the only cue.
+const SITE_NAME = h => h === "marydis.com" ? "marydis.com" : "gitverse";
+const siteCls = h => h === "marydis.com" ? "h1" : "h2";
+function arc(r, w, from, len, cls, title) {
+  const C = 2 * Math.PI * r, GAP = 1.5;
+  return `<circle r="${r}" cx="70" cy="70" fill="none" stroke-width="${w}" class="arc ${cls}" stroke-dasharray="${Math.max(0, len * C - GAP)} ${C}" stroke-dashoffset="${-from * C}"><title>${esc(title)}</title></circle>`;
 }
-const hostsHtml = hosts => donutHtml("Какой сайт открывают", "люди за 30 дней",
-  hosts.map(([h, n]) => [h === "marydis.com" ? "marydis.com" : "gitverse (из России)", n, h === "marydis.com" ? "h1" : "h2"]));
-// people against link previews and mail scanners, same colours as the daily bars
-const kindsHtml = t => donutHtml("Люди и роботы", "за 30 дней", [["Люди", t.people, "h1"], ["Роботы и превью", t.robots, "bot"]]);
+function sitesHtml(sites) {
+  const total = sites.reduce((a, [, p, r]) => a + p + r, 0);
+  if (!total) return '<div class="head"><span>Кто открывает сайты</span></div><p class="note">За этот период никого</p>';
+  let at = 0, inner = "", outer = "";
+  for (const [h, p, r] of sites) {
+    const n = p + r, pct = x => Math.round(x / total * 100) + "%";
+    inner += arc(38, 10, at, n / total, siteCls(h), `${SITE_NAME(h)}: ${n} (${pct(n)})`);
+    outer += arc(56, 18, at, p / total, siteCls(h), `${SITE_NAME(h)}, люди: ${p} (${pct(p)})`);
+    outer += arc(56, 18, at + p / total, r / total, siteCls(h) + " pale", `${SITE_NAME(h)}, роботы: ${r} (${pct(r)})`);
+    at += n / total;
+  }
+  const people = sites.reduce((a, [, p]) => a + p, 0);
+  const rows = sites.map(([h, p, r]) => `<tr><td><i class="dot ${siteCls(h)}"></i>${esc(SITE_NAME(h))}</td><td class="n"><b>${p}</b></td><td class="n">${r}</td><td class="n">${Math.round((p + r) / total * 100)}%</td></tr>`).join("");
+  return `<div class="head"><span>Кто открывает сайты</span><span>внутри — сайт, снаружи — люди и роботы</span></div>
+    <div class="donut"><svg viewBox="0 0 140 140" role="img" aria-label="${esc(sites.map(([h, p, r]) => `${SITE_NAME(h)}: людей ${p}, роботов ${r}`).join("; "))}">
+      <g transform="rotate(-90 70 70)">${inner}${outer}</g><text x="70" y="68" text-anchor="middle" class="dn-big">${people}</text><text x="70" y="84" text-anchor="middle" class="dn-small">${plural(people, "человек", "человека", "человек")}</text></svg>
+    <table class="dtable"><thead><tr><th></th><th class="n"><i class="dot h1"></i>люди</th><th class="n"><i class="dot h1 pale"></i>роботы</th><th class="n">доля</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+const PERIODS = { "3": "3 дня", "7": "7 дней", "30": "30 дней", "90": "90 дней" };
+try { const p = localStorage.getItem("folioPeriod"); if (PERIODS[p]) folio.period = p; } catch (e) {}
 let folioOpen = null; // the link tag whose reading table is unfolded
 function renderFolio() {
   const d = folio.data;
   if (!d || !d.totals) { $("folioNote").textContent = "Статистики пока нет: она появится после ближайшего обновления вакансий."; return; }
-  const t = d.totals;
+  // the period switch drives everything below the 3-day list; older snapshots without periods fall back to 30 days
+  const n = +folio.period, P = d.periods?.[folio.period] || { totals: d.totals, countries: d.countries, devices: d.devices, reading: d.reading, sites: [] };
+  const t = P.totals;
   $("folioRecent").hidden = !d.recent; if (d.recent) $("folioRecent").innerHTML = recentHtml(d.recent);
-  $("folioHosts").hidden = !d.hosts?.length; if (d.hosts?.length) $("folioHosts").innerHTML = hostsHtml(d.hosts);
-  $("folioKinds").innerHTML = kindsHtml(t);
-  $("folioNote").textContent = `marydis.com и mariadis.gitverse.site: сначала последние 3 дня визит за визитом, ниже — 30 дней. Люди — те, кто прокрутил страницу или что-то нажал. Роботы — превью ссылок и проверки почты (LinkedIn, Outlook, Google): открывают ссылку, но не листают. Твои собственные заходы не считаются. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
+  $("folioPeriod").querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", b.dataset.p === folio.period));
+  moveThumb();
+  $("folioNote").textContent = `marydis.com и mariadis.gitverse.site: сначала последние 3 дня визит за визитом, ниже — за выбранный период. Люди — те, кто прокрутил страницу или что-то нажал. Роботы — превью ссылок и проверки почты (LinkedIn, Outlook, Google): открывают ссылку, но не листают. Твои собственные заходы не считаются. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
   $("folioStats").innerHTML = [["Людей", t.people], ["Роботов и превью", t.robots], ["Визитов людей", t.sessions], ["Средний визит", minSec(t.avg_session)]]
-    .map(([l, n], i) => `<div class="stat${i === 1 ? " muted" : ""}"><b>${esc(n)}</b><span>${l}</span></div>`).join("");
+    .map(([l, v], i) => `<div class="stat${i === 1 ? " muted" : ""}"><b>${esc(v)}</b><span>${l}</span></div>`).join("");
+  $("folioSites").innerHTML = sitesHtml(P.sites || []);
 
-  // people and robots per day for 60 days
+  // people and robots per day for the chosen period
   const by = Object.fromEntries(d.daily.map(r => [r.day, r])), days = [];
-  for (let i = 59; i >= 0; i--) { const x = new Date(); x.setDate(x.getDate() - i); days.push(isoOf(x)); }
+  for (let i = n - 1; i >= 0; i--) { const x = new Date(); x.setDate(x.getDate() - i); days.push(isoOf(x)); }
   const max = Math.max(1, ...days.map(k => (by[k]?.people || 0) + (by[k]?.robots || 0)));
   $("folioDaily").innerHTML = `<div class="head"><span>Заходы по дням</span><span class="legend"><i class="h1"></i>люди <i class="bot"></i>роботы</span></div>
     <div class="bars">${days.map(k => { const p = by[k]?.people || 0, r = by[k]?.robots || 0;
       return `<span title="${esc(ruDate(k))}: людей ${p}, роботов ${r}"><i class="bot" style="height:${r / max * 100}%"></i><i class="h1" style="height:${p / max * 100}%"></i></span>`; }).join("")}</div>
-    <div class="bars-axis"><span>${esc(shortDate(days[0]))}</span><span>людей и роботов различаем с 14.10</span><span>сегодня</span></div>`;
+    <div class="bars-axis"><span>${esc(shortDate(days[0]))}</span>${t.unknown_visits ? `<span>ещё ${t.unknown_visits} ${plural(t.unknown_visits, "визит", "визита", "визитов")} до 14.10: людей и роботов тогда не различали</span>` : ""}<span>сегодня</span></div>`;
 
   // link tags, matched to vacancies; a tap unfolds how this company read the portfolio
   const map = tagJobs();
@@ -732,12 +749,12 @@ function renderFolio() {
       ${open ? `<div class="ft-more">${readingTable(g.reading)}${j ? `<button type="button" class="btn" data-open="${esc(j.id)}">Открыть вакансию</button>` : ""}</div>` : ""}
     </div>`;
   });
-  $("folioTags").innerHTML = `<div class="head"><span>Кто открывал по ссылкам из откликов</span><span>люди · время</span></div>${rows.join("") || '<p class="note">Пока никто</p>'}`;
+  $("folioTags").innerHTML = `<div class="head"><span>Кто открывал по ссылкам из откликов</span><span>за 90 дней · люди · время</span></div>${rows.join("") || '<p class="note">Пока никто</p>'}`;
 
-  $("folioPages").innerHTML = `<div class="head"><span>Как читают страницы</span><span>сколько раз прокрутили до отметки и читали дольше</span></div>${readingTable(d.reading)}`;
+  $("folioPages").innerHTML = `<div class="head"><span>Как читают страницы</span><span>сколько раз прокрутили до отметки и читали дольше</span></div>${readingTable(P.reading)}`;
   const list = (title, items) => `<div class="head"><span>${title}</span></div>` + items.map(([k, n]) => `<div class="frow-s"><span>${esc(k)}</span><b>${n}</b></div>`).join("");
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
-  $("folioWhere").innerHTML = list("Страны", d.countries.filter(([c]) => c !== "(not set)").slice(0, 8)) + list("Устройства", d.devices.map(([k, n]) => [cap(DEV[k] || k), n]));
+  $("folioWhere").innerHTML = list("Страны", P.countries.filter(([c]) => c !== "(not set)").slice(0, 8)) + list("Устройства", P.devices.map(([k, n]) => [cap(DEV[k] || k), n]));
 }
 $("folioRecent").addEventListener("click", e => { const o = e.target.closest("[data-open]"); if (o) openJob(o.dataset.open); });
 $("folioTags").addEventListener("click", e => {
@@ -975,11 +992,18 @@ $("resetForm").onsubmit = async e => {
 $("logout").onclick = async () => { await sb.auth.signOut(); try { localStorage.removeItem(CACHE_KEY); } catch (e) {} location.reload(); };
 // the white thumb of the segmented control slides to the chosen section
 function moveThumb() {
-  const cur = $("views").querySelector('[aria-selected="true"]'), t = $("viewsThumb");
-  if (!cur || !cur.offsetWidth) return;
-  t.style.width = cur.offsetWidth + "px"; t.style.transform = `translateX(${cur.offsetLeft}px)`;
-  if (!t.classList.contains("ready")) requestAnimationFrame(() => t.classList.add("ready")); // no slide on the first paint
+  for (const box of [$("views"), $("folioPeriod")]) {
+    const cur = box.querySelector('[aria-selected="true"]'), t = box.querySelector(".seg-thumb");
+    if (!cur || !cur.offsetWidth) continue;
+    t.style.width = cur.offsetWidth + "px"; t.style.transform = `translateX(${cur.offsetLeft}px)`;
+    if (!t.classList.contains("ready")) requestAnimationFrame(() => t.classList.add("ready")); // no slide on the first paint
+  }
 }
+$("folioPeriod").onclick = e => {
+  const b = e.target.closest("button[data-p]"); if (!b) return;
+  folio.period = b.dataset.p; try { localStorage.setItem("folioPeriod", folio.period); } catch (x) {}
+  renderFolio();
+};
 addEventListener("resize", moveThumb); document.fonts?.ready.then(moveThumb);
 $("views").onclick = e => {
   const b = e.target.closest("button[data-v]"); if (!b) return;

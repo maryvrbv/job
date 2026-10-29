@@ -120,12 +120,18 @@
   <section class="folio" id="folio" aria-label="Посетители портфолио" hidden>
     <p class="intro" id="folioNote"></p>
     <div class="panel-card" id="folioRecent"></div>
+    <div class="segmented period" role="tablist" id="folioPeriod" aria-label="Период">
+      <span class="seg-thumb" aria-hidden="true"></span>
+      <button type="button" role="tab" data-p="3" aria-selected="false">3 дня</button>
+      <button type="button" role="tab" data-p="7" aria-selected="false">7 дней</button>
+      <button type="button" role="tab" data-p="30" aria-selected="true">30 дней</button>
+      <button type="button" role="tab" data-p="90" aria-selected="false">90 дней</button>
+    </div>
     <div class="stats" id="folioStats"></div>
+    <div class="folio-cols"><div class="panel-card" id="folioSites"></div><div class="panel-card" id="folioWhere"></div></div>
     <div class="panel-card" id="folioDaily"></div>
-    <div class="panel-card" id="folioTags"></div>
     <div class="panel-card" id="folioPages"></div>
-    <div class="folio-cols"><div class="panel-card" id="folioHosts"></div><div class="panel-card" id="folioKinds"></div></div>
-    <div class="panel-card" id="folioWhere"></div>
+    <div class="panel-card" id="folioTags"></div>
   </section>
 
   <section class="diary" id="diary" aria-label="Дорогой дневник" hidden>
