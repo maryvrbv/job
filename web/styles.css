@@ -458,5 +458,5 @@ i.bot{background:#D9D3E6}
 .rv-open{align-self:flex-start;margin-top:4px}
 .donut{display:flex;align-items:center;gap:20px}
 .donut svg{width:120px;height:120px;flex:none}
-.donut .arc.h1{stroke:var(--accent)} .donut .arc.h2{stroke:var(--site2)}
+.donut .arc.h1{stroke:var(--accent)} .donut .arc.h2{stroke:var(--site2)} .donut .arc.bot{stroke:#D9D3E6}
 .donut-legend{flex:1;min-width:0}
