@@ -23,13 +23,15 @@ unless said otherwise; robots left out everywhere except the robot counts):
   tags      every link tag (from=<tag> in letters, CVs and cover letters), last 90 days: people, robots,
             visits and time of people, first and last visit, cities, what people did, and the same
             reading table for that tag alone
-  history   the last 3 days as a feed, one entry per visitor per hour (Moscow time): person or robot, which visitor
-            and which of their visits it is, city, device, the link tag or the site they came from (direct visits
-            too), and every page opened in that hour with time, scroll and read marks
-  guests    for every person in the history: the browser mark that tells it is the same visitor (visitor_id,
+  history   the last 3 days as a feed, one entry per visit (minutes less than 30 apart are one visit), with its
+            real start and end in Moscow time: person or robot, the guest's name and which of their visits it is,
+            city, device, the link tag or the site they came from (direct visits too), and every page opened
+            with time, scroll and read marks
+  guests    for every person in the history, under a Harry Potter name picked from their browser mark: the mark that tells it is the same visitor (visitor_id,
             a random number the site keeps in the browser), first visit, and all their days in the last 90 days:
             visits, time, link tags and sources, city, device, pages with time and scroll
 """
+import hashlib
 import json
 from collections import defaultdict
 from datetime import datetime
@@ -213,50 +215,97 @@ for g in tags.values():
                 "cities": sorted(g["cities"]), "did": dict(did), "reading": reading_table(events, g["people"])[:8]})
 snap["tags"] = sorted(out, key=lambda g: (g["people"] > 0, g["seen"]), reverse=True)
 
-# the last 3 days as a feed. GA reports hours in the property's zone (Europe/Helsinki), Masha reads Moscow time
+# the last 3 days as a feed. GA reports time in the property's zone (Europe/Helsinki), Masha reads Moscow time
 HEL, MSK = ZoneInfo("Europe/Helsinki"), ZoneInfo("Europe/Moscow")
 d3 = ago(2)
-V = "customEvent:visitor_id"
-hours = [r for r in rep([V, "dateHour", "sessionSource", "customEvent:link_tag", "city", "deviceCategory"],
-                        ["sessions", "userEngagementDuration"], SITE, start=day(d3)) if r[V] not in me and r[V] not in NOID]
-pages = [r for r in rep([V, "dateHour", "hostname", "pagePath"], ["userEngagementDuration", "screenPageViews"], SITE, start=day(d3))
-         if r[V] not in me]
-marks = defaultdict(lambda: {"scroll": 0, "read": 0})
-for r in rep([V, "dateHour", "hostname", "pagePath", "eventName", "customEvent:scroll_percent", "customEvent:read_seconds"],
-             ["eventCount"], SITE, start=day(d3)):
-    m = marks[(r[V], r["dateHour"], r["hostname"], r["pagePath"])]
-    if r["eventName"] == "scroll_depth":
-        m["scroll"] = max(m["scroll"], int(num(r["customEvent:scroll_percent"])))
-    elif r["eventName"] == "read_time":
-        m["read"] = max(m["read"], int(num(r["customEvent:read_seconds"])))
-entries, guests, seen = {}, {}, defaultdict(int)
-for r in sorted(hours, key=lambda r: r["dateHour"]):
-    v, h = r[V], r["dateHour"]
-    e = entries.get((v, h))
-    if not e:
-        guests.setdefault(v, len(guests) + 1)
-        seen[v] += 1
-        at = datetime(int(h[:4]), int(h[4:6]), int(h[6:8]), int(h[8:]), tzinfo=HEL).astimezone(MSK).strftime("%Y-%m-%d %H:00")
-        e = entries[(v, h)] = {"at": at, "who": "person" if kind(v) == "person" else "robot", "guest": guests[v], "visit": seen[v],
-                               "city": "", "device": r["deviceCategory"], "tag": "", "source": "", "seconds": 0}
+V, M = "customEvent:visitor_id", "dateHourMinute"
+GAP = 30  # minutes of silence that start a new visit
+
+
+def minute(m):
+    return datetime(int(m[:4]), int(m[4:6]), int(m[6:8]), int(m[8:10]), int(m[10:]), tzinfo=HEL)
+
+
+# guests get a Harry Potter name chosen from their browser mark, so a returning guest keeps the same name
+NAMES = ["Гарри", "Гермиона", "Рон", "Джинни", "Луна", "Невилл", "Драко", "Дамблдор", "Снейп", "Хагрид", "Сириус", "Люпин",
+         "Макгонагалл", "Добби", "Фред", "Джордж", "Седрик", "Чжоу", "Тонкс", "Флитвик", "Слизнорт", "Грюм", "Беллатриса",
+         "Петуния", "Дадли", "Перси", "Билл", "Чарли", "Флёр", "Виктор", "Кингсли", "Минерва", "Аберфорт", "Кикимер", "Помона",
+         "Сибилла", "Лаванда", "Симус", "Дин", "Оливер", "Ли", "Кэти", "Анджелина", "Ханна", "Эрни", "Падма", "Парвати", "Колин"]
+taken = {}
+
+
+def name_of(v):
+    if v not in taken:
+        i = int(hashlib.md5(v.encode()).hexdigest(), 16) % len(NAMES)
+        while NAMES[i] in taken.values():  # two guests never share a name in one snapshot
+            i = (i + 1) % len(NAMES)
+        taken[v] = NAMES[i]
+    return taken[v]
+
+
+mins = [r for r in rep([V, M, "sessionSource", "customEvent:link_tag", "city", "deviceCategory"],
+                       ["sessions", "userEngagementDuration"], SITE, start=day(d3)) if r[V] not in me and r[V] not in NOID]
+pages = [r for r in rep([V, M, "hostname", "pagePath"], ["userEngagementDuration"], SITE, start=day(d3)) if r[V] not in me]
+marks = [r for r in rep([V, M, "hostname", "pagePath", "eventName", "customEvent:scroll_percent", "customEvent:read_seconds"],
+                        ["eventCount"], SITE, start=day(d3)) if r[V] not in me]
+# split each visitor's minutes into visits
+visit_of, entries, last = {}, [], {}
+for r in sorted(mins, key=lambda r: (r[V], r[M])):
+    v, t = r[V], minute(r[M])
+    if v not in last or (t - last[v]).total_seconds() > GAP * 60:
+        k = kind(v)
+        entries.append({"v": v, "start": t, "end": t, "who": "person" if k == "person" else "robot",
+                        "guest": name_of(v) if k == "person" else "", "city": "", "device": r["deviceCategory"], "tag": "", "source": "",
+                        "seconds": 0, "pages": defaultdict(lambda: {"seconds": 0, "scroll": 0, "read": 0})})
+    e = entries[-1]
+    last[v] = e["end"] = t
+    visit_of[(v, r[M])] = e
     e["seconds"] += int(num(r["userEngagementDuration"]))
     if r["city"] != "(not set)":
         e["city"] = e["city"] or r["city"]
     e["tag"] = e["tag"] or tag_of(r)
     if e["source"] in ("", "(direct)", "(not set)"):  # a real referrer beats a direct visit
         e["source"] = r["sessionSource"]
-for (v, h), e in entries.items():
-    e["pages"] = sorted(({"host": r["hostname"], "path": r["pagePath"], "seconds": int(num(r["userEngagementDuration"])),
-                          **marks[(v, h, r["hostname"], r["pagePath"])]}
-                         for r in pages if r[V] == v and r["dateHour"] == h), key=lambda p: -p["seconds"])
-snap["history"] = {"from": day(d3), "people": len({k[0] for k, e in entries.items() if e["who"] == "person"}),
-                   "robots": len({k[0] for k, e in entries.items() if e["who"] == "robot"}),
-                   "entries": sorted(entries.values(), key=lambda e: e["at"], reverse=True)}
+
+
+def visit_at(v, m):
+    """the visit a page row belongs to: same minute, or the nearest earlier minute of that visitor"""
+    if (v, m) in visit_of:
+        return visit_of[(v, m)]
+    t = minute(m)
+    cands = [e for e in entries if e["v"] == v and e["start"] <= t]
+    return max(cands, key=lambda e: e["start"]) if cands else None
+
+
+for r in pages:
+    e = visit_at(r[V], r[M])
+    if e:
+        e["pages"][(r["hostname"], r["pagePath"])]["seconds"] += int(num(r["userEngagementDuration"]))
+for r in marks:
+    e = visit_at(r[V], r[M])
+    if not e:
+        continue
+    p = e["pages"][(r["hostname"], r["pagePath"])]
+    if r["eventName"] == "scroll_depth":
+        p["scroll"] = max(p["scroll"], int(num(r["customEvent:scroll_percent"])))
+    elif r["eventName"] == "read_time":
+        p["read"] = max(p["read"], int(num(r["customEvent:read_seconds"])))
+count = defaultdict(int)
+for e in sorted(entries, key=lambda e: e["start"]):
+    count[e["v"]] += 1
+    e["visit"] = count[e["v"]]
+history = []
+for e in entries:
+    history.append({"at": e["start"].astimezone(MSK).strftime("%Y-%m-%d %H:%M"), "end": e["end"].astimezone(MSK).strftime("%H:%M"),
+                    "who": e["who"], "guest": e["guest"], "visit": e["visit"], "city": e["city"], "device": e["device"],
+                    "tag": e["tag"], "source": e["source"], "seconds": e["seconds"],
+                    "pages": sorted(({"host": h, "path": pth, **p} for (h, pth), p in e["pages"].items()), key=lambda p: -p["seconds"])})
+snap["history"] = {"from": day(d3), "people": len({e["v"] for e in entries if e["who"] == "person"}),
+                   "robots": len({e["v"] for e in entries if e["who"] == "robot"}),
+                   "entries": sorted(history, key=lambda e: e["at"], reverse=True)}
+
 # every person in the history, day by day over 90 days: the app shows this when a guest is tapped
-keys = {}
-for (v, _), e in entries.items():
-    if e["who"] == "person":
-        keys[v] = e["guest"]
+keys = {e["v"]: e["guest"] for e in entries if e["who"] == "person"}
 gpages = [r for r in rep([V, "date", "hostname", "pagePath"], ["userEngagementDuration"], SITE) if r[V] in keys] if keys else []
 gscroll = defaultdict(int)
 for r in events:

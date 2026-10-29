@@ -665,9 +665,12 @@ const CITIES = { "Moscow": "Москва", "Saint Petersburg": "Санкт-Пе�
 // «История за 3 дня»: a feed, newest first, grouped by day; one entry per visitor per hour with a person or robot icon,
 // where they came from (vacancy, link tag or site), what they opened and for how long
 const ICON = {
-  person: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5.2" r="2.8"/><path d="M2.6 14c.3-3 2.6-5 5.4-5s5.1 2 5.4 5z"/></svg>',
   robot: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="2.5" y="4" width="11" height="9" rx="2.5"/><circle cx="6" cy="8.5" r="1.1" fill="var(--surface)"/><circle cx="10" cy="8.5" r="1.1" fill="var(--surface)"/></svg>',
+  laptop: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="7" rx="1.2"/><path d="M1.5 11.5h13l-.8 1.5H2.3z"/></svg>',
+  phone: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.5" y="1.5" width="7" height="13" rx="1.8"/><rect x="7" y="12" width="2" height="1" rx=".5" fill="var(--surface)"/></svg>',
 };
+// the icon says who and how: a robot, or the device a person came from
+const iconOf = (who, device) => who === "robot" ? ICON.robot : device === "mobile" || device === "tablet" ? ICON.phone : ICON.laptop;
 const dayTitle = iso => {
   const d = new Date(iso + "T00:00:00"), age = ageDays(iso);
   const date = d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
@@ -686,11 +689,11 @@ function guestHtml(n, g) {
     const pages = (d.pages || []).map(p => `<span class="rp"><i class="dot ${p.host === "marydis.com" ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
     const how = [...d.tags.map(t => `<span class="htag">${esc(t)}</span>`), ...d.sources.map(x => `<span class="htag none">${esc(sourceLabel(x))}</span>`)].join("");
     const meta = [CITIES[d.city] || d.city, DEV[d.device] || d.device, d.sessions + " " + plural(d.sessions, "визит", "визита", "визитов"), "всего " + minSec(d.seconds)].filter(Boolean).map(esc).join(" · ");
-    return `<div class="hitem person"><span class="htime">${esc(shortDate(d.day))}</span><span class="hicon">${ICON.person}</span>
-      <div class="hbody"><div class="hwho">${how}</div>${pages ? `<div class="rv-pages">${pages}</div>` : ""}<div class="rv-meta">${meta}</div></div></div>`;
+    return `<div class="hitem person"><span class="hicon">${iconOf("person", d.device)}</span>
+      <div class="hbody"><div class="hwho"><span class="htime">${esc(shortDate(d.day))}</span>${how}</div>${pages ? `<div class="rv-pages">${pages}</div>` : ""}<div class="rv-meta">${meta}</div></div></div>`;
   }).join("");
   return `<div class="sheet-bar"><div class="grab" aria-hidden="true"></div><button class="btn icon-btn" type="button" data-close aria-label="Закрыть">✕</button></div>
-    <div class="ghead"><h3 class="gtitle">Гость ${esc(n)}</h3>${siteLegend}</div>
+    <div class="ghead"><h3 class="gtitle">${esc(n)}</h3>${siteLegend}</div>
     <div class="gfacts">${facts.map(([l, v]) => `<div><b>${esc(v)}</b><span>${l}</span></div>`).join("")}</div>
     <p class="rv-meta">${esc([where.join(", "), came.length ? "приходил: " + came.join(", ") : ""].filter(Boolean).join(" · "))}</p>
     <div class="gwhy"><b>Как понятно, что это один и тот же человек.</b> При первом заходе сайт сохраняет в браузере случайный номер, у этого гостя <code>${esc(mark)}</code>, и присылает его в аналитику при каждом визите. Тот же браузер на том же устройстве — тот же гость. Другой браузер, телефон или очищенная история — уже новый гость, а город может не определиться, если включён VPN.</div>
@@ -704,21 +707,23 @@ function historyHtml(h, guests = {}) {
     const day = e.at.slice(0, 10), head = day !== lastDay ? `<div class="hday">${esc(dayTitle(day))}</div>` : "";
     lastDay = day;
     const j = e.tag ? jobsForTag(map, e.tag)[0] : null;
-    const [who, sub] = e.who === "robot" ? ["Робот-превью открыл ссылку", ""]
-      : j ? [j.company, j.title]
-      : e.tag ? [tagLabel(e.tag) || "Ссылка с меткой", ""]
-      : [sourceLabel(e.source), e.source && !/^\(/.test(e.source) ? "переход с " + e.source : "ссылку вставили сами или открыли из закладок"];
-    const tag = e.tag ? `<span class="htag">${esc(e.tag)}</span>` : e.who === "person" ? '<span class="htag none">без метки</span>' : "";
-    // «first visit» only if this hour is their very first one; otherwise they are coming back, maybe from before the 3 days
+    const time = e.at.slice(11, 16) + (e.end && e.end !== e.at.slice(11, 16) ? "–" + e.end : "");
+    // where they came from: a vacancy, a known link, another site, or straight in
+    const from = j ? j.company + " · " + j.title : e.tag ? tagLabel(e.tag) || "по ссылке с меткой"
+      : e.source && !/^\(/.test(e.source) ? "переход с " + sourceLabel(e.source) : "прямой заход";
+    // «first visit» only if this visit is their very first one; otherwise they are coming back, maybe from before the 3 days
     const first = guests[e.guest]?.first, back = e.visit > 1 || (first && first < day);
-    const again = e.who === "person" ? `гость ${e.guest} · ${back ? (first && first < h.from ? "возвращается, впервые был " + shortDate(first) : `вернулся, ${nth(e.visit)} визит`) : "первый визит"}` : "";
+    const again = !back ? "первый визит" : first && first < h.from ? "возвращается, впервые был " + shortDate(first) : `вернулся, ${nth(e.visit)} визит`;
+    const name = e.who === "robot" ? '<span class="hname">Робот-превью</span>'
+      : guests[e.guest] ? `<button type="button" class="hname hguest" data-guest="${esc(e.guest)}">${esc(e.guest)}</button>` : `<span class="hname">${esc(e.guest)}</span>`;
+    const tag = e.tag ? `<span class="htag">${esc(e.tag)}</span>` : e.who === "person" ? '<span class="htag none">без метки</span>' : "";
     const pages = (e.pages || []).map(p => `<span class="rp"><i class="dot ${p.host === "marydis.com" ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
     const meta = [CITIES[e.city] || e.city, DEV[e.device] || e.device, e.seconds ? "всего " + minSec(e.seconds) : ""].filter(Boolean).map(esc).join(" · ");
     return `${head}<div class="hitem ${e.who}">
-      <span class="htime">${esc(e.at.slice(11, 16))}</span>
-      <span class="hicon" title="${e.who === "robot" ? "робот" : "человек"}">${ICON[e.who]}</span>
-      <div class="hbody"><div class="hwho"><span class="hname">${esc(who)}</span>${tag}</div>${sub ? `<div class="hsub">${esc(sub)}</div>` : ""}
-        ${again ? (guests[e.guest] ? `<button type="button" class="hguest" data-guest="${e.guest}">${esc(again)} →</button>` : `<div class="rv-meta">${esc(again)}</div>`) : ""}${pages ? `<div class="rv-pages">${pages}</div>` : ""}${meta ? `<div class="rv-meta">${meta}</div>` : ""}
+      <span class="hicon" title="${e.who === "robot" ? "робот" : DEV[e.device] || "человек"}">${iconOf(e.who, e.device)}</span>
+      <div class="hbody"><div class="hwho"><span class="htime">${esc(time)}</span>${name}${tag}</div>
+        <div class="hsub">${esc(e.who === "robot" ? "Открыл ссылку, чтобы показать превью" : from[0].toUpperCase() + from.slice(1) + " · " + again)}</div>
+        ${pages ? `<div class="rv-pages">${pages}</div>` : ""}${meta ? `<div class="rv-meta">${meta}</div>` : ""}
         ${j && e.who === "person" ? `<button type="button" class="linkbtn" data-open="${esc(j.id)}">Открыть вакансию →</button>` : ""}</div>
     </div>`;
   }).join("");
