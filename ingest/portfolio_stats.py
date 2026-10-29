@@ -348,6 +348,7 @@ for v, n in keys.items():
                                     key=lambda p: -p["seconds"])})
     for d_ in out:
         d_["pages"] = slim(d_["pages"], 4)
-    guests[str(n)] = {"mark": v, "first": out[-1]["day"] if out else "", "days": out}
+    # only a shortened mark goes into the snapshot: enough to recognise the guest, not the full browser id
+    guests[str(n)] = {"mark": v[:5] + "…" + v[-4:], "first": out[-1]["day"] if out else "", "days": out}
 snap["guests"] = guests
 print(json.dumps(snap, ensure_ascii=False, separators=(",", ":")))
