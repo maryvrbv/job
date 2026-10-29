@@ -653,12 +653,51 @@ function readingTable(rows) {
     ${rows.map(r => `<tr><td class="site">${site(r.host)}</td><td>${esc(r.path)}</td><td class="n">${r.users}</td>${MARKS.map(([k]) => `<td>${r[k] ? `<b>${r[k]}</b>` : ""}</td>`).join("")}</tr>`).join("")}
   </tbody></table></div>`;
 }
+// «Последние 3 дня»: every person visit by visit, with where it came from and what was read
+const PAGE_NAMES = { "/": "Главная", "/index.html": "Главная", "/index-en.html": "Главная (EN)", "/case-alfa.html": "Кейс Альфа-Банка",
+  "/case-megafon.html": "Кейс МегаФона", "/case-loyalty.html": "Кейс X5 Клуб" };
+const SOURCES = [[/^\(direct\)$|^\(not set\)$|^$/, "Прямой заход"], [/t\.me|telegram/, "Telegram"], [/hh\.ru|headhunter/, "hh.ru"],
+  [/linkedin|lnkd/, "LinkedIn"], [/google/, "Google"], [/yandex|ya\.ru/, "Яндекс"], [/instagram/, "Instagram"], [/vk\.com/, "ВКонтакте"]];
+const sourceLabel = s => (SOURCES.find(([re]) => re.test(s)) || [, s])[1];
+const DEV = { desktop: "компьютер", mobile: "телефон", tablet: "планшет" };
+const CITIES = { "Moscow": "Москва", "Saint Petersburg": "Санкт-Петербург", "Novosibirsk": "Новосибирск", "Nizhny Novgorod": "Нижний Новгород",
+  "Yekaterinburg": "Екатеринбург", "Kazan": "Казань", "Tula": "Тула", "Dubai": "Дубай", "Abu Dhabi": "Абу-Даби" };
+const whenText = (a, b) => { const f = x => x.slice(8, 10) + "." + x.slice(5, 7) + ", " + x.slice(11, 16); return a === b ? f(a) : f(a) + " – " + f(b); };
+function recentHtml(r) {
+  const map = tagJobs();
+  const rows = r.visits.map(v => {
+    const j = v.tag ? jobsForTag(map, v.tag)[0] : null;
+    const who = j ? `${esc(j.company)}<small>${esc(j.title)}</small>`
+      : v.tag ? (tagLabel(v.tag) ? esc(tagLabel(v.tag)) : `${esc(v.tag)}<small>метка из ссылки, вакансия не нашлась</small>`)
+      : `${esc(sourceLabel(v.source))}<small>${v.source && !/^\(/.test(v.source) ? "переход с " + esc(v.source) : "без метки: ссылку вставили сами или открыли из закладок"}</small>`;
+    const meta = [whenText(v.first, v.last), CITIES[v.city] || v.city, DEV[v.device] || v.device, v.sessions > 1 ? v.sessions + " " + plural(v.sessions, "визит", "визита", "визитов") : ""].filter(Boolean).map(esc).join(" · ");
+    const pages = (v.pages || []).map(p => `<span class="rp"><i class="dot ${p.host === "marydis.com" ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)} <b>${minSec(p.seconds)}</b>${p.scroll ? ` · до ${p.scroll}%` : ""}${p.read >= 60 ? ` · читали ${minSec(p.read)}+` : ""}</span>`).join("");
+    return `<div class="rvisit"><div class="rv-top"><span class="ft-who">${who}</span><span class="ft-num"><b>${minSec(v.seconds)}</b></span></div>
+      <div class="rv-meta">${meta}</div>${pages ? `<div class="rv-pages">${pages}</div>` : ""}${j ? `<button type="button" class="btn rv-open" data-open="${esc(j.id)}">Открыть вакансию</button>` : ""}</div>`;
+  });
+  const bots = r.robot_tags?.length ? `<p class="note">Роботы-превью: ${r.robot_tags.map(([t, n]) => esc(t) + (n > 1 ? " ×" + n : "")).join(", ")}</p>` : "";
+  return `<div class="head"><span>Последние 3 дня, с ${esc(shortDate(r.from))}</span><span>${r.people} ${plural(r.people, "человек", "человека", "человек")} · роботов ${r.robots}</span></div>
+    ${rows.join("") || '<p class="note">За эти дни людей не было</p>'}${bots}`;
+}
+// which site people open: a two-slice donut with direct labels, so colour is never the only cue
+function hostsHtml(hosts) {
+  const name = h => h === "marydis.com" ? "marydis.com" : "gitverse (из России)";
+  const total = hosts.reduce((a, [, n]) => a + n, 0) || 1;
+  const R = 42, C = 2 * Math.PI * R, GAP = 2;
+  let off = 0;
+  const arcs = hosts.map(([h, n]) => { const len = n / total * C, a = `<circle r="${R}" cx="60" cy="60" fill="none" stroke-width="16" class="arc ${h === "marydis.com" ? "h1" : "h2"}" stroke-dasharray="${Math.max(0, len - GAP)} ${C}" stroke-dashoffset="${-off}"><title>${esc(name(h))}: ${n} ${plural(n, "человек", "человека", "человек")}</title></circle>`; off += len; return a; }).join("");
+  const legend = hosts.map(([h, n]) => `<div class="frow-s"><span><i class="dot ${h === "marydis.com" ? "h1" : "h2"}"></i>${esc(name(h))}</span><b>${n} · ${Math.round(n / total * 100)}%</b></div>`).join("");
+  return `<div class="head"><span>Какой сайт открывают</span><span>люди за 30 дней</span></div>
+    <div class="donut"><svg viewBox="0 0 120 120" role="img" aria-label="${esc(hosts.map(([h, n]) => name(h) + " " + n).join(", "))}"><g transform="rotate(-90 60 60)">${arcs}</g></svg><div class="donut-legend">${legend}</div></div>`;
+}
 let folioOpen = null; // the link tag whose reading table is unfolded
 function renderFolio() {
   const d = folio.data;
   if (!d || !d.totals) { $("folioNote").textContent = "Статистики пока нет: она появится после ближайшего обновления вакансий."; return; }
   const t = d.totals;
-  $("folioNote").textContent = `marydis.com и mariadis.gitverse.site за 30 дней. Люди — те, кто прокрутил страницу или что-то нажал. Роботы — превью ссылок и проверки почты (LinkedIn, Outlook, Google): открывают ссылку, но не листают. Твои собственные заходы не считаются. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
+  $("folioRecent").hidden = !d.recent; if (d.recent) $("folioRecent").innerHTML = recentHtml(d.recent);
+  $("folioHosts").hidden = !d.hosts?.length; if (d.hosts?.length) $("folioHosts").innerHTML = hostsHtml(d.hosts);
+  $("folioNote").textContent = `marydis.com и mariadis.gitverse.site: сначала последние 3 дня визит за визитом, ниже — 30 дней. Люди — те, кто прокрутил страницу или что-то нажал. Роботы — превью ссылок и проверки почты (LinkedIn, Outlook, Google): открывают ссылку, но не листают. Твои собственные заходы не считаются. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
   $("folioStats").innerHTML = [["Людей", t.people], ["Роботов и превью", t.robots], ["Визитов людей", t.sessions], ["Средний визит", minSec(t.avg_session)]]
     .map(([l, n], i) => `<div class="stat${i === 1 ? " muted" : ""}"><b>${esc(n)}</b><span>${l}</span></div>`).join("");
 
@@ -693,9 +732,10 @@ function renderFolio() {
 
   $("folioPages").innerHTML = `<div class="head"><span>Как читают страницы</span><span>сколько раз прокрутили до отметки и читали дольше</span></div>${readingTable(d.reading)}`;
   const list = (title, items) => `<div class="head"><span>${title}</span></div>` + items.map(([k, n]) => `<div class="frow-s"><span>${esc(k)}</span><b>${n}</b></div>`).join("");
-  const DEV = { desktop: "Компьютер", mobile: "Телефон", tablet: "Планшет" };
-  $("folioWhere").innerHTML = list("Страны", d.countries.filter(([c]) => c !== "(not set)").slice(0, 8)) + list("Устройства", d.devices.map(([k, n]) => [DEV[k] || k, n]));
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  $("folioWhere").innerHTML = list("Страны", d.countries.filter(([c]) => c !== "(not set)").slice(0, 8)) + list("Устройства", d.devices.map(([k, n]) => [cap(DEV[k] || k), n]));
 }
+$("folioRecent").addEventListener("click", e => { const o = e.target.closest("[data-open]"); if (o) openJob(o.dataset.open); });
 $("folioTags").addEventListener("click", e => {
   const o = e.target.closest("[data-open]"); if (o) return openJob(o.dataset.open);
   const b = e.target.closest(".ftag[data-tag]"); if (!b || b.disabled) return;

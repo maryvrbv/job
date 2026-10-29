@@ -17,13 +17,19 @@ unless said otherwise; robots left out everywhere except the robot counts):
   totals    people, robots, unknown, people's visits, views and average visit
   daily     people and robots per day, last 60 days
   countries, devices, pages
+  hosts     people per site (marydis.com and gitverse)
   reading   per page: people who opened it, scroll marks 25/50/75/100 and read marks 30 s/1/2/5 min
   tags      every link tag (from=<tag> in letters, CVs and cover letters), last 90 days: people, robots,
             visits and time of people, first and last visit, cities, what people did, and the same
             reading table for that tag alone
+  recent    the last 3 days visit by visit: each person with time (Moscow), city, device, the link tag
+            or the site they came from (direct visits too), and every page they read: time, scroll, read marks;
+            robots only as a count per tag
 """
 import json
 from collections import defaultdict
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 P, ACC = "properties/555639250", "google_analytics_bat-bases"
 HOST = {"filter": {"fieldName": "hostname", "stringFilter": {"matchType": "FULL_REGEXP", "value": "marydis\\.com|mariadis\\.gitverse\\.site"}}}
@@ -142,6 +148,7 @@ def count_by(field):
 snap["countries"] = count_by("country")[:10]
 snap["devices"] = count_by("deviceCategory")
 snap["reading"] = reading_table(e30, people30)[:15]
+snap["hosts"] = count_by("hostname")
 
 # link tags, 90 days
 tags = {}
@@ -172,4 +179,45 @@ for g in tags.values():
                 "sessions": g["sessions"], "seconds": g["seconds"], "first": g["first"] if g["people"] else "", "last": g["last"], "seen": g["seen"],
                 "cities": sorted(g["cities"]), "did": dict(did), "reading": reading_table(events, g["people"])[:8]})
 snap["tags"] = sorted(out, key=lambda g: (g["people"] > 0, g["seen"]), reverse=True)
+
+# the last 3 days, visit by visit. GA reports hours in the property's zone (Europe/Helsinki), Masha reads Moscow time
+HEL, MSK = ZoneInfo("Europe/Helsinki"), ZoneInfo("Europe/Moscow")
+d3 = ago(2)
+hours = [r for r in rep(["customEvent:visitor_id", "dateHour", "sessionSource", "customEvent:link_tag", "city", "deviceCategory"],
+                        ["sessions", "userEngagementDuration"], SITE, start=day(d3)) if r["customEvent:visitor_id"] not in me]
+pages = [r for r in rep(["customEvent:visitor_id", "hostname", "pagePath"], ["userEngagementDuration", "screenPageViews"], SITE, start=day(d3))
+         if r["customEvent:visitor_id"] not in me]
+marks = defaultdict(lambda: {"scroll": 0, "read": 0})
+for r in events:
+    if r["date"] >= d3:
+        m = marks[(r["customEvent:visitor_id"], r["hostname"], r["pagePath"])]
+        if r["eventName"] == "scroll_depth":
+            m["scroll"] = max(m["scroll"], int(num(r["customEvent:scroll_percent"])))
+        elif r["eventName"] == "read_time":
+            m["read"] = max(m["read"], int(num(r["customEvent:read_seconds"])))
+recent, robots = {}, defaultdict(set)
+for r in sorted(hours, key=lambda r: r["dateHour"]):
+    v, k = r["customEvent:visitor_id"], kind(r["customEvent:visitor_id"])
+    if k != "person":
+        if k == "robot":
+            robots[tag_of(r) or r["sessionSource"]].add(v)
+        continue
+    h = r["dateHour"]
+    at = datetime(int(h[:4]), int(h[4:6]), int(h[6:8]), int(h[8:]), tzinfo=HEL).astimezone(MSK).strftime("%Y-%m-%d %H:00")
+    g = recent.setdefault(v, {"first": at, "last": at, "city": "", "device": r["deviceCategory"], "tag": "", "source": "",
+                              "sessions": 0, "seconds": 0})
+    g["last"] = at
+    g["sessions"] += int(r["sessions"]); g["seconds"] += int(num(r["userEngagementDuration"]))
+    if r["city"] != "(not set)":
+        g["city"] = g["city"] or r["city"]
+    g["tag"] = g["tag"] or tag_of(r)
+    if g["source"] in ("", "(direct)", "(not set)"):  # a real referrer beats a direct visit
+        g["source"] = r["sessionSource"]
+for v, g in recent.items():
+    g["pages"] = sorted(({"host": r["hostname"], "path": r["pagePath"], "seconds": int(num(r["userEngagementDuration"])),
+                          "views": int(r["screenPageViews"]), **marks[(v, r["hostname"], r["pagePath"])]}
+                         for r in pages if r["customEvent:visitor_id"] == v), key=lambda p: -p["seconds"])
+snap["recent"] = {"from": day(d3), "people": len(recent), "robots": sum(len(x) for x in robots.values()),
+                  "robot_tags": sorted(([t, len(x)] for t, x in robots.items()), key=lambda x: -x[1]),
+                  "visits": sorted(recent.values(), key=lambda g: g["last"], reverse=True)}
 print(json.dumps(snap, ensure_ascii=False, separators=(",", ":")))
