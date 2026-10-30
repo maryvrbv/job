@@ -534,3 +534,7 @@ i.bot{background:#D9D3E6}
 .ava-link{color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--accent-soft)}
 .ava > svg{width:100%;height:100%;border-radius:50%;display:block}
 .ava:not(.pic) > svg{box-shadow:inset 0 0 0 2px var(--ava-ring)}
+
+.reserve-btn{margin-top:10px;background:var(--sunken);font-size:14px;padding:8px 14px}
+.reserve-btn:hover{background:var(--line)}
+.reserve-btn[aria-pressed="true"]{background:var(--surface);box-shadow:inset 0 0 0 1px var(--line)}
