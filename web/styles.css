@@ -535,6 +535,18 @@ i.bot{background:#D9D3E6}
 .ava > svg{width:100%;height:100%;border-radius:50%;display:block}
 .ava:not(.pic) > svg{box-shadow:inset 0 0 0 2px var(--ava-ring)}
 
-.reserve-btn{margin-top:10px;background:var(--sunken);font-size:14px;padding:8px 14px}
-.reserve-btn:hover{background:var(--line)}
-.reserve-btn[aria-pressed="true"]{background:var(--surface);box-shadow:inset 0 0 0 1px var(--line)}
+/* card head: status row and the two icon tools right under the title */
+.top-btns{display:flex;gap:8px;align-items:center}
+#undoBtn{background:var(--surface)}
+#undoBtn:disabled{opacity:.35;cursor:default}
+.dhead{display:flex;align-items:flex-start;gap:12px}
+.dtitle{flex:1;min-width:0}
+.dtools{display:flex;gap:6px;flex:none}
+.tool{width:36px;height:36px;border:1px solid var(--line);background:var(--surface);border-radius:var(--r-xs);display:grid;place-items:center;cursor:pointer;color:var(--fg);padding:0}
+.tool svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tool:hover{background:var(--sunken)}
+.tool[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.detail > .outcomes{margin-top:-4px;gap:4px}
+.detail > .outcomes button{font-size:13px;padding:6px 10px;white-space:nowrap}
+.chip{padding:4px 9px}
+.chip.fit-high{background:var(--accent-soft);color:var(--fg)}

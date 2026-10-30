@@ -25,6 +25,11 @@ const SKIP_REASONS = ["Только офис без релокации", "Не �
 // everything except the long description, which loads when the panel opens
 const LIST_COLUMNS = "id,market,url,title,company,city,work_format,salary,experience,posted_at,applicants,domain,level,fit,why,status,applied_at,reject_stage,feedback,skip_reason,comment,letter,closed_at,updated_at,referral,reserve";
 const CACHE_KEY = "jobs-cache-v1";
+const FIT_WORD = { "Высокий": "высокое", "Средний": "среднее", "Низкий": "низкое" };
+const TOOL = {
+  box: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/></svg>',
+  download: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>',
+};
 
 const state = { view: "jobs", tab: "today", jobs: [], sel: {}, loading: true, desc: {}, loadedAt: null };
 try { const t = localStorage.getItem("tab"); if (TABS.some(s => s.key === t)) state.tab = t; } catch (e) {}
@@ -68,8 +73,22 @@ async function load() {
 }
 
 let writing = Promise.resolve();
-function save(job, patch, okMsg, action) {
+// every change in a card can be taken back with the arrow next to the settings, latest first
+const undoStack = [];
+function pushUndo(entry) { undoStack.push(entry); if (undoStack.length > 30) undoStack.shift(); renderUndo(); }
+function renderUndo() {
+  const b = $("undoBtn"), last = undoStack[undoStack.length - 1];
+  b.disabled = !last; b.title = last ? "Отменить: " + last.what : "Отменять пока нечего";
+}
+function save(job, patch, okMsg, action, undoing) {
   const before = { ...job }; Object.assign(job, patch); render();
+  if (!undoing) {
+    const back = Object.fromEntries(Object.keys(patch).map(k => [k, before[k] ?? null]));
+    const entry = { what: okMsg.toLowerCase(), run: action ? action.run : () => save(job, back, "Отменено", null, true) };
+    pushUndo(entry);
+    // the toast's own «Отменить» and the arrow are the same undo: whichever runs first takes it off the stack
+    if (action) action = { label: action.label, run: () => { const i = undoStack.indexOf(entry); if (i >= 0) { undoStack.splice(i, 1); renderUndo(); } action.run(); } };
+  }
   writing = writing.then(async () => {
     const { error } = await sb.from("jobs").update(patch).eq("id", job.id);
     if (error) { Object.assign(job, before); render(); showBanner("Не сохранилось: " + error.message + ". Значение вернула назад, попробуй ещё раз."); return; }
@@ -179,12 +198,16 @@ function jobsOf(t, withLow = false) {
 }
 const byApplyTime = () => { const t = tabOf(state.tab); return t.applied || t.process; };
 const tabJobs = () => jobsOf(tabOf(state.tab), $("fFit").value === "Низкий");
+// the tab a vacancy lives in: search runs across all tabs, and a tap on a result goes there
+const tabKeyOf = j => isReserved(j) ? "reserve" : inProcess(j) ? "process" : isApplied(j) ? "applied-" + j.market : isOld(j) ? "archive" : j.market;
+const searching = () => !!$("q").value.trim();
 
 function filtered() {
   const q = $("q").value.trim().toLowerCase(), fit = $("fFit").value, fmt = $("fFmt").value, sort = $("sort").value;
   // the tabs split by status now: «Отклики» keep rejections (their feedback matters), elsewhere «Не подходит» and closed stay hidden
-  const okStatus = j => tabOf(state.tab).applied || !ENDED.includes(j.status);
-  const rows = tabJobs().filter(j =>
+  const okStatus = j => q || tabOf(state.tab).applied || !ENDED.includes(j.status);
+  const base = q ? state.jobs.filter(j => fit === "Низкий" || !isLow(j) || isReserved(j)) : tabJobs();
+  const rows = base.filter(j =>
     (!q || (j.company + " " + j.title).toLowerCase().includes(q)) &&
     (!fit || j.fit === fit) && (!fmt || (j.work_format || "").includes(fmt)) && okStatus(j));
   const num = s => { const n = parseInt(String(s).replace(/\D/g, ""), 10); return isNaN(n) ? 1e9 : n; };
@@ -409,6 +432,7 @@ function renderTabs() {
   if (cur && (cur.offsetLeft < T.scrollLeft || cur.offsetLeft + cur.offsetWidth > T.scrollLeft + T.clientWidth)) T.scrollLeft = cur.offsetLeft - 10;
   $("intro").textContent = `Высокое совпадение, опубликованы за последние ${FRESH_DAYS} дня, ты ещё не откликалась. Чем раньше отклик, тем выше он в списке у рекрутера.`;
   $("intro").hidden = state.tab !== "today";
+  if (searching()) { $("intro").textContent = "Ищу по всем вкладкам. Нажми на вакансию, чтобы перейти в её вкладку."; $("intro").hidden = false; }
 }
 
 function renderList(rows) {
@@ -419,14 +443,17 @@ function renderList(rows) {
     L.innerHTML = state.tab === "today"
       ? '<div class="empty">Свежих вакансий с высоким совпадением сейчас нет. Новые приходят каждое утро; пока можно пройтись по вкладкам ОАЭ и России.</div>'
       : state.tab === "reserve" && !tabJobs().length
-      ? '<div class="empty">В резерве пусто. Отложить вакансию на потом можно галочкой «Отложить в резерв» в её карточке.</div>'
+      ? '<div class="empty">В резерве пусто. Отложить вакансию на потом можно кнопкой с коробкой рядом с её названием.</div>'
+      : searching() ? '<div class="empty">Ни в одной вкладке такого нет. Проверь написание или сбрось фильтры.</div>'
       : '<div class="empty">Под эти фильтры ничего не подходит. Попробуй сбросить фильтры или очистить поиск.</div>';
     return;
   }
   const sel = state.sel[state.tab];
   L.innerHTML = rows.map(j => {
     const bits = [j.company, j.city, j.work_format && j.work_format !== "не указан" ? j.work_format : "", j.salary, j.referral ? "рефералка" : ""].filter(Boolean).map(esc).join(" · ");
-    const meta = state.tab === "today"
+    const meta = searching()
+      ? `<span class="src">${esc(tabOf(tabKeyOf(j)).label)}</span>${j.status === NEW ? "" : `<span class="pill ${statusCls(j.status)}">${esc(short(j.status))}</span>`}`
+      : state.tab === "today"
       ? `<span class="src">${marketOf(j.market).short}</span><span class="age">${ageText(ageDays(j.posted_at))}</span>`
       : `${tabOf(state.tab).archive || tabOf(state.tab).process || tabOf(state.tab).reserve ? `<span class="src">${marketOf(j.market).short}</span>` : ""}${j.status === NEW ? "" : `<span class="pill ${statusCls(j.status)}">${esc(short(j.status))}</span>`}${isApplied(j) && j.applied_at ? `<span class="applied-on">отклик ${esc(shortDate(j.applied_at))}</span>` : esc(shortDate(j.posted_at))}`;
     return `<button class="item" type="button" data-id="${esc(j.id)}" aria-current="${j.id === sel}">
@@ -461,20 +488,35 @@ function renderDetail(rows) {
   if (!j) { D.innerHTML = '<p class="note" style="margin:0">Выбери вакансию слева: здесь появятся описание, этапы и письмо.</p>'; return; }
   state.sel[state.tab] = j.id;
   const m = marketOf(j.market);
-  const fmtChip = j.work_format ? `<span class="chip fmt">Формат: <strong>${esc(j.work_format)}</strong></span>` : "";
+  const fmtChip = j.work_format ? `<span class="chip fmt" title="Формат работы">${esc(j.work_format)}</span>` : "";
   const age = ageDays(j.posted_at);
   const sinceApplied = ageDays(j.applied_at);
   const appliedChip = isApplied(j) && j.applied_at
-    ? `<span class="chip applied">Откликнулась: <strong>${esc(ruDate(j.applied_at))}${sinceApplied != null ? " (" + esc(ageText(sinceApplied)) + ")" : ""}</strong></span>` : "";
-  const chips = [["Совпадение", j.fit], ["Сфера", j.domain], ["Уровень", j.level], ["Город", j.city], ["Опыт", j.experience && j.experience + " лет"], ["Зарплата", j.salary], ["Опубликовано", j.posted_at ? ruDate(j.posted_at) + (age != null ? " (" + ageText(age) + ")" : "") : ""], ["Откликов", j.applicants]]
-    .filter(([, v]) => v && v !== "—").map(([k, v]) => `<span class="chip">${k}: <strong>${esc(v)}</strong></span>`).join("");
+    ? `<span class="chip applied" title="Когда откликнулась">отклик ${esc(shortDate(j.applied_at))}${sinceApplied != null ? " · " + esc(ageText(sinceApplied)) : ""}</span>` : "";
+  // values only, the label moves to the tooltip: the card starts with what matters, not with captions
+  const chips = [["Совпадение", FIT_WORD[j.fit] && FIT_WORD[j.fit] + " совпадение", j.fit === "Высокий" ? "fit-high" : ""], ["Сфера", j.domain], ["Уровень", j.level], ["Город", j.city],
+    ["Опыт", j.experience && j.experience + " лет"], ["Зарплата", j.salary], ["Опубликовано", j.posted_at ? shortDate(j.posted_at) + (age != null ? " · " + ageText(age) : "") : ""],
+    ["Откликов", j.applicants && j.applicants + " " + plural(+j.applicants || 0, "отклик", "отклика", "откликов")]]
+    .filter(([, v]) => v && v !== "—").map(([k, v, cls]) => `<span class="chip ${cls || ""}" title="${k}">${esc(v)}</span>`).join("");
   const pressed = s => j.status === s ? "true" : "false";
   D.innerHTML = `
     <div class="sheet-bar"><div class="grab" aria-hidden="true"></div><button class="btn icon-btn" type="button" id="detailClose" aria-label="Закрыть">✕</button></div>
-    <div>
-      <p class="lbl">${esc(m.label)} · ${esc(j.company)}</p>
-      <h2><a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)} ↗</a></h2>
-      ${isApplied(j) ? "" : `<button class="btn reserve-btn" type="button" id="reserve" aria-pressed="${j.reserve ? "true" : "false"}">${j.reserve ? "Вернуть из резерва" : "Отложить в резерв"}</button>`}
+    <div class="dhead">
+      <div class="dtitle">
+        <p class="lbl">${esc(m.label)} · ${esc(j.company)}</p>
+        <h2><a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)} ↗</a></h2>
+      </div>
+      <div class="dtools">
+        ${isApplied(j) ? "" : `<button class="tool" type="button" id="reserve" aria-pressed="${j.reserve ? "true" : "false"}" title="${j.reserve ? "Вернуть из резерва" : "Отложить в резерв"}" aria-label="${j.reserve ? "Вернуть из резерва" : "Отложить в резерв"}">${TOOL.box}</button>`}
+        <button class="tool" type="button" id="cv" title="Скачать CV с меткой этой вакансии" aria-label="Скачать CV">${TOOL.download}</button>
+      </div>
+    </div>
+    <div class="outcomes" id="outcomes" role="group" aria-label="Статус">
+      <button type="button" data-st="${NEW}" aria-pressed="${pressed(NEW)}">Не откликалась</button>
+      <button type="button" data-st="${RECRUITER}" aria-pressed="${pressed(RECRUITER)}">Написала рекрутеру</button>
+      <button type="button" data-st="${REJECT}" aria-pressed="${pressed(REJECT)}">Отказ</button>
+      <button type="button" data-st="${SKIP}" aria-pressed="${pressed(SKIP)}">Не подходит</button>
+      <button type="button" data-st="${CLOSED}" aria-pressed="${pressed(CLOSED)}">Отклики закрыты</button>
     </div>
     <div class="chips">${j.referral ? '<span class="chip ref">Рефералка</span>' : ""}${visitsChip(j)}${appliedChip}${fmtChip}${chips}</div>
     ${j.why ? `<p class="why">${esc(j.why)}</p>` : ""}
@@ -482,13 +524,6 @@ function renderDetail(rows) {
     <div>
       <p class="lbl">Этап${isApplied(j) && j.applied_at ? ` · откликнулась ${esc(ruDate(j.applied_at))}` : ""}</p>
       <div class="steps" id="steps">${stepsHtml(j)}</div>
-      <div class="outcomes" id="outcomes">
-        <button type="button" data-st="${NEW}" aria-pressed="${pressed(NEW)}">Не откликалась</button>
-        <button type="button" data-st="${RECRUITER}" aria-pressed="${pressed(RECRUITER)}">Написала рекрутеру</button>
-        <button type="button" data-st="${REJECT}" aria-pressed="${pressed(REJECT)}">Отказ</button>
-        <button type="button" data-st="${SKIP}" aria-pressed="${pressed(SKIP)}">Не подходит</button>
-        <button type="button" data-st="${CLOSED}" aria-pressed="${pressed(CLOSED)}">Отклики закрыты</button>
-      </div>
       <p class="note hist" id="hist" data-id="${esc(j.id)}" hidden></p>
     </div>
     <div id="extra"></div>
@@ -498,7 +533,6 @@ function renderDetail(rows) {
       <div class="row" style="margin-top:8px">
         <button class="btn primary" type="button" id="copy" ${j.letter ? "" : "disabled"}>Скопировать письмо</button>
         <button class="btn" type="button" id="saveLetter" disabled>Сохранить правки</button>
-        <button class="btn" type="button" id="cv">Скачать CV</button>
         ${window.JOB_CONFIG.letterFunction ? `<button class="btn" type="button" id="gen">${j.letter ? "Переписать заново" : "Написать письмо"}</button>` : ""}
         <span class="note grow" id="letterNote"></span>
       </div>
@@ -525,7 +559,7 @@ function renderDetail(rows) {
   if ($("reserve")) $("reserve").onclick = () => {
     const on = !j.reserve;
     if (on) closeSheet(); // the vacancy leaves this tab, so the phone sheet would stay empty
-    save(j, { reserve: on }, on ? "Отложено во вкладку «Резерв»" : "Вернула из резерва", { label: "Отменить", run: () => save(j, { reserve: !on }, "Отменено") });
+    save(j, { reserve: on }, on ? "Отложено во вкладку «Резерв»" : "Вернула из резерва", { label: "Отменить", run: () => save(j, { reserve: !on }, "Отменено", null, true) });
   };
   $("cv").onclick = () => downloadCv(j).catch(err => toast("Не получилось собрать CV: " + err.message));
   const pick = e => { const b = e.target.closest("button[data-st]"); if (b) setStatus(j, b.dataset.st); };
@@ -577,7 +611,7 @@ function setStatus(j, st) {
   const back = Object.fromEntries(Object.keys(patch).map(k => [k, j[k] ?? null]));
   const undo = { label: "Отменить", run: () => {
     if (events) events.push({ job_id: j.id, from_status: st, to_status: was, at: new Date().toISOString(), by_me: true });
-    save(j, back, "Вернула: " + was);
+    save(j, back, "Вернула: " + was, null, true);
   } };
   save(j, patch, st === REJECT ? "Отмечен отказ" : st === SKIP ? "Отмечено «Не подходит»" : st === CLOSED ? "Отмечено: отклики закрыты" : "Этап: " + st, undo);
   // on a phone the vacancy is a bottom sheet: once it drops out of the current list, close it,
@@ -1140,10 +1174,17 @@ $("views").onclick = e => {
   render();
 };
 $("tabs").onclick = e => { const b = e.target.closest(".tab"); if (!b) return; state.tab = b.dataset.k; try { localStorage.setItem("tab", state.tab); } catch (x) {} render(); };
-$("list").onclick = e => { const b = e.target.closest(".item"); if (!b) return; state.sel[state.tab] = b.dataset.id; render(); if (mobile.matches) { $("detail").scrollTop = 0; openSheet("detail"); } };
+$("list").onclick = e => {
+  const b = e.target.closest(".item"); if (!b) return;
+  if (searching()) { // a search result opens in its own tab, and the search clears so that tab shows as usual
+    const j = state.jobs.find(x => x.id === b.dataset.id);
+    state.tab = tabKeyOf(j); $("q").value = ""; try { localStorage.setItem("tab", state.tab); } catch (x) {}
+  }
+  state.sel[state.tab] = b.dataset.id; render(); if (mobile.matches) { $("detail").scrollTop = 0; openSheet("detail"); } };
 ["q", "fFit", "fFmt", "sort"].forEach(id => $(id).addEventListener("input", render));
 $("sort").addEventListener("change", () => { try { localStorage.setItem("sort", $("sort").value); } catch (e) {} });
 $("reload").onclick = load;
+$("undoBtn").onclick = () => { const u = undoStack.pop(); renderUndo(); if (u) u.run(); };
 
 // ---------- phone layout: the vacancy and the filters slide up as bottom sheets, the rest hides in the settings menu ----------
 
