@@ -474,6 +474,7 @@ function renderDetail(rows) {
     <div>
       <p class="lbl">${esc(m.label)} · ${esc(j.company)}</p>
       <h2><a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)} ↗</a></h2>
+      ${isApplied(j) ? "" : `<button class="btn reserve-btn" type="button" id="reserve" aria-pressed="${j.reserve ? "true" : "false"}">${j.reserve ? "Вернуть из резерва" : "Отложить в резерв"}</button>`}
     </div>
     <div class="chips">${j.referral ? '<span class="chip ref">Рефералка</span>' : ""}${visitsChip(j)}${appliedChip}${fmtChip}${chips}</div>
     ${j.why ? `<p class="why">${esc(j.why)}</p>` : ""}
@@ -506,7 +507,6 @@ function renderDetail(rows) {
       <p class="lbl"><label for="comment">Комментарий</label></p>
       <input class="comment" id="comment" value="${esc(j.comment)}" placeholder="Например: написала Патрисии в LinkedIn">
       <label class="check ref-check"><input type="checkbox" id="referral" ${j.referral ? "checked" : ""}> По рекомендации (рефералка)</label>
-      ${isApplied(j) ? "" : `<label class="check ref-check"><input type="checkbox" id="reserve" ${j.reserve ? "checked" : ""}> Отложить в резерв</label>`}
     </div>`;
 
   renderExtra(j); renderHistory(j.id);
@@ -522,8 +522,9 @@ function renderDetail(rows) {
   $("saveLetter").onclick = () => save(j, { letter: ta.value }, "Письмо сохранено");
   if ($("gen")) $("gen").onclick = () => generate(j); // only with the letter function; letters otherwise come from the Claude chat
   $("referral").onchange = e => save(j, { referral: e.target.checked }, e.target.checked ? "Отмечено: рефералка" : "Отметка снята");
-  if ($("reserve")) $("reserve").onchange = e => {
-    const on = e.target.checked;
+  if ($("reserve")) $("reserve").onclick = () => {
+    const on = !j.reserve;
+    if (on) closeSheet(); // the vacancy leaves this tab, so the phone sheet would stay empty
     save(j, { reserve: on }, on ? "Отложено во вкладку «Резерв»" : "Вернула из резерва", { label: "Отменить", run: () => save(j, { reserve: !on }, "Отменено") });
   };
   $("cv").onclick = () => downloadCv(j).catch(err => toast("Не получилось собрать CV: " + err.message));
