@@ -237,6 +237,9 @@ taken = {}
 def name_of(v):
     if v not in taken:
         i = int(hashlib.md5(v.encode()).hexdigest(), 16) % len(NAMES)
+        if len(taken) >= len(NAMES):  # more guests than names: the rest get a number
+            taken[v] = f"{NAMES[i]} {len(taken) // len(NAMES) + 1}"
+            return taken[v]
         while NAMES[i] in taken.values():  # two guests never share a name in one snapshot
             i = (i + 1) % len(NAMES)
         taken[v] = NAMES[i]
@@ -248,12 +251,13 @@ mins = [r for r in rep([V, M, "sessionSource", "customEvent:link_tag", "city", "
 pages = [r for r in rep([V, M, "hostname", "pagePath"], ["userEngagementDuration"], SITE, start=day(d14)) if r[V] not in me]
 marks = [r for r in rep([V, M, "hostname", "pagePath", "eventName", "customEvent:scroll_percent", "customEvent:read_seconds"],
                         ["eventCount"], SITE, start=day(d14)) if r[V] not in me]
-# names go out in order of the first visit in 90 days, so long-time guests keep theirs when new ones arrive
+# names go out to every person of the last 90 days in order of their first visit, so a guest keeps the name
+# while the 14-day feed slides: guests dropping out of the feed no longer shift everyone else's name
 firstseen = {}
 for r in visits:
     if r[V] not in firstseen or r["date"] < firstseen[r[V]]:
         firstseen[r[V]] = r["date"]
-for v in sorted({r[V] for r in mins if kind(r[V]) == "person"}, key=lambda v: (firstseen.get(v, "9"), v)):
+for v in sorted({r[V] for r in visits if kind(r[V]) == "person"} | {r[V] for r in mins if kind(r[V]) == "person"}, key=lambda v: (firstseen.get(v, "9"), v)):
     name_of(v)
 # split each visitor's minutes into visits
 visit_of, entries, last = {}, [], {}
