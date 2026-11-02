@@ -550,3 +550,18 @@ i.bot{background:#D9D3E6}
 .detail > .outcomes button{font-size:13px;padding:6px 10px;white-space:nowrap}
 .chip{padding:4px 9px}
 .chip.fit-high{background:var(--accent-soft);color:var(--fg)}
+
+/* «Страны»: a country unfolds into its guests */
+.frow-btn{width:100%;border:0;background:none;font:inherit;color:inherit;cursor:pointer;text-align:left;border-radius:8px;margin:0 -6px;padding:5px 6px;width:calc(100% + 12px)}
+.frow-btn:hover{background:var(--sunken)}
+.frow-btn b{display:inline-flex;align-items:center;gap:6px}
+.chev{width:7px;height:7px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg) translateY(-2px);transition:transform .15s}
+.frow-btn[aria-expanded="true"] .chev{transform:rotate(-135deg) translate(-1px,-1px)}
+.who-list{display:flex;flex-direction:column;gap:2px;margin:2px 0 8px;padding-left:10px;border-left:2px solid var(--accent-soft)}
+.who{display:flex;align-items:center;gap:10px;border:0;background:none;font:inherit;color:inherit;text-align:left;padding:5px 6px;border-radius:8px;cursor:pointer}
+.who:hover:not(:disabled){background:var(--sunken)}
+.who:disabled{cursor:default}
+.who span{display:flex;flex-direction:column;min-width:0}
+.who b{font-weight:500;font-size:14px;color:var(--accent)}
+.who:disabled b{color:var(--fg)}
+.who small{font-size:12px;color:var(--muted)}

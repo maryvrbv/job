@@ -27,7 +27,7 @@ unless said otherwise; robots left out everywhere except the robot counts):
             real start and end in Moscow time: person or robot, the guest's name and which of their visits it is,
             city, device, the link tag or the site they came from (direct visits too), and every page opened
             with time, scroll and read marks
-  guests    for every person in the history, under a Harry Potter name picked from their browser mark: the mark that tells it is the same visitor (visitor_id,
+  guests    for every person of the last 90 days (the feed and the countries link to them), under a Harry Potter name picked from their browser mark: the mark that tells it is the same visitor (visitor_id,
             a random number the site keeps in the browser), first visit, and all their days in the last 90 days:
             visits, time, link tags and sources, city, device, pages with time and scroll
 """
@@ -260,6 +260,14 @@ for r in visits:
         firstseen[r[V]] = r["date"]
 for v in sorted({r[V] for r in visits if kind(r[V]) == "person"} | {r[V] for r in mins if kind(r[V]) == "person"}, key=lambda v: (firstseen.get(v, "9"), v)):
     name_of(v)
+# who came from each country in each period, latest visit first: the app unfolds a country into its guests
+for n in (3, 7, 30, 90):
+    since, by = ago(n - 1), defaultdict(dict)
+    for r in visits:
+        if r["date"] >= since and r[V] in taken:
+            g = by[r["country"]]
+            g[taken[r[V]]] = max(g.get(taken[r[V]], ""), r["date"])
+    snap["periods"][str(n)]["who"] = {c: [nm for nm, _ in sorted(g.items(), key=lambda x: x[1], reverse=True)] for c, g in by.items()}
 # split each visitor's minutes into visits
 visit_of, entries, last = {}, [], {}
 for r in sorted(mins, key=lambda r: (r[V], r[M])):
@@ -323,8 +331,8 @@ snap["history"] = {"from": day(d3), "since": day(d14), "people": len({e["v"] for
                    "robots": len({e["v"] for e in last3 if e["who"] == "robot"}),
                    "entries": sorted(history, key=lambda e: e["at"], reverse=True)}
 
-# every person in the history, day by day over 90 days: the app shows this when a guest is tapped
-keys = {e["v"]: e["guest"] for e in entries if e["who"] == "person"}
+# every named person of the last 90 days, day by day: the app shows this when a guest is tapped in the feed or a country
+keys = dict(taken)
 gpages = [r for r in rep([V, "date", "hostname", "pagePath"], ["userEngagementDuration"], SITE) if r[V] in keys] if keys else []
 gscroll = defaultdict(int)
 for r in events:
