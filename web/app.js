@@ -650,7 +650,7 @@ function render() {
 // ---------- «Портфолио»: who visits marydis.com and mariadis.gitverse.site ----------
 // Claude copies a Google Analytics snapshot into portfolio_stats twice a day (ingest/portfolio_stats.py);
 // link tags (from=<tag> in letters and CVs) are matched back to vacancies, so a visit reads as «Etihad opened it».
-const folio = { data: null, at: null, period: "30", histDays: 3 };
+const folio = { data: null, at: null, period: "30", histDays: 3, country: null };
 async function loadFolio() {
   const { data, error } = await sb.from("portfolio_stats").select("data,updated_at").eq("id", "snapshot").maybeSingle();
   if (error) { showBanner("Не получилось загрузить статистику портфолио: " + error.message); return; }
@@ -905,7 +905,23 @@ function renderFolio() {
   $("folioPages").innerHTML = `<div class="head"><span>Как читают страницы</span><span>сколько раз прокрутили до отметки и читали дольше</span></div>${readingTable(P.reading)}`;
   const list = (title, items) => `<div class="head"><span>${title}</span></div>` + items.map(([k, n]) => `<div class="frow-s"><span>${esc(k)}</span><b>${n}</b></div>`).join("");
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
-  $("folioWhere").innerHTML = list("Страны", P.countries.filter(([c]) => c !== "(not set)").slice(0, 8)) + list("Устройства", P.devices.map(([k, n]) => [cap(DEV[k] || k), n]));
+  // a country unfolds into its guests, latest visit first; their names open the same story as in the feed
+  const who = P.who || {}, guests = d.guests || {};
+  const country = ([c, n]) => {
+    const names = who[c] || [], open = folio.country === c;
+    const row = names.length
+      ? `<button type="button" class="frow-s frow-btn" data-country="${esc(c)}" aria-expanded="${open}"><span>${esc(c)}</span><b>${n}<i class="chev" aria-hidden="true"></i></b></button>`
+      : `<div class="frow-s"><span>${esc(c)}</span><b>${n}</b></div>`;
+    if (!open) return row;
+    const people = names.map(nm => {
+      const g = guests[nm], last = g?.days?.[0];
+      const meta = last ? [shortDate(last.day), CITIES[last.city] || last.city].filter(Boolean).join(" · ") : "";
+      return `<button type="button" class="who" data-guest="${esc(nm)}" ${g ? "" : "disabled"}>${avatar(nm, last?.device)}<span><b>${esc(nm)}</b>${meta ? `<small>${esc(meta)}</small>` : ""}</span></button>`;
+    }).join("");
+    return row + `<div class="who-list">${people}</div>`;
+  };
+  $("folioWhere").innerHTML = `<div class="head"><span>Страны</span></div>` + P.countries.filter(([c]) => c !== "(not set)").slice(0, 8).map(country).join("")
+    + list("Устройства", P.devices.map(([k, n]) => [cap(DEV[k] || k), n]));
 }
 $("folioRecent").addEventListener("click", e => {
   if (e.target.closest("[data-more]")) {
@@ -916,6 +932,12 @@ $("folioRecent").addEventListener("click", e => {
   const o = e.target.closest("[data-open]"); if (o) return openJob(o.dataset.open);
   const g = e.target.closest("[data-guest]"), guest = g && folio.data?.guests?.[g.dataset.guest]; if (!guest) return;
   // a guest's own story slides up as a bottom sheet over the feed
+  $("guestSheet").innerHTML = guestHtml(g.dataset.guest, guest); $("guestSheet").scrollTop = 0; openSheet("guestSheet");
+});
+$("folioWhere").addEventListener("click", e => {
+  const c = e.target.closest("[data-country]");
+  if (c) { folio.country = folio.country === c.dataset.country ? null : c.dataset.country; return renderFolio(); }
+  const g = e.target.closest("[data-guest]"), guest = g && folio.data?.guests?.[g.dataset.guest]; if (!guest) return;
   $("guestSheet").innerHTML = guestHtml(g.dataset.guest, guest); $("guestSheet").scrollTop = 0; openSheet("guestSheet");
 });
 $("guestSheet").addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheet(); });
