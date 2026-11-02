@@ -96,7 +96,8 @@ events = [r for r in events if r["customEvent:visitor_id"] not in me]
 human = {r["customEvent:visitor_id"] for r in events if r["eventName"] in HUMAN_EVENTS and r["customEvent:visitor_id"] not in NOID}
 kind = lambda v: "unknown" if v in NOID else "person" if v in human else "robot"
 
-today = max(r["date"] for r in visits)
+# the real date, not the last day someone visited: on quiet days «the last 3 days» must still end today
+today = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%Y%m%d")
 from datetime import date, timedelta
 def ago(n):
     t = date(int(today[:4]), int(today[4:6]), int(today[6:])) - timedelta(days=n)
