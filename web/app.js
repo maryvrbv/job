@@ -868,7 +868,12 @@ function renderFolio() {
   $("folioRecent").hidden = !d.history; if (d.history) $("folioRecent").innerHTML = historyHtml(d.history, d.guests);
   $("folioPeriod").querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", b.dataset.p === folio.period));
   moveThumb();
-  $("folioNote").textContent = `marydis.com и mariadis.gitverse.site: сначала история просмотров, ниже — статистика за выбранный период. Люди — те, кто прокрутил страницу или что-то нажал. Роботы — превью ссылок и проверки почты (LinkedIn, Outlook, Google): открывают ссылку, но не листают. Твои собственные заходы не считаются. Обновлено ${new Date(folio.at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}.`;
+  $("folioNote").textContent = `marydis.com и mariadis.gitverse.site: сначала история просмотров, ниже — статистика за выбранный период. Люди — те, кто прокрутил страницу или что-то нажал. Роботы — превью ссылок и проверки почты (LinkedIn, Outlook, Google): открывают ссылку, но не листают. Твои собственные заходы не считаются.`;
+  // its own refresh date, apart from the vacancies: when the snapshot was taken and when someone last came
+  const when = s => new Date(s).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+  const last = d.history?.entries?.[0]?.at;
+  $("folioAt").innerHTML = (folio.at ? `Статистика обновлена <b>${esc(when(folio.at))}</b>` : "") +
+    (last ? ` · последний заход ${esc(new Date(+last.slice(0, 4), +last.slice(5, 7) - 1, +last.slice(8, 10)).toLocaleDateString("ru-RU", { day: "numeric", month: "long" }))} в ${esc(last.slice(11))}` : "");
   $("folioStats").innerHTML = [["Людей", t.people], ["Роботов и превью", t.robots], ["Визитов людей", t.sessions], ["Средний визит", minSec(t.avg_session)]]
     .map(([l, v], i) => `<div class="stat${i === 1 ? " muted" : ""}"><b>${esc(v)}</b><span>${l}</span></div>`).join("");
   $("folioSites").innerHTML = sitesHtml(P.sites || []);
