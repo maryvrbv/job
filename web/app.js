@@ -695,6 +695,30 @@ const SOURCES = [[/^\(direct\)$|^\(not set\)$|^$/, "Прямой заход"], [
   [/linkedin|lnkd/, "LinkedIn"], [/google/, "Google"], [/yandex|ya\.ru/, "Яндекс"], [/instagram/, "Instagram"], [/vk\.com/, "ВКонтакте"]];
 const sourceLabel = s => (SOURCES.find(([re]) => re.test(s)) || [, s])[1];
 const DEV = { desktop: "компьютер", mobile: "телефон", tablet: "планшет" };
+// a best guess at the device from the system and the screen size the browser reports (in CSS pixels)
+const MACS = { "1440x900": "MacBook Air 13″", "1470x956": "MacBook Air 13″ (M2–M4)", "1710x1112": "MacBook Air 15″", "1512x982": "MacBook Pro 14″",
+  "1728x1117": "MacBook Pro 16″", "1680x1050": "MacBook Pro 15″", "1792x1120": "MacBook Pro 16″, крупный масштаб", "2056x1329": "MacBook Pro 16″, мелкий масштаб",
+  "1800x1169": "MacBook Pro 14″, мелкий масштаб", "1280x800": "MacBook 13″", "2240x1260": "iMac 24″" };
+const IPHONES = { "375x667": "iPhone SE / 8", "375x812": "iPhone mini / X / 11 Pro", "414x896": "iPhone 11 / XR", "390x844": "iPhone 12–14",
+  "393x852": "iPhone 14 Pro / 15 / 16", "402x874": "iPhone 16 Pro", "428x926": "iPhone 12–14 Pro Max / Plus", "430x932": "iPhone 15 / 16 Plus или Pro Max",
+  "440x956": "iPhone 16 Pro Max", "820x1180": "iPad Air / iPad 10", "834x1194": "iPad Pro 11″", "1024x1366": "iPad Pro 12,9″", "768x1024": "iPad" };
+const PANELS = [[1920, 1080], [1920, 1200], [2560, 1440], [2560, 1600], [2880, 1800], [2880, 1620], [3840, 2160], [3840, 2400], [2256, 1504], [3000, 2000]];
+function gearLabel(x) {
+  const os = { Macintosh: "Mac", "Mac OS X": "Mac", Windows: "Windows", iOS: "iOS", Android: "Android", Linux: "Linux", "Chrome OS": "ChromeOS" }[x.os] || x.os || "";
+  const [w, h] = (x.res || "").split("x").map(Number), size = w && h ? `${w}×${h}` : "";
+  let what = "";
+  if (x.model) what = x.model;
+  else if (os === "iOS") what = IPHONES[x.res] || (x.device === "tablet" ? "iPad" : "iPhone");
+  else if (os === "Mac") what = MACS[x.res] || (w >= 1920 ? `внешний монитор ${size}` : `Mac, экран ${size}`);
+  else if (os === "Windows" || os === "Linux" || os === "ChromeOS") {
+    const scaled = w && w < 1920 && [1.25, 1.5, 1.75, 2].map(k => PANELS.find(([pw, ph]) => Math.abs(w * k - pw) < 3 && Math.abs(h * k - ph) < 3) && [k, PANELS.find(([pw, ph]) => Math.abs(w * k - pw) < 3 && Math.abs(h * k - ph) < 3)]).find(Boolean);
+    what = scaled ? `ноутбук ${scaled[1][0]}×${scaled[1][1]}, масштаб ${Math.round(scaled[0] * 100)}%`
+      : w === 1366 && h === 768 ? "недорогой ноутбук 1366×768"
+      : w === 1920 && h === 1080 ? "монитор или ноутбук Full HD 1920×1080"
+      : w >= 1920 ? `монитор ${size}` : size ? `экран ${size}` : DEV[x.device] || "";
+  } else what = size ? `${DEV[x.device] || "экран"} ${size}` : DEV[x.device] || "";
+  return [os && os !== "iOS" ? os : "", what].filter(Boolean).join(" · ") || DEV[x.device] || x.device || "";
+}
 const CITIES = { "Moscow": "Москва", "Saint Petersburg": "Санкт-Петербург", "Novosibirsk": "Новосибирск", "Nizhny Novgorod": "Нижний Новгород",
   "Yekaterinburg": "Екатеринбург", "Kazan": "Казань", "Tula": "Тула", "Dubai": "Дубай", "Abu Dhabi": "Абу-Даби" };
 // «История за 3 дня»: a feed, newest first, grouped by day; one entry per visitor per hour with a person or robot icon,
@@ -773,7 +797,7 @@ const nth = n => n + "-й";
 function guestHtml(n, g) {
   const sum = k => g.days.reduce((a, d) => a + (d[k] || 0), 0);
   const uniq = k => [...new Set(g.days.flatMap(d => Array.isArray(d[k]) ? d[k] : d[k] ? [d[k]] : []))];
-  const where = [...uniq("city").map(c => CITIES[c] || c), ...uniq("device").map(x => DEV[x] || x)];
+  const where = [...uniq("city").map(c => CITIES[c] || c), g.os || g.res ? gearLabel({ ...g, device: g.days[0]?.device }) : uniq("device").map(x => DEV[x] || x).join(", ")].filter(Boolean);
   const came = [...uniq("tags"), ...uniq("sources").map(sourceLabel)];
   const mark = g.mark.length > 12 ? g.mark.slice(0, 5) + "…" + g.mark.slice(-4) : g.mark;
   const facts = [["Впервые", shortDate(g.first)], ["Дней с визитами", g.days.length], ["Визитов", sum("sessions")], ["Всего", minSec(sum("seconds"))]];
@@ -814,7 +838,7 @@ function historyHtml(h, guests = {}) {
       : guests[e.guest] ? `<button type="button" class="hname hguest" data-guest="${esc(e.guest)}">${esc(e.guest)}</button>` : `<span class="hname">${esc(e.guest)}</span>`;
     const tag = e.tag ? `<span class="htag">${esc(e.tag)}</span>` : ""; // a chip only when the link carried a tag
     const pages = (e.pages || []).map(p => `<span class="rp"><i class="dot ${isMary(p.host) ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
-    const meta = [CITIES[e.city] || e.city, DEV[e.device] || e.device, e.seconds ? "всего " + minSec(e.seconds) : ""].filter(Boolean).map(esc).join(" · ");
+    const meta = [CITIES[e.city] || e.city, gearLabel(e), e.seconds ? "всего " + minSec(e.seconds) : ""].filter(Boolean).map(esc).join(" · ");
     return `${head}<div class="hitem ${e.who}">
       ${e.who === "person" && e.guest ? avatar(e.guest, e.device) : `<span class="hicon" title="${e.who === "robot" ? "робот" : DEV[e.device] || "человек"}">${iconOf(e.who, e.device)}</span>`}
       <div class="hbody"><div class="hwho"><span class="htime">${esc(time)}</span>${name}${tag}</div>

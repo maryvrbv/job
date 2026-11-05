@@ -279,6 +279,14 @@ mins = [r for r in rep([V, M, "sessionSource", "customEvent:link_tag", "city", "
 pages = [r for r in rep([V, M, "hostname", "pagePath"], ["userEngagementDuration"], SITE, start=day(d14)) if r[V] not in me]
 marks = [r for r in rep([V, M, "hostname", "pagePath", "eventName", "customEvent:scroll_percent", "customEvent:read_seconds"],
                         ["eventCount"], SITE, start=day(d14)) if r[V] not in me]
+# each visitor's usual system, screen and phone model: the app guesses the device from them (MacBook Air, Windows laptop at 125%)
+gear, gear_n = {}, defaultdict(int)
+for r in rep([V, "operatingSystem", "screenResolution", "mobileDeviceMarketingName"], ["sessions"], SITE):
+    if r[V] in me or r[V] in NOID or int(r["sessions"]) < gear_n[r[V]]:
+        continue
+    gear_n[r[V]] = int(r["sessions"])
+    gear[r[V]] = {k: x for k, x in (("os", r["operatingSystem"]), ("res", r["screenResolution"]), ("model", r["mobileDeviceMarketingName"]))
+                  if x not in ("", "(not set)")}
 # names go out to every person of the last 90 days in order of their first visit, so a guest keeps the name
 # while the 14-day feed slides: guests dropping out of the feed no longer shift everyone else's name
 firstseen = {}
@@ -350,7 +358,7 @@ def slim(ps, keep):
 history = []
 for e in entries:
     history.append({"at": e["start"].astimezone(MSK).strftime("%Y-%m-%d %H:%M"), "end": e["end"].astimezone(MSK).strftime("%H:%M"),
-                    "who": e["who"], "guest": e["guest"], "visit": e["visit"], "city": e["city"], "device": e["device"],
+                    "who": e["who"], "guest": e["guest"], "visit": e["visit"], "city": e["city"], "device": e["device"], **gear.get(e["v"], {}),
                     "tag": e["tag"], "source": e["source"], "seconds": e["seconds"],
                     "pages": slim(sorted(({"host": h, "path": pth, **p} for (h, pth), p in e["pages"].items()), key=lambda p: -p["seconds"]), 5)})
 last3 = [e for e in entries if e["start"].strftime("%Y%m%d") >= d3]
@@ -389,6 +397,6 @@ for v, n in keys.items():
     for d_ in out:
         d_["pages"] = slim(d_["pages"], 4)
     # only a shortened mark goes into the snapshot: enough to recognise the guest, not the full browser id
-    guests[str(n)] = {"mark": v[:5] + "…" + v[-4:], "first": out[-1]["day"] if out else "", "days": out}
+    guests[str(n)] = {"mark": v[:5] + "…" + v[-4:], "first": out[-1]["day"] if out else "", **gear.get(v, {}), "days": out}
 snap["guests"] = guests
 print(json.dumps(snap, ensure_ascii=False, separators=(",", ":")))
