@@ -355,29 +355,32 @@ const BOX_INK = { dubai: "#7a3fb8", spirits: "#4b3cc4", cats: "#8a3fb0", monster
 const CLOUD = (x, y, k = 1, o = 0.9) => `<path transform="translate(${x} ${y}) scale(${k})" d="M6 18a8 8 0 0 1 2-15.6A10 10 0 0 1 27 2a7.5 7.5 0 0 1 9 8 6 6 0 0 1-2 11.8H8A6 6 0 0 1 6 18z" fill="#fff" opacity="${o}" stroke="#bcd0ff" stroke-width="1.2"/>`;
 const QMARK = (x, y, k = 1, c = "#ffd166", r = 0) => `<text x="${x}" y="${y}" font-family="'Arial Rounded MT Bold',system-ui,sans-serif" font-size="${18 * k}" font-weight="900" fill="${c}" stroke="#f4a261" stroke-width="${0.8 * k}" paint-order="stroke" transform="rotate(${r} ${x} ${y})">?</text>`;
 const SPARK = (x, y, k = 1) => `<path transform="translate(${x} ${y}) scale(${k})" d="M0-6l1.4 4.6L6 0l-4.6 1.4L0 6l-1.4-4.6L-6 0l4.6-1.4z" fill="#fff7d1"/>`;
-function boxFaceArt(name, tag, ink) {
-  const t = (tag || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  if (name === "front") return `<svg viewBox="0 0 100 115" preserveAspectRatio="none">${CLOUD(8, 8, .55)}${CLOUD(64, 78, .62, .8)}${QMARK(74, 26, .8, "#ffd166", 12)}${QMARK(10, 98, .7, "#ffd166", -10)}${SPARK(20, 40, .6)}${SPARK(86, 58, .5)}${SPARK(60, 14, .45)}
-      <text x="50" y="56" text-anchor="middle" font-family="'Arial Rounded MT Bold',system-ui,sans-serif" font-size="17" font-weight="900" fill="${ink}" letter-spacing=".5">BLIND</text>
-      <text x="50" y="74" text-anchor="middle" font-family="'Arial Rounded MT Bold',system-ui,sans-serif" font-size="17" font-weight="900" fill="${ink}" letter-spacing=".5">BOX</text>
-      <text x="50" y="89" text-anchor="middle" font-family="system-ui,sans-serif" font-size="${t.length > 12 ? 6.2 : 7.4}" font-weight="800" fill="#f2b84b" letter-spacing="1">${t ? t.toUpperCase() : "MYSTERY"}</text></svg>`;
+function boxFaceArt(name, seriesKey, ink) {
+  const clean = t => (t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const sname = clean(toySeries(seriesKey)?.name), sshort = clean(toySeries(seriesKey)?.short); // the short name fits the front band
+  if (name === "front") return `<svg viewBox="0 0 100 115" preserveAspectRatio="none">${CLOUD(6, 30, .5)}${CLOUD(60, 84, .62, .8)}${QMARK(78, 44, .8, "#ffd166", 12)}${QMARK(8, 104, .7, "#ffd166", -10)}${SPARK(20, 50, .6)}${SPARK(88, 70, .5)}
+      <text x="50" y="62" text-anchor="middle" font-family="'Arial Rounded MT Bold',system-ui,sans-serif" font-size="17" font-weight="900" fill="${ink}" letter-spacing=".5">BLIND</text>
+      <text x="50" y="80" text-anchor="middle" font-family="'Arial Rounded MT Bold',system-ui,sans-serif" font-size="17" font-weight="900" fill="${ink}" letter-spacing=".5">BOX</text>
+      <text x="50" y="94" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7.4" font-weight="800" fill="#f2b84b" letter-spacing="1.4">MYSTERY</text></svg>
+      <b class="bf-band" style="color:${ink}">${sshort}</b><i class="bf-sticker" style="color:${ink}">?</i>`;
   if (name === "back") return `<svg viewBox="0 0 100 115" preserveAspectRatio="none">${CLOUD(54, 10, .6)}${QMARK(14, 30, .8, "#ffd166", -8)}${SPARK(80, 48, .55)}
       <text x="50" y="62" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5" font-weight="800" fill="${ink}">сюрприз внутри</text>
       <text x="50" y="74" text-anchor="middle" font-family="system-ui,sans-serif" font-size="5.6" fill="${ink}" opacity=".75">1 фигурка · 13 в серии · 1 секретная</text>
       <g fill="${ink}" opacity=".6">${[0, 2, 3.5, 6, 7.5, 9.5, 12, 13.5, 15.5, 18, 19.5, 21].map((x, i) => `<rect x="${39 + x}" y="84" width="${i % 3 ? .9 : 1.6}" height="12"/>`).join("")}</g></svg>`;
   if (name === "left" || name === "right") return `<svg viewBox="0 0 100 115" preserveAspectRatio="none">${CLOUD(name === "left" ? 14 : 50, 16, .62)}${QMARK(name === "left" ? 66 : 18, 64, 1.2, "#ffd166", name === "left" ? 10 : -12)}${SPARK(30, 92, .7)}${SPARK(80, 34, .5)}${CLOUD(name === "left" ? 52 : 10, 86, .5, .75)}
-      <text x="50" y="${name === "left" ? 108 : 108}" text-anchor="middle" font-family="'Arial Rounded MT Bold',system-ui,sans-serif" font-size="9" font-weight="900" fill="${ink}" opacity=".8">BLIND BOX</text></svg>`;
-  if (name === "top") return `<svg viewBox="0 0 100 100" preserveAspectRatio="none">${CLOUD(26, 34, .95)}${SPARK(18, 18, .6)}${SPARK(82, 76, .6)}${QMARK(74, 30, .7, "#ffd166", 14)}</svg>`;
+      <text x="50" y="108" text-anchor="middle" font-family="'Arial Rounded MT Bold',system-ui,sans-serif" font-size="9" font-weight="900" fill="${ink}" opacity=".8">BLIND BOX</text></svg><i class="bf-stripe"></i>
+      <b class="bf-side-name" style="color:${ink}">${sname}</b>`;
+  if (name === "top") return `<svg viewBox="0 0 100 100" preserveAspectRatio="none">${CLOUD(14, 50, .8)}${SPARK(18, 18, .6)}${SPARK(82, 76, .6)}</svg><i class="bf-star"></i>`;
   return "";
 }
 // a face: tinted card stock, the art, a soft foil sheen and the light that follows its angle
 function boxFace(name, W, H, transform, n, art, origin = "50% 50%") {
   return `<div class="bf bf-${name}" style="width:${W}px;height:${H}px;margin:${-H / 2}px 0 0 ${-W / 2}px;transform:${transform};transform-origin:${origin}" data-n="${n}"><i class="bf-holo"></i>${art}<i class="bf-light"></i></div>`;
 }
-function boxHtml(series, { tag = "", S = 140, cls = "" } = {}) {
+function boxHtml(series, { S = 140, cls = "" } = {}) {
   const [c1, c2] = TOY_TINT[series] || TOY_TINT.cats, ink = BOX_INK[series] || "#4b3cc4";
   const W = S, D = S, H = Math.round(S * 1.12);
-  const f = (name, w, h, tr, n) => boxFace(name, w, h, tr, n, boxFaceArt(name, tag, ink));
+  const f = (name, w, h, tr, n) => boxFace(name, w, h, tr, n, boxFaceArt(name, series, ink));
   return `<div class="box3d ${cls}" style="--c1:${c1};--c2:${c2};--w:${W}px;--h:${H}px;--d:${D}px">
     ${f("front", W, H, `translateZ(${D / 2}px)`, "0 0 1")}
     ${f("back", W, H, `rotateY(180deg) translateZ(${D / 2}px)`, "0 0 -1")}
@@ -386,7 +389,7 @@ function boxHtml(series, { tag = "", S = 140, cls = "" } = {}) {
     ${f("bottom", W, D, `rotateX(-90deg) translateZ(${H / 2}px)`, "0 1 0")}
     <div class="bx-inside" style="width:${W - 2}px;height:${D - 2}px;margin:${-(D - 2) / 2}px 0 0 ${-(W - 2) / 2}px;transform:rotateX(90deg) translateZ(${H / 2 - 2}px)"></div>
     <div class="bx-lid" ${cls.includes("live") ? 'id="boxLid"' : ""} style="transform:translate3d(0,${-H / 2}px,${-D / 2}px) rotateX(calc(var(--open, 0) * 118deg))">
-      <div class="bf bf-top" style="width:${W}px;height:${D}px;margin-left:${-W / 2}px;transform-origin:50% 0;transform:rotateX(90deg)" data-n="0 -1 0"><i class="bf-holo"></i>${boxFaceArt("top", tag, ink)}<i class="bf-light"></i>
+      <div class="bf bf-top" style="width:${W}px;height:${D}px;margin-left:${-W / 2}px;transform-origin:50% 0;transform:rotateX(90deg)" data-n="0 -1 0"><i class="bf-holo"></i>${boxFaceArt("top", series, ink)}<i class="bf-light"></i>
         <div class="bf-flap" style="width:${W}px"></div></div>
     </div>
     <div class="bx-glow" style="transform:translate3d(0,${-H / 2}px,0) rotateX(90deg)"></div>
@@ -405,5 +408,6 @@ function boxShade(el, rx, ry) {
     f.style.setProperty("--hy", (50 + y2 * 60 + rx * 0.5).toFixed(1) + "%");
     f.style.setProperty("--gx", (50 - x1 * 80).toFixed(1) + "%");
     f.style.setProperty("--gy", (35 + y2 * 80).toFixed(1) + "%");
+    f.style.setProperty("--ha", (ry * 1.6 + rx * 2 + x1 * 90).toFixed(0) + "deg"); // the foil stickers turn their rainbow
   }
 }
