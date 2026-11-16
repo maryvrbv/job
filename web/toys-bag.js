@@ -357,13 +357,18 @@ function createBag(stage, P0, opts = {}) {
 // ---------- the app: one bag per series tint, the figure comes from tearBox() in toys.js ----------
 const BAG_TINT = { dubai: "#f6c9b9", spirits: "#bfc0ee", cats: "#e7bfe6", monsters: "#b9dcec" };
 const bagParams = series => ({ tint: BAG_TINT[series] || "#c9c3ef", subtitle: toySeries(series)?.name || "" });
-const bagMini = series => bagMiniHtml({ ...BAG_DEFAULTS, ...bagParams(series) });
+const bagMini = series => { if (typeof bag3dLoad === "function" && bag3dOk()) bag3dLoad().catch(() => {}); return bagMiniHtml({ ...BAG_DEFAULTS, ...bagParams(series) }); }; // fetch the 3D library while the list is on screen
 let bagLive = null, bagSeries = null;
 function bagOpen(b) { bagSeries = b.series; return `<div id="bagStage"></div>`; }
-function bagMount() {
+// the bag is real 3D where WebGL and the library are there, the flat bag otherwise
+async function bagMount() {
   const st = document.getElementById("bagStage"); if (!st) return;
   bagClose();
-  bagLive = createBag(st, { ...bagParams(bagSeries), sound: !muted }, { figId: "bagFig", onOpen: () => tearBox() });
+  const P = { ...bagParams(bagSeries), sound: !muted }, o = { figId: "bagFig", onOpen: () => tearBox() };
+  if (typeof createBag3D === "function" && bag3dOk()) {
+    try { const THREE = await bag3dLoad(); if (document.getElementById("bagStage") !== st) return; bagLive = createBag3D(THREE, st, P, o); return; } catch (e) {}
+  }
+  if (document.getElementById("bagStage") === st) bagLive = createBag(st, P, o);
 }
 function bagClose() { bagLive?.destroy(); bagLive = null; }
 bagInjectCss();
