@@ -354,7 +354,7 @@ function createBag3D(THREE, stage, P0, opts = {}) {
     const w = stage.clientWidth || 340, h = stage.clientHeight || 360, rw = Math.round(P.w * 1.14), rh = Math.round(P.h * 1.1), cx = w / 2, cy = 70 + P.h / 2;
     resize(); root.position.set(0, (S.cy || 0) - 0.1 * P.h, 0); inner.position.y = 0.1 * P.h; pack.rotation.set(6 * D2R, -14 * D2R, 1.5 * D2R, "XYZ");
     camera.setViewOffset(w, h, cx - rw / 2, cy - rh / 2, rw, rh); renderer.setPixelRatio(2); renderer.setSize(rw, rh, false);
-    renderer.render(scene, camera); opts.onStill?.(renderer.domElement.toDataURL("image/png"));
+    renderer.render(scene, camera); opts.onStill?.(renderer.domElement.toDataURL("image/webp", 0.9)); // webp keeps the transparency and is small enough to keep
   }
   build();
   if (opts.still) { if (P.mascot) loadMascot(); else snap(); return { destroy() { ro.disconnect(); Object.values(geos || {}).forEach(g => g.dispose()); Object.values(mats || {}).forEach(m => m.dispose()); Object.values(maps || {}).forEach(t => t.dispose()); scene.environment?.dispose(); renderer.dispose(); renderer.forceContextLoss(); } }; }
