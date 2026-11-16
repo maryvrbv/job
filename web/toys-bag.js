@@ -18,7 +18,7 @@ const BAG_CSS = `
 .bg-stage{position:relative;width:min(340px,100%);height:360px;margin:6px auto 0;perspective:1100px;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
 .bg-stage:active{cursor:grabbing}
 .bg-fx{position:absolute;inset:-40px;width:calc(100% + 80px);height:calc(100% + 80px);pointer-events:none;z-index:5}
-.bg-rays{position:absolute;left:50%;top:0;width:var(--w);height:calc(70px + var(--h) * .3);margin-left:calc(var(--w) / -2);overflow:visible;pointer-events:none;opacity:.75;filter:blur(1.5px)}
+.bg-rays{position:absolute;left:50%;top:0;width:var(--w);height:calc(70px + var(--h) * .3);margin-left:calc(var(--w) / -2);overflow:visible;pointer-events:none;opacity:.95;filter:blur(12px)}
 .bg-fig{position:absolute;left:50%;top:90px;width:150px;margin-left:-75px;opacity:0;transform:translateY(90px) scale(.55);pointer-events:none;z-index:1}
 .bg-fig>*{width:100%;height:auto;display:block}
 .bg-fig.rise{opacity:1;transform:translateY(-44px) scale(1);transition:transform .85s .2s cubic-bezier(.2,1.5,.4,1),opacity .25s .2s}
@@ -115,8 +115,8 @@ function bagSfx(P, kind) {
     g.gain.value = kind === "rip" ? 0.32 : kind === "crinkle" ? 0.05 : 0.09; src.connect(fl).connect(g); src.start(now);
   } catch (e) {}
 }
-const BAG_RAY_COLORS = ["#ffe58a", "#ff9ad5", "#9dffcf", "#8fd8ff", "#c7a6ff", "#ffc48a", "#b5f0ff"];
-const BAG_STAR_COLORS = ["#fff6c2", "#ffe08a", "#ffd1f0", "#c9f2ff", "#e2d4ff", "#ffffff"];
+const BAG_RAY_COLORS = ["#ff8fc7", "#ffb3d9", "#ff7eb6", "#ffc2e2", "#f9a0cf", "#ffa6c9", "#ffd1ea"]; // a soft pink glow
+const BAG_STAR_COLORS = ["#ffffff", "#ffd1ea", "#ffb3d9", "#fff0f7", "#ff9ccf", "#ffe3f1"];
 
 // createBag(stage, P, { figure, onOpen }) builds a bag in the stage element and runs it until destroy()
 function bagInjectCss() { if (!document.getElementById("bg-css")) { const st = document.createElement("style"); st.id = "bg-css"; st.textContent = BAG_CSS; document.head.append(st); } }
@@ -144,10 +144,10 @@ function createBag(stage, P0, opts = {}) {
   const yAt = x => { const f = Math.max(0, Math.min(100, x)) / 100 * BAG_N, i = Math.min(BAG_N - 1, f | 0); return jag[i][1] + (jag[i + 1][1] - jag[i][1]) * (f - i); };
   const poly = a => `polygon(${a.map(([x, y]) => `${(+x).toFixed(2)}% ${(+y).toFixed(2)}%`).join(",")})`;
   const NR = 16;
-  const rays = Array.from({ length: NR }, (_, j) => ({ x: 6 + 88 * (j + 0.5) / NR, c: BAG_RAY_COLORS[j % BAG_RAY_COLORS.length], g: new BagSpring(0, 0.45, 0.3), on: false, ph: Math.random() * 6.28, len: 26 + Math.random() * 26 }));
+  const rays = Array.from({ length: NR }, (_, j) => ({ x: 6 + 88 * (j + 0.5) / NR, c: BAG_RAY_COLORS[j % BAG_RAY_COLORS.length], g: new BagSpring(0, 0.45, 0.3), on: false, ph: Math.random() * 6.28, len: 40 + Math.random() * 22 }));
 
   stage.classList.add("bg-stage"); stage.classList.remove("opened"); bagLook(stage, P);
-  stage.innerHTML = `<svg class="bg-rays" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs>${rays.map((r, j) => `<linearGradient id="bgr${j}" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".25" stop-color="${r.c}" stop-opacity=".9"/><stop offset="1" stop-color="${r.c}" stop-opacity="0"/></linearGradient>`).join("")}</defs>${rays.map((r, j) => `<path id="bgr-p${j}" fill="url(#bgr${j})" d=""/>`).join("")}</svg>
+  stage.innerHTML = `<svg class="bg-rays" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs>${rays.map((r, j) => `<radialGradient id="bgr${j}" cx=".5" cy=".75" r=".6"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".35" stop-color="${r.c}" stop-opacity=".85"/><stop offset="1" stop-color="${r.c}" stop-opacity="0"/></radialGradient>`).join("")}</defs>${rays.map((r, j) => `<path id="bgr-p${j}" fill="url(#bgr${j})" d=""/>`).join("")}</svg>
     <div class="bg-fig"${opts.figId ? ` id="${opts.figId}"` : ""} aria-hidden="true">${opts.figure || ""}</div><div class="bg-shadow"></div>
     <div class="bg-pack">
       <i class="bg-side l"></i><i class="bg-side r"></i>
@@ -159,7 +159,7 @@ function createBag(stage, P0, opts = {}) {
   const $q = s => stage.querySelector(s);
   const pack = $q(".bg-pack"), body = $q(".bg-pack > .bg-skin.front"), strip = $q(".bg-strip"), cut = $q(".bg-cut polyline"), fig = $q(".bg-fig");
   const plies = [...stage.querySelectorAll(".bg-ply")].map(el => ({ el, inner: el.querySelector(".bg-plyin"), shade: el.querySelector(".bg-shade") }));
-  const rayEls = rays.map((_, j) => $q("#bgr-p" + j)), fx = $q(".bg-fx"), g2 = fx.getContext("2d");
+  const rayEls = rays.map((_, j) => $q("#bgr-p" + j)), raysEl = $q(".bg-rays"), fx = $q(".bg-fx"), g2 = fx.getContext("2d");
   try { stage.style.setProperty("--notchbg", getComputedStyle(stage.parentElement).backgroundColor); } catch (e) {}
 
   // the tear: the body keeps everything but the torn strip; each slice of the strip is cut once the tear passed it
@@ -192,17 +192,19 @@ function createBag(stage, P0, opts = {}) {
       plies[k].el.style.transform = m; plies[k].shade.style.opacity = Math.min(0.45, Math.abs(sum) / 220).toFixed(2); plies[k].el.classList.toggle("flip", Math.abs(sum) > 90);
     }
   }
-  // light beams: each grows once the tear has run past it, and they sway gently
+  // soft diffused light from the mouth: a pastel haze grows wherever the tear has run past, breathes gently,
+  // flares once as the bag opens and then fades away with it (it does not hang in the air after)
   function drawRays(t) {
-    const xt = S.dir > 0 ? S.p * 100 : 100 - S.p * 100, open = S.state === "open";
+    const xt = S.dir > 0 ? S.p * 100 : 100 - S.p * 100, since = S.openAt ? t - S.openAt : -1;
     rays.forEach((r, j) => {
       if (P.rays && S.p > 0 && (S.dir > 0 ? r.x < xt : r.x > xt)) r.on = true;
-      r.g.to = r.on ? (open ? 1.25 : 1) : 0;
-      const L = r.len * Math.max(0, r.g.x), base = (70 + yAt(r.x) / 100 * P.h) / (70 + 0.3 * P.h) * 100 + 2, a = (r.x - 50) / 50 * 0.5 + Math.sin(t * 0.9 + r.ph) * 0.05, wdt = 1 + 2.2 * Math.max(0, r.g.x);
+      r.g.to = !r.on ? 0 : since < 0 ? 1 : since < 0.25 ? 1.45 : 0;
+      const g = Math.max(0, r.g.x), L = r.len * g * (1 + Math.sin(t * 1.3 + r.ph) * 0.08), base = (70 + yAt(r.x) / 100 * P.h) / (70 + 0.3 * P.h) * 100 + 3;
       if (L < 0.5) { rayEls[j].setAttribute("d", ""); return; }
-      const tx = r.x + Math.sin(a) * L, ty = base - Math.cos(a) * L;
-      rayEls[j].setAttribute("d", `M${(r.x - 1.2).toFixed(2)} ${base.toFixed(2)}L${(tx - wdt).toFixed(2)} ${ty.toFixed(2)}L${(tx + wdt).toFixed(2)} ${ty.toFixed(2)}L${(r.x + 1.2).toFixed(2)} ${base.toFixed(2)}Z`);
+      const cx = r.x + (r.x - 50) * 0.12 * g, rx = 5 + 7 * g, ry = L * 0.55, cy = base - ry * 0.75; // a wide soft ellipse leaning outward
+      rayEls[j].setAttribute("d", `M${(cx - rx).toFixed(2)} ${cy.toFixed(2)}a${rx.toFixed(2)} ${ry.toFixed(2)} 0 1 0 ${(2 * rx).toFixed(2)} 0a${rx.toFixed(2)} ${ry.toFixed(2)} 0 1 0 ${(-2 * rx).toFixed(2)} 0Z`);
     });
+    raysEl.style.transform = `translateY(${S.y.x.toFixed(1)}px) rotate(${(S.rz.x * 0.6).toFixed(2)}deg)`; // the light stays with the bag
   }
   // glowing stars from the mouth: a trickle while it tears, a burst when it opens
   function emit(n, burst) {
@@ -232,7 +234,7 @@ function createBag(stage, P0, opts = {}) {
   }
   function finish() {
     if (S.state !== "idle") return;
-    S.state = "open"; S.pTo = S.p = 1; clips(1);
+    S.state = "open"; S.pTo = S.p = 1; clips(1); S.openAt = (performance.now() - S.t0) / 1000;
     bagSfx(P, "rip"); buzz([14, 40, 24]);
     S.fly = { x: 0, y: 0, vx: S.dir * P.throw * 0.14, vy: -P.throw, rz: 0, vrz: S.dir * (220 + Math.random() * 200), rx: 0, vrx: -380 };
     S.y.v += 260; S.rz.v -= S.dir * 40;
