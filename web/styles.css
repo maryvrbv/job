@@ -701,3 +701,51 @@ body.ub-open{overflow:hidden}
 .box3d.spin .bf-band{animation:tet-holo 4.5s ease-in-out infinite alternate}
 .box-mini{width:120px;height:120px}
 .pz-stage{width:300px;height:330px}
+
+/* the packaging workshop */
+.pack-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.pack-seg{display:inline-flex;width:auto;grid-template-columns:none;padding:4px;gap:4px}
+.pack-seg button{border:0;background:none;border-radius:10px;padding:8px 14px;font-weight:500;color:var(--muted);cursor:pointer}
+.pack-seg button.on{background:var(--surface);color:var(--fg);font-weight:600;box-shadow:0 1px 3px rgb(0 0 0 / .08)}
+
+/* the mystery bag: white matte foil, crimped seals, a sticker; tilts, stretches and tears */
+.bag-stage{position:relative;width:300px;height:330px;margin:6px auto 0;perspective:1000px;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+.bag-stage:active{cursor:grabbing}
+.bag{position:absolute;left:50%;top:44px;width:210px;height:236px;margin-left:-105px;transform-style:preserve-3d;transform-origin:50% 60%;--gx:50%;--gy:30%;--ha:0deg}
+.bag-body{position:absolute;inset:0;border-radius:6px;overflow:hidden;background:#f4f2ee}
+.bag-flap{z-index:3;will-change:transform}
+.bag-body i{position:absolute;pointer-events:none}
+.bag-foil{inset:0;background:radial-gradient(120% 80% at 50% 55%,#ffffff 0%,#f6f4f0 45%,#e4e0d9 100%),#f2f0ec;box-shadow:inset 0 0 24px rgb(120 110 100 / .16)}
+.bag-crimp{left:0;right:0;height:9%;background:repeating-linear-gradient(90deg,#ece9e3 0 2px,#fbfaf7 2px 4px);box-shadow:inset 0 -1px 0 rgb(0 0 0 / .06)}
+.bag-crimp.top{top:0}.bag-crimp.bottom{bottom:0;box-shadow:inset 0 1px 0 rgb(0 0 0 / .06)}
+.bag-seal{top:0;bottom:0;width:5%;background:linear-gradient(90deg,#efece6,#faf9f6)}
+.bag-seal.l{left:0}.bag-seal.r{right:0;transform:scaleX(-1)}
+.bag-wrinkles{inset:8% 4%;background:linear-gradient(115deg,transparent 30%,rgb(255 255 255 / .8) 36%,transparent 42%),linear-gradient(70deg,transparent 58%,rgb(0 0 0 / .05) 62%,transparent 66%),linear-gradient(160deg,transparent 70%,rgb(0 0 0 / .04) 74%,transparent 78%)}
+.bag-perf{left:7%;right:7%;top:11.5%;border-top:1.5px dashed rgb(150 140 130 / .35)}
+.bag-notch{top:9%;width:10px;height:10px;background:var(--surface);transform:rotate(45deg)}
+.bag-notch.l{left:-6px}.bag-notch.r{right:-6px}
+.bag-glare{inset:0;background:radial-gradient(circle at var(--gx) var(--gy),rgb(255 255 255 / .9),rgb(255 255 255 / 0) 40%);mix-blend-mode:soft-light}
+.bag-sticker{position:absolute;left:17%;right:17%;top:28%;aspect-ratio:1;border-radius:12px;background:var(--tint);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 1px 0 rgb(255 255 255 / .6) inset,0 2px 5px rgb(90 70 120 / .15);overflow:hidden}
+.bag-sticker svg{width:62%;height:auto}
+.bag-sticker b{font:900 13px/1 "Arial Rounded MT Bold",system-ui,sans-serif;color:#5a3b3f;letter-spacing:.03em}
+.bag-sticker small{font:700 8.5px/1.1 system-ui,sans-serif;color:#5a3b3f;opacity:.7;text-align:center;padding:0 6px}
+.bag-sticker .bag-sticker-holo{inset:0;background:conic-gradient(from var(--ha) at 70% 30%,rgb(255 154 213 / .35),rgb(255 229 138 / .35),rgb(157 255 207 / .35),rgb(143 216 255 / .35),rgb(199 166 255 / .35),rgb(255 154 213 / .35));mix-blend-mode:soft-light}
+.bag-eyes{transform-origin:40px 41px;transition:transform .08s}
+.bag-eyes.blink{transform:scaleY(.1)}
+.bag-cut{position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:none;overflow:visible;filter:drop-shadow(0 1px 0 rgb(0 0 0 / .12))}
+.bag-shadow{position:absolute;left:50%;bottom:22px;width:180px;height:18px;margin-left:-90px;border-radius:50%;background:radial-gradient(closest-side,rgb(60 30 90 / .25),transparent)}
+.bag-rays{position:absolute;left:50%;top:40px;width:340px;height:340px;margin-left:-170px;border-radius:50%;background:repeating-conic-gradient(from 0deg,#ffe58a 0 8deg,#ff9ad5 8deg 16deg,#9dffcf 16deg 24deg,#8fd8ff 24deg 32deg,#c7a6ff 32deg 40deg);-webkit-mask:radial-gradient(circle,#000 10%,transparent 62%);mask:radial-gradient(circle,#000 10%,transparent 62%);opacity:0;transform:scale(.2);transition:opacity .5s,transform 1s cubic-bezier(.2,.8,.3,1);pointer-events:none}
+.bag-stage.opened .bag-rays{opacity:.85;transform:scale(1);animation:ub-spin 12s linear infinite}
+.bag-fig{position:absolute;left:50%;top:80px;width:150px;margin-left:-75px;opacity:0;transform:translateY(80px) scale(.6);pointer-events:none}
+.bag-fig .toy{width:100%;height:auto}
+.bag-fig.rise{opacity:1;transform:translateY(-36px) scale(1);transition:transform .8s .25s cubic-bezier(.2,1.5,.4,1),opacity .3s .25s}
+.bag-stage.opened .bag{transition:opacity .6s .6s}
+.bag-stage.opened .bag{opacity:.0}
+.ub-bag .ub-hint{margin-top:-6px}
+.bag-mini{position:relative;display:block;width:86px;height:97px;margin:6px 0 4px;animation:bag-sway 3.6s ease-in-out infinite}
+.bag-mini .bag-body{transform:none;filter:drop-shadow(0 4px 6px rgb(80 60 110 / .18))}
+.bag-mini .bag-sticker b{font-size:6px}.bag-mini .bag-sticker small{display:none}
+.bag-mini .bag-notch{background:var(--surface)}
+.box-card:nth-child(2n) .bag-mini{animation-delay:-1.4s}
+@keyframes bag-sway{0%,100%{transform:rotate(-2deg) translateY(0)}50%{transform:rotate(2deg) translateY(-3px)}}
+@media (prefers-reduced-motion:reduce){.bag-mini,.bag-stage.opened .bag-rays{animation:none}}

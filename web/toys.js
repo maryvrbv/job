@@ -3,7 +3,10 @@
 // the opened ones and what fell out of each. Everything counts from the day the collection appeared, plus a small
 // welcome pack, so old history does not flood the shelf. A box has no series: the series is rolled when it opens.
 const TOYS_LAUNCH = "2026-11-16";
-const toys = { opened: null, last: null, cur: null };
+const toys = { opened: null, last: null, cur: null, pack: "bag" };
+// the packaging is a choice in the «Мастерская упаковки» on the collection page, kept on this device
+try { const p = localStorage.getItem("toys-pack"); if (p === "bag" || p === "box") toys.pack = p; } catch (e) {}
+const PACKS = [["bag", "Пакетик"], ["box", "Коробочка"]];
 const toyHash = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 const mskDay = ts => new Date(ts).toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
 const STAGE_BOX = ["Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес"]; // the process, not the offer
@@ -67,9 +70,13 @@ function renderToys() {
   $("toysHead").innerHTML = `<div class="stats toy-stats">
       <div class="stat"><b>${have.size}<small> из ${total}</small></b><span>фигурок в коллекции</span></div>
       <div class="stat"><b>${dups}</b><span>${plural(dups, "повторка", "повторки", "повторок")}</span></div>
-      <div class="stat"><b>${list.length}</b><span>${plural(list.length, "коробка ждёт", "коробки ждут", "коробок ждут")}</span></div></div>`;
+      <div class="stat"><b>${list.length}</b><span>${plural(list.length, "коробка ждёт", "коробки ждут", "коробок ждут")}</span></div></div>
+    <div class="panel-card pack-shop"><div class="shelf-head"><h3>Мастерская упаковки</h3></div>
+      <p class="rv-meta">Выбери, в чём приходят награды. Пробное открытие ничего не тратит</p>
+      <div class="pack-row"><div class="segmented pack-seg" role="radiogroup" aria-label="Упаковка">${PACKS.map(([k, l]) => `<button type="button" role="radio" data-pack="${k}" aria-checked="${toys.pack === k}" class="${toys.pack === k ? "on" : ""}">${l}</button>`).join("")}</div>
+      <button type="button" class="btn" data-demo>Попробовать открыть</button></div></div>`;
   $("toysBoxes").innerHTML = list.length ? `<h2 class="fsec">Ждут открытия</h2><div class="box-grid">${list.slice(0, 24).map(b =>
-    `<button type="button" class="box-card" data-box="${esc(b.key)}"><span class="box-mini">${boxHtml(b.series, { S: 64, cls: "spin" })}</span><span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
+    `<button type="button" class="box-card" data-box="${esc(b.key)}">${toys.pack === "bag" ? bagMini(b.series) : `<span class="box-mini">${boxHtml(b.series, { S: 64, cls: "spin" })}</span>`}<span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
     ${list.length > 24 ? `<p class="note">И ещё ${list.length - 24}. Открывай по одной или подряд, они никуда не денутся</p>` : ""}`
     : `<h2 class="fsec">Ждут открытия</h2><p class="note">Все коробки открыты. Следующая придёт за отказ или сделанное тестовое.</p>`;
   const counts = {}; for (const o of toys.opened) counts[o.series + ":" + o.figure] = (counts[o.series + ":" + o.figure] || 0) + 1;
@@ -119,9 +126,18 @@ class Spring {
   step(h) { this.v += (this.k * (this.to - this.x) - this.c * this.v) * h; this.x += this.v * h; }
 }
 const pz = { rx: -14, ry: -28, vx: 0, drag: null, tear: 0, done: false, raf: 0, t0: 0, last: 0, tilt: new Spring(-14, 0.6, 0.35), squeeze: new Spring(1, 0.25, 0.5) };
-function openUnbox(key) {
-  const list = unopened() || []; const b = list.find(x => x.key === key) || list[0]; if (!b) return;
+function openUnbox(key, demo = false) {
+  const list = unopened() || [];
+  const b = demo ? { key: "demo", why: "Пробное открытие: в коллекцию не попадёт", series: seriesOf("demo"), demo: true } : list.find(x => x.key === key) || list[0]; if (!b) return;
   toys.cur = b; const u = $("unbox");
+  if (toys.pack === "bag") {
+    u.innerHTML = `<div class="ub-card ub-sealed ub-bag">
+      <button class="btn icon-btn ub-close" type="button" data-ub="close" aria-label="Закрыть">✕</button>
+      <button class="btn icon-btn ub-mute" type="button" data-ub="mute" aria-pressed="${muted}" aria-label="${muted ? "Включить звук" : "Выключить звук"}">${muted ? "🔇" : "🔊"}</button>
+      <p class="ub-why">${esc(b.why)}</p>${bagOpen(b)}
+      <p class="ub-hint">Потяни вбок вдоль верхнего края или нажми на пакетик</p></div>`;
+    u.hidden = false; document.body.classList.add("ub-open"); bagMount(); return;
+  }
   Object.assign(pz, { rx: -14, ry: -28, vx: 0, drag: null, tear: 0, done: false, t0: performance.now(), last: performance.now(), tilt: new Spring(-14, 0.6, 0.35), squeeze: new Spring(1, 0.25, 0.5) });
   u.innerHTML = `<div class="ub-card ub-sealed">
       <button class="btn icon-btn ub-close" type="button" data-ub="close" aria-label="Закрыть">✕</button>
@@ -213,23 +229,27 @@ async function finishTear() {
 async function tearBox() {
   const b = toys.cur; if (!b || toys.busy) return; toys.busy = true;
   const f = rollFigure(b.series), before = toys.opened.filter(o => o.series === b.series && o.figure === f.id).length;
-  const { error } = await sb.from("toy_boxes").insert({ key: b.key, series: b.series, figure: f.id });
+  if (!b.demo) { // a trial opening in the workshop saves nothing
+    const { error } = await sb.from("toy_boxes").insert({ key: b.key, series: b.series, figure: f.id });
+    toys.busy = false;
+    if (error) { toast(error.code === "23505" ? "Эта коробка уже открыта" : "Не получилось открыть: " + error.message); closeUnbox(); loadToys(); return; }
+    toys.opened.push({ key: b.key, series: b.series, figure: f.id, opened_at: new Date().toISOString() });
+    toys.last = Math.max(0, (toys.last || 1) - 1); updateToyBadge();
+  }
   toys.busy = false;
-  if (error) { toast(error.code === "23505" ? "Эта коробка уже открыта" : "Не получилось открыть: " + error.message); closeUnbox(); loadToys(); return; }
-  toys.opened.push({ key: b.key, series: b.series, figure: f.id, opened_at: new Date().toISOString() });
-  toys.last = Math.max(0, (toys.last || 1) - 1); updateToyBadge();
+  const fig = $("bagFig"); if (fig) { fig.innerHTML = toySvg(b.series, f.id); requestAnimationFrame(() => fig.classList.add("rise")); } // out of the bag
   const card = $("unbox").querySelector(".ub-card");
   const rare = f.rare === 2 ? "secret" : f.rare === 1 ? "rare" : "common", more = (unopened() || []).length;
   const confetti = Array.from({ length: f.rare ? 36 : 22 }, (_, i) => `<i style="--a:${(i * 137) % 360}deg;--d:${60 + (i * 53) % 90}px;--c:${["#ff6b81", "#ffd166", "#4cc9f0", "#80ed99", "#b388eb", "#f4a261"][i % 6]};--t:${(i % 7) * 40}ms"></i>`).join("");
   setTimeout(() => {
-    cancelAnimationFrame(pz.raf); sfx("pop"); buzz(18);
+    cancelAnimationFrame(pz.raf); bagClose(); sfx("pop"); buzz(18);
     card.className = `ub-card ub-reveal ${rare}`;
     card.innerHTML = `<button class="btn icon-btn ub-close" type="button" data-ub="close" aria-label="Закрыть">✕</button>
       <div class="ub-stage"><div class="ub-rays" aria-hidden="true"></div><div class="ub-confetti" aria-hidden="true">${confetti}</div>${toySvg(b.series, f.id, "ub-fig")}</div>
-      <p class="ub-badge">${before ? `Повторка · у тебя их ${before}` : f.rare === 2 ? "Секретная фигурка!" : f.rare === 1 ? "Редкая! Новинка в коллекции" : "Новинка в коллекции!"}</p>
+      <p class="ub-badge">${b.demo ? "Пробное открытие" : before ? `Повторка · у тебя их ${before}` : f.rare === 2 ? "Секретная фигурка!" : f.rare === 1 ? "Редкая! Новинка в коллекции" : "Новинка в коллекции!"}</p>
       <h3 class="ub-name">${esc(f.name)}</h3><p class="ub-line">${esc(f.line)}</p><p class="ub-hint">${esc(toySeries(b.series).name)}</p>
-      <div class="ub-actions">${more ? `<button type="button" class="btn primary" data-ub="next">Следующая коробка · ${more}</button>` : ""}<button type="button" class="btn" data-ub="close">В коллекцию</button></div>`;
-  }, reduced() ? 0 : 950);
+      <div class="ub-actions">${b.demo ? `<button type="button" class="btn primary" data-ub="demo">Ещё раз</button>` : more ? `<button type="button" class="btn primary" data-ub="next">Следующая коробка · ${more}</button>` : ""}<button type="button" class="btn" data-ub="close">${b.demo ? "Закрыть" : "В коллекцию"}</button></div>`;
+  }, reduced() ? 0 : toys.pack === "bag" ? 1500 : 950);
 }
 function showFigure(seriesKey, figId) {
   const s = toySeries(seriesKey), f = toyFigure(seriesKey, figId), mine = toys.opened.filter(o => o.series === seriesKey && o.figure === figId);
@@ -239,14 +259,20 @@ function showFigure(seriesKey, figId) {
     <h3 class="ub-name">${esc(f.name)}</h3><p class="ub-line">${esc(f.line)}</p><p class="ub-hint">${esc(s.name)} · впервые ${esc(shortDate(mskDay(mine[0].opened_at)))}</p></div>`;
   $("unbox").hidden = false; document.body.classList.add("ub-open");
 }
-function closeUnbox() { cancelAnimationFrame(pz.raf); $("unbox").hidden = true; $("unbox").innerHTML = ""; document.body.classList.remove("ub-open"); toys.cur = null; if (state.view === "toys") renderToys(); }
+function closeUnbox() { cancelAnimationFrame(pz.raf); bagClose(); $("unbox").hidden = true; $("unbox").innerHTML = ""; document.body.classList.remove("ub-open"); toys.cur = null; if (state.view === "toys") renderToys(); }
 $("unbox").addEventListener("click", e => {
   const a = e.target.closest("[data-ub]")?.dataset.ub;
   if (a === "tear") return autoTear();
   if (a === "mute") { muted = !muted; try { localStorage.setItem("toys-muted", muted ? "1" : "0"); } catch (x) {} const m = e.target.closest("[data-ub]"); m.textContent = muted ? "🔇" : "🔊"; m.setAttribute("aria-pressed", muted); m.setAttribute("aria-label", muted ? "Включить звук" : "Выключить звук"); if (!muted) sfx("crinkle"); return; }
   if (a === "next") return openUnbox();
+  if (a === "demo") return openUnbox(null, true);
   if (a === "close" || e.target === $("unbox")) return closeUnbox();
 });
 addEventListener("keydown", e => { if (e.key === "Escape" && !$("unbox").hidden) closeUnbox(); });
 $("toysBoxes").addEventListener("click", e => { const b = e.target.closest("[data-box]"); if (b) openUnbox(b.dataset.box); });
+$("toysHead").addEventListener("click", e => {
+  const k = e.target.closest("[data-pack]")?.dataset.pack;
+  if (k) { toys.pack = k; try { localStorage.setItem("toys-pack", k); } catch (x) {} return renderToys(); }
+  if (e.target.closest("[data-demo]")) openUnbox(null, true);
+});
 $("toysShelves").addEventListener("click", e => { const b = e.target.closest("[data-fig]"); if (b) { const [s, f] = b.dataset.fig.split(":"); showFigure(s, f); } });
