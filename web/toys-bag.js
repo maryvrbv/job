@@ -66,7 +66,7 @@ const BAG_CSS = `
 .bg-shade{background:#3a2c20;opacity:0}
 .bg-cut{position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:none;overflow:visible;transform:translateZ(calc(var(--d) / 2 + 1px));filter:drop-shadow(0 1px 0 rgb(0 0 0 / .14))}
 .bg-stage.opened .bg-pack{transition:opacity .55s .75s,translate 1s .5s ease-in;opacity:0;translate:0 40px}
-.bg-mini{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:86px;height:97px;margin:6px 0 4px;border-radius:4px;overflow:hidden;
+.bg-mini{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:130px;height:147px;margin:6px 0 6px;border-radius:5px;overflow:hidden;
   background:linear-gradient(180deg,color-mix(in srgb,var(--tint) 55%,#fff),color-mix(in srgb,var(--tint) 80%,#fff) 55%,var(--tint));
   clip-path:polygon(0 0,100% 0,100% 12%,96% 50%,100% 88%,100% 100%,0 100%,0 88%,4% 50%,0 12%);
   animation:bg-sway 3.6s ease-in-out infinite;filter:drop-shadow(0 4px 6px rgb(80 60 110 / .22))}
@@ -76,9 +76,9 @@ const BAG_CSS = `
 .bgm-crimp{left:0;right:0;height:9%;background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--tint) 60%,#9aa0ad) 0 2px,color-mix(in srgb,var(--tint) 30%,#fff) 2px 4px)}
 .bgm-crimp.t{top:0}.bgm-crimp.b{bottom:0}
 .bgm svg{position:relative;width:46%;height:auto;z-index:1}
-.bgm b{position:relative;z-index:1;font:900 8px/1 "Nunito","Arial Rounded MT Bold",system-ui,sans-serif;color:var(--ink);letter-spacing:.02em;-webkit-text-stroke:2.4px #fff;paint-order:stroke fill}
+.bgm b{position:relative;z-index:1;font:900 12px/1 "Nunito","Arial Rounded MT Bold",system-ui,sans-serif;color:var(--ink);letter-spacing:.02em;-webkit-text-stroke:2.4px #fff;paint-order:stroke fill}
 @keyframes bgm-holo{to{background-position:100% 100%}}
-.bg-mini-img{display:block;width:98px;height:auto;margin:2px 0 0;animation:bg-sway 3.6s ease-in-out infinite;filter:drop-shadow(0 5px 6px rgb(80 60 110 / .2))}
+.bg-mini-img{display:block;width:150px;max-width:100%;height:auto;margin:2px 0 4px;animation:bg-sway 3.6s ease-in-out infinite;filter:drop-shadow(0 5px 6px rgb(80 60 110 / .2))}
 .box-card:nth-child(2n) .bg-mini-img{animation-delay:-1.4s}
 @keyframes bgm-glint{0%,100%{background-position:0 0,120% 0}50%{background-position:0 0,-20% 0}}
 .box-card:nth-child(2n) .bg-mini{animation-delay:-1.4s}
