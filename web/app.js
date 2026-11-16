@@ -655,7 +655,43 @@ async function loadFolio() {
   const { data, error } = await sb.from("portfolio_stats").select("data,updated_at").eq("id", "snapshot").maybeSingle();
   if (error) { showBanner("Не получилось загрузить статистику портфолио: " + error.message); return; }
   folio.data = data?.data || null; folio.at = data?.updated_at || null;
-  renderFolio(); loadAvatars().catch(() => {}); if (state.view === "jobs") render(); // vacancy cards show visits too
+  renderFolio(); loadAvatars().catch(() => {}); loadGuestNotes().catch(() => {}); if (state.view === "jobs") render(); // vacancy cards show visits too
+}
+// Masha's own guess where a guest came from: a vacancy picked by hand and a comment (table guest_notes, keyed by the
+// guest's analytics mark). Shown with a «✎ вручную» chip, never mixed up with a vacancy found through a link tag.
+const guestNotes = {}; // mark → { job_id, comment }
+async function loadGuestNotes() {
+  const { data, error } = await sb.from("guest_notes").select("mark,job_id,comment");
+  if (error) return;
+  for (const n of data || []) guestNotes[n.mark] = n;
+  renderFolio();
+}
+const noteOf = g => g && guestNotes[g.mark];
+const noteJob = n => n?.job_id ? state.jobs.find(j => j.id === n.job_id) : null;
+const jobLabel = j => [j.company, j.title].filter(Boolean).join(" — ");
+// vacancies worth picking: the ones in a hiring process first, then the ones I applied to or wrote a letter for
+function noteOptions(current) {
+  const pool = state.jobs.filter(j => isApplied(j) || j.letter || j.id === current);
+  const by = (a, b) => (b.applied_at || b.posted_at || "").localeCompare(a.applied_at || a.posted_at || "");
+  const groups = [["В процессе", pool.filter(inProcess)], ["Отклики", pool.filter(j => isApplied(j) && !inProcess(j))], ["С письмом, без отклика", pool.filter(j => !isApplied(j))]];
+  return groups.filter(([, js]) => js.length).map(([t, js]) => `<optgroup label="${esc(t)}">${js.sort(by).map(j =>
+    `<option value="${esc(j.id)}"${j.id === current ? " selected" : ""}>${esc(jobLabel(j).slice(0, 80))}</option>`).join("")}</optgroup>`).join("");
+}
+function noteHtml(n, g) {
+  const note = noteOf(g), j = noteJob(note);
+  return `<div class="gnote" data-mark="${esc(g.mark)}" data-name="${esc(n)}">
+    <div class="gnote-head"><b>Откуда пришёл</b><span class="manual-chip">✎ вручную</span></div>
+    <select data-gjob aria-label="Вакансия"><option value="">Не знаю</option>${noteOptions(note?.job_id)}</select>
+    <textarea data-gcomment placeholder="Комментарий: почему так думаешь, кто это">${esc(note?.comment || "")}</textarea>
+    <div class="gnote-actions"><button type="button" class="btn" data-gsave>Сохранить</button>${j ? `<button type="button" class="linkbtn" data-open="${esc(j.id)}">Открыть вакансию →</button>` : ""}</div>
+  </div>`;
+}
+async function saveGuestNote(box) {
+  const mark = box.dataset.mark, job_id = box.querySelector("[data-gjob]").value || null, comment = box.querySelector("[data-gcomment]").value.trim();
+  const { error } = await sb.from("guest_notes").upsert({ mark, name: box.dataset.name, job_id, comment, updated_at: new Date().toISOString() });
+  if (error) { toast("Не получилось сохранить: " + error.message); return; }
+  guestNotes[mark] = { mark, job_id, comment }; toast("Сохранено");
+  renderFolio(); const g = folio.data?.guests?.[box.dataset.name]; if (g) $("guestSheet").innerHTML = guestHtml(box.dataset.name, g);
 }
 const GENERIC_TAGS = { "hh": "Профиль на hh", "cv-ru": "Резюме RU", "cv-en": "Резюме EN", "socium": "Socium" };
 const tagLabel = t => GENERIC_TAGS[t] || (/-$/.test(t) ? GENERIC_TAGS[t.slice(0, -1)] + " (старая ссылка)" : "");
@@ -812,6 +848,7 @@ function guestHtml(n, g) {
     <div class="ghead"><div class="gname"><label class="ava-pick" title="Поставить свою картинку">${avatar(n, g.days[0]?.device, true)}<input type="file" accept="image/*" data-avatar="${esc(n)}" hidden></label><div><h3 class="gtitle">${esc(n)}</h3><span class="rv-meta">${esc(houseOf(n)[1])} · <label class="ava-link">${avatars[slug(n)] ? "сменить картинку" : "поставить картинку"}<input type="file" accept="image/*" data-avatar="${esc(n)}" hidden></label></span></div></div>${siteLegend}</div>
     <div class="gfacts">${facts.map(([l, v]) => `<div><b>${esc(v)}</b><span>${l}</span></div>`).join("")}</div>
     <p class="rv-meta">${esc([where.join(", "), came.length ? "приходил: " + came.join(", ") : ""].filter(Boolean).join(" · "))}</p>
+    ${noteHtml(n, g)}
     <div class="gwhy"><b>Как понятно, что это один и тот же человек.</b> При первом заходе сайт сохраняет в браузере случайный номер, у этого гостя <code>${esc(mark)}</code>, и присылает его в аналитику при каждом визите. Тот же браузер на том же устройстве — тот же гость. Другой браузер, телефон или очищенная история — уже новый гость, а город может не определиться, если включён VPN.</div>
     <div class="hlist">${days}</div>`;
 }
@@ -836,7 +873,10 @@ function historyHtml(h, guests = {}) {
     const sub = e.who === "robot" ? "Открыл ссылку, чтобы показать превью" : [from, again].filter(Boolean).join(" · ");
     const name = e.who === "robot" ? '<span class="hname">Робот-превью</span>'
       : guests[e.guest] ? `<button type="button" class="hname hguest" data-guest="${esc(e.guest)}">${esc(e.guest)}</button>` : `<span class="hname">${esc(e.guest)}</span>`;
-    const tag = e.tag ? `<span class="htag">${esc(e.tag)}</span>` : ""; // a chip only when the link carried a tag
+    // a vacancy I linked by hand gets its own «✎» chip, so it never reads as if the link carried a tag
+    const note = e.who === "person" ? noteOf(guests[e.guest]) : null, nj = noteJob(note);
+    const tag = (e.tag ? `<span class="htag">${esc(e.tag)}</span>` : "")
+      + (nj ? `<span class="htag manual" title="Привязала вручную">✎ ${esc(nj.company || nj.title)}</span>` : note?.comment ? '<span class="htag manual" title="Мой комментарий">✎ заметка</span>' : "");
     const pages = (e.pages || []).map(p => `<span class="rp"><i class="dot ${isMary(p.host) ? "h1" : "h2"}"></i>${esc(PAGE_NAMES[p.path] || p.path)}${p.seconds ? ` <b>${minSec(p.seconds)}</b>` : ""}${p.scroll ? ` · до ${p.scroll}%` : ""}</span>`).join("");
     const meta = [CITIES[e.city] || e.city, gearLabel(e), e.seconds ? "всего " + minSec(e.seconds) : ""].filter(Boolean).map(esc).join(" · ");
     return `${head}<div class="hitem ${e.who}">
@@ -844,7 +884,8 @@ function historyHtml(h, guests = {}) {
       <div class="hbody"><div class="hwho"><span class="htime">${esc(time)}</span>${name}${tag}</div>
         <div class="hsub">${esc(sub[0].toUpperCase() + sub.slice(1))}</div>
         ${pages ? `<div class="rv-pages">${pages}</div>` : ""}${meta ? `<div class="rv-meta">${meta}</div>` : ""}
-        ${j && e.who === "person" ? `<button type="button" class="linkbtn" data-open="${esc(j.id)}">Открыть вакансию →</button>` : ""}</div>
+        ${note?.comment ? `<div class="hnote">✎ ${esc(note.comment)}</div>` : ""}
+        ${(j || nj) && e.who === "person" ? `<button type="button" class="linkbtn" data-open="${esc((j || nj).id)}">Открыть вакансию →</button>` : ""}</div>
     </div>`;
   }).join("");
   const robots = h.robots ? `${h.robots} ${plural(h.robots, "робот", "робота", "роботов")}` : "роботов не было";
@@ -969,7 +1010,11 @@ $("folioWhere").addEventListener("click", e => {
   const g = e.target.closest("[data-guest]"), guest = g && folio.data?.guests?.[g.dataset.guest]; if (!guest) return;
   $("guestSheet").innerHTML = guestHtml(g.dataset.guest, guest); $("guestSheet").scrollTop = 0; openSheet("guestSheet");
 });
-$("guestSheet").addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheet(); });
+$("guestSheet").addEventListener("click", e => {
+  if (e.target.closest("[data-close]")) return closeSheet();
+  const s = e.target.closest("[data-gsave]"); if (s) return saveGuestNote(s.closest(".gnote"));
+  const o = e.target.closest("[data-open]"); if (o) { closeSheet(); return openJob(o.dataset.open); }
+});
 $("guestSheet").addEventListener("change", e => { const f = e.target.closest("[data-avatar]"); if (f?.files?.[0]) setAvatar(f.dataset.avatar, f.files[0]).catch(err => toast("Не получилось: " + err.message)); });
 $("folioTags").addEventListener("click", e => {
   const o = e.target.closest("[data-open]"); if (o) return openJob(o.dataset.open);
