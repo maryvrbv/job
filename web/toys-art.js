@@ -347,59 +347,61 @@ function boxSvg(seriesKey, cls = "") {
       <path d="M60 36q-18-22-26-8q4 8 26 8zM60 36q18-22 26-8q-4 8-26 8z" fill="${a}" stroke="${toyMix(a, -0.3)}" stroke-width="1.5"/><circle cx="60" cy="35" r="4" fill="${toyMix(a, -0.2)}"/></g></svg>`;
 }
 
-// ---------- the pouch: a frosted triangular blind bag with scalloped sealed edges and a holographic sheen ----------
-// Drawn in a 200×220 box. TEAR_Y is the notch line: everything above it is the corner that tears off.
-const POUCH_TEAR_Y = 84, POUCH_TEAR_X = [61, 139];
-// the tear is ragged, not a straight cut: a zigzag across the notch line, wider than the bag
-const POUCH_ZIG = (() => { const pts = []; for (let x = -20, i = 0; x <= 230; x += 4, i++) pts.push(`${x} ${(POUCH_TEAR_Y + (i % 2 ? 2.4 : -2.4) + (i % 5 === 0 ? 1.2 : 0)).toFixed(1)}`); return pts; })();
-const POUCH_D = (() => {
-  const P = [[100, 12], [190, 204], [10, 204]], cx = 100, cy = 140;
-  let d = `M${P[0][0]} ${P[0][1]}`;
-  for (let e = 0; e < 3; e++) {
-    const [x1, y1] = P[e], [x2, y2] = P[(e + 1) % 3], n = e === 1 ? 10 : 9, len = Math.hypot(x2 - x1, y2 - y1);
-    let nx = (y2 - y1) / len, ny = -(x2 - x1) / len;
-    if ((((x1 + x2) / 2 - cx) * nx + ((y1 + y2) / 2 - cy) * ny) < 0) { nx = -nx; ny = -ny; }
-    for (let i = 1; i <= n; i++) {
-      const ax = x1 + (x2 - x1) * (i - 0.5) / n, ay = y1 + (y2 - y1) * (i - 0.5) / n, bx = x1 + (x2 - x1) * i / n, by = y1 + (y2 - y1) * i / n;
-      d += ` Q${(ax + nx * 7).toFixed(1)} ${(ay + ny * 7).toFixed(1)} ${bx.toFixed(1)} ${by.toFixed(1)}`;
-    }
+// ---------- the pyramid: a tetra blind bag (like a tetra pack) with two scalloped sealed seams ----------
+// Real 3D in CSS: four triangular faces placed with matrix3d, a sealed fin along the bottom edge (across) and one
+// along the top edge (front to back). Each face catches light by its own angle, so the foil shimmers as it turns.
+// The tint tells the series: a box knows its series from the start, the figure stays a surprise.
+const TOY_TINT = { dubai: ["#ffd79a", "#ff8a5c"], spirits: ["#b9c8ff", "#7b68ff"], cats: ["#ffc8e4", "#ff78b8"], monsters: ["#b8f5c8", "#3fc1c9"] };
+const TET_A = 1, TET_H = 1.04; // half the seam length and half the height, in units of the size S
+function tetFaces(S) {
+  const v = { L: [-TET_A, TET_H, 0], R: [TET_A, TET_H, 0], K: [0, -TET_H, -TET_A], F: [0, -TET_H, TET_A] };
+  const sub = (p, q) => p.map((x, i) => x - q[i]), add = (p, q) => p.map((x, i) => x + q[i]), mul = (p, k) => p.map(x => x * k);
+  const dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2], cross = (p, q) => [p[1] * q[2] - p[2] * q[1], p[2] * q[0] - p[0] * q[2], p[0] * q[1] - p[1] * q[0]];
+  const len = p => Math.hypot(...p);
+  return [["front", "F", "R", "L"], ["back", "K", "L", "R"], ["left", "L", "F", "K"], ["right", "R", "K", "F"]].map(([name, a, b, c]) => {
+    let A = mul(v[a], S), B = mul(v[b], S), C = mul(v[c], S);
+    const build = (B, C) => {
+      const W = len(sub(B, C)), cx = mul(sub(B, C), 1 / W), mid = add(C, mul(cx, W / 2)), H = len(sub(A, mid));
+      const cy = mul(sub(mid, A), 1 / H), n = cross(cx, cy), T = sub(C, mul(cy, H)); // element (0,0) is above C by H
+      return { W, H, cx, cy, n, T };
+    };
+    let f = build(B, C);
+    const centroid = mul(add(add(A, B), C), 1 / 3);
+    if (dot(f.n, centroid) < 0) f = build(C, B); // front side of the element must face outwards
+    const m = [...f.cx, 0, ...f.cy, 0, ...f.n, 0, ...f.T, 1].map(x => +x.toFixed(4)).join(",");
+    return { name, W: f.W, H: f.H, n: f.n, m };
+  });
+}
+const SCALLOP = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="14" height="16"><path d="M0 0h14v10q-3.5 6-7 0t-7 0z" fill="#fff"/></svg>');
+const SCALLOP_UP = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="14" height="16"><path d="M0 16h14V6q-3.5-6-7 0t-7 0z" fill="#fff"/></svg>');
+function tetHtml(series, { tag = "", S = 86, cls = "" } = {}) {
+  const [c1, c2] = TOY_TINT[series] || TOY_TINT.cats, seam = 2 * TET_A * S + 22;
+  const face = f => {
+    const content = f.name === "front"
+      ? `<svg class="tf-art" viewBox="0 0 100 86" preserveAspectRatio="none"><g transform="translate(50 52)"><circle cx="-9" cy="-4" r="2.6" fill="#3a2a4f"/><circle cx="9" cy="-4" r="2.6" fill="#3a2a4f"/><circle cx="-9.8" cy="-4.9" r=".9" fill="#fff"/><circle cx="8.2" cy="-4.9" r=".9" fill="#fff"/><path d="M-3 1q3 3 6 0" stroke="#3a2a4f" stroke-width="1.3" fill="none" stroke-linecap="round"/><ellipse cx="-15" cy="1.5" rx="3.4" ry="2" fill="#ff6fa3" opacity=".45"/><ellipse cx="15" cy="1.5" rx="3.4" ry="2" fill="#ff6fa3" opacity=".45"/></g>
+         <text x="50" y="69" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="5.2" font-weight="600" fill="#4a3b66" opacity=".7" letter-spacing=".3">blind box</text>${tag ? `<text x="50" y="78" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="7" font-weight="800" fill="#3d25b0">${tag.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text>` : ""}</svg>`
+      : f.name === "back" ? `<svg class="tf-art" viewBox="0 0 100 86" preserveAspectRatio="none"><text x="50" y="58" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="6" font-weight="700" fill="#4a3b66" opacity=".75">сюрприз внутри</text><g fill="#4a3b66" opacity=".5">${[0, 2, 3.5, 6, 7.5, 9.5, 12, 13.5, 15.5, 18, 19.5, 21].map((x, i) => `<rect x="${39 + x}" y="64" width="${i % 3 ? .9 : 1.5}" height="9"/>`).join("")}</g></svg>` : "";
+    return `<div class="tf tf-${f.name}" style="width:${f.W.toFixed(1)}px;height:${f.H.toFixed(1)}px;transform:matrix3d(${f.m})" data-n="${f.n.map(x => x.toFixed(3)).join(" ")}"><i class="tf-holo"></i><i class="tf-glit"></i>${content}<i class="tf-light"></i></div>`;
+  };
+  return `<div class="tet ${cls}" style="--c1:${c1};--c2:${c2};--seam:${seam.toFixed(0)}px;--h:${(TET_H * S).toFixed(1)}px">
+    ${tetFaces(S).map(face).join("")}
+    <div class="tfin tfin-bottom" style="width:${seam.toFixed(0)}px;--scal:url('${SCALLOP}')"></div>
+    <div class="tfin tfin-top" ${cls.includes("live") ? 'id="tetTop"' : ""} style="width:${seam.toFixed(0)}px;--scal:url('${SCALLOP_UP}')"><i class="tfin-cut"></i></div>
+  </div>`;
+}
+// light and foil follow the angle: each face gets its own brightness, rainbow offset and glare spot
+function tetShade(el, rx, ry) {
+  const a = ry * Math.PI / 180, b = rx * Math.PI / 180;
+  for (const f of el.querySelectorAll(".tf")) {
+    const [x, y, z] = f.dataset.n.split(" ").map(Number);
+    const x1 = x * Math.cos(a) + z * Math.sin(a), z1 = -x * Math.sin(a) + z * Math.cos(a);
+    const y2 = y * Math.cos(b) - z1 * Math.sin(b), z2 = y * Math.sin(b) + z1 * Math.cos(b);
+    const light = Math.max(0, 0.35 * -y2 + 0.25 * -x1 + 0.6 * z2); // light from the upper left front
+    f.style.setProperty("--l", (0.55 + light * 0.5).toFixed(3));
+    f.style.setProperty("--hx", (50 + x1 * 60 + ry * 0.35).toFixed(1) + "%");
+    f.style.setProperty("--hy", (50 + y2 * 60 + rx * 0.5).toFixed(1) + "%");
+    f.style.setProperty("--gx", (50 - x1 * 70).toFixed(1) + "%");
+    f.style.setProperty("--gy", (40 + y2 * 70).toFixed(1) + "%");
+    f.style.setProperty("--g", Math.pow(Math.max(0, z2), 3).toFixed(3)); // glitter flashes when the face looks right at you
   }
-  return d + "Z";
-})();
-// the inner seam where the edges are sealed
-const POUCH_SEAM = "M100 30L176 194H24Z";
-function pouchSvg(id, { tag = "", part = "whole", side = "front", animate = false } = {}) {
-  const T = POUCH_TEAR_Y;
-  const clip = part === "top" ? `<clipPath id="${id}c"><path d="M-20 -20H230V${T}L${POUCH_ZIG.slice().reverse().join("L")}Z"/></clipPath>`
-    : part === "bottom" ? `<clipPath id="${id}c"><path d="M${POUCH_ZIG.join("L")}L230 240H-20Z"/></clipPath>` : "";
-  const holoStops = ["#ff6fc3", "#ffd84a", "#5dffb4", "#4cc3ff", "#a77bff", "#ff6fc3"].map((c, i, a) => `<stop offset="${i / (a.length - 1)}" stop-color="${c}"/>`).join("");
-  const anim = animate ? `<animateTransform attributeName="gradientTransform" type="translate" values="-140 -40;140 40;-140 -40" dur="7s" repeatCount="indefinite"/>` : "";
-  const face = side === "front"
-    ? `<g transform="translate(100 140)"><circle cx="-15" cy="-6" r="4.6" fill="#3a2a4f"/><circle cx="15" cy="-6" r="4.6" fill="#3a2a4f"/><circle cx="-16.4" cy="-7.6" r="1.5" fill="#fff"/><circle cx="13.6" cy="-7.6" r="1.5" fill="#fff"/>
-        <path d="M-5 2q5 5 10 0" stroke="#3a2a4f" stroke-width="2.2" fill="none" stroke-linecap="round"/><ellipse cx="-25" cy="3" rx="6" ry="3.4" fill="#ff7aa8" opacity=".45"/><ellipse cx="25" cy="3" rx="6" ry="3.4" fill="#ff7aa8" opacity=".45"/></g>
-       <text x="100" y="172" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="9.5" font-weight="600" fill="#5b4a7a" opacity=".75" letter-spacing=".5">blind box</text>
-       ${tag ? `<text x="100" y="188" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="13" font-weight="800" fill="#4b2fc2" transform="rotate(-6 100 188)">${tag.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text>` : ""}`
-    : `<text x="100" y="128" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="11" font-weight="700" fill="#5b4a7a" opacity=".8">сюрприз внутри</text>
-       <text x="100" y="146" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="8.5" fill="#5b4a7a" opacity=".6">1 фигурка · 4 серии · 1 секрет</text>
-       <g fill="#5b4a7a" opacity=".55">${[0, 3, 5, 9, 11, 14, 18, 20, 23, 27, 29, 32].map((x, i) => `<rect x="${82 + x}" y="160" width="${i % 3 ? 1.4 : 2.4}" height="16"/>`).join("")}</g>`;
-  return `<svg class="pouch-svg" viewBox="-12 0 224 220" aria-hidden="true"><defs>${clip}
-      <linearGradient id="${id}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb8dc"/><stop offset=".5" stop-color="#ffdcbf"/><stop offset="1" stop-color="#d6ffa8"/></linearGradient>
-      <linearGradient id="${id}h" class="holo-grad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="120" y2="70" spreadMethod="repeat">${holoStops}${anim}</linearGradient>
-      <radialGradient id="${id}g" class="glare-grad" cx="35%" cy="30%" r="55%"><stop offset="0" stop-color="#fff" stop-opacity=".85"/><stop offset=".45" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
-      <pattern id="${id}s" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="2" cy="3" r=".7" fill="#fff" opacity=".9"/><circle cx="7" cy="7.5" r=".45" fill="#fff" opacity=".7"/></pattern>
-      <filter id="${id}n" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="7"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  12 0 0 0 -8"/><feComposite in2="SourceGraphic" operator="in"/></filter>
-    </defs>
-    <g ${clip ? `clip-path="url(#${id}c)"` : ""}>
-      <path d="${POUCH_D}" fill="url(#${id}b)"/>
-      <path d="${POUCH_D}" fill="url(#${id}h)" opacity=".55" style="mix-blend-mode:overlay"/>
-      <path d="${POUCH_D}" fill="url(#${id}h)" opacity=".28" style="mix-blend-mode:hard-light"/>
-      <path d="${POUCH_D}" fill="url(#${id}s)" opacity=".5"/>
-      <path class="glitter" d="${POUCH_D}" fill="#fff" filter="url(#${id}n)" opacity=".35" style="mix-blend-mode:screen"/>
-      <path d="${POUCH_SEAM}" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="1.4" stroke-dasharray="1.5 3" stroke-linejoin="round"/>
-      <path d="${POUCH_D}" fill="url(#${id}g)"/>
-      <path d="${POUCH_D}" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="1.2"/>
-      ${face}
-    </g>
-    ${side === "front" && part !== "top" ? `<path d="M${POUCH_TEAR_X[0] - 9} ${T - 4}l9 4-9 4z" fill="#fff" opacity=".9"/><path class="tear-guide" d="M${POUCH_TEAR_X[0]} ${T}H${POUCH_TEAR_X[1]}" stroke="#fff" stroke-width="1.6" stroke-dasharray="3 3" opacity=".9"/>` : ""}
-  </svg>`;
 }

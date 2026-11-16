@@ -52,7 +52,7 @@ function earnedBoxes() {
   for (let i = FOLIO_STEP; i <= visits.length; i += FOLIO_STEP) add("folio:" + i, "Портфолио", `${i} ${plural(i, "заход", "захода", "заходов")} людей в портфолио`, visits[i - 1]);
   return out;
 }
-const unopened = () => { const e = earnedBoxes(); if (!e) return null; const got = new Set(toys.opened.map(o => o.key)); return e.filter(b => !got.has(b.key)).sort((a, b) => (b.day || "").localeCompare(a.day || "")); };
+const unopened = () => { const e = earnedBoxes(); if (!e) return null; for (const b of e) b.series = seriesOf(b.key); const got = new Set(toys.opened.map(o => o.key)); return e.filter(b => !got.has(b.key)).sort((a, b) => (b.day || "").localeCompare(a.day || "")); };
 
 // the tab carries the number of boxes waiting; a box earned while the app is open says so right away
 function updateToyBadge() {
@@ -65,7 +65,8 @@ function updateToyBadge() {
 
 // a figure out of the box: common ones weigh 10, rare 4, the secret 1.5 (about 1 in 72, like real blind boxes);
 // every 10th box of a series is sure to bring a figure I don't have yet, while there are some left
-const rollSeries = () => TOY_SERIES[Math.floor(Math.random() * TOY_SERIES.length)].key;
+// a box gets its series from its key: random to me, unrelated to what it was for, the same on every visit
+const seriesOf = key => TOY_SERIES[toyHash("s" + key) % TOY_SERIES.length].key;
 function rollFigure(seriesKey) {
   const s = toySeries(seriesKey), mine = toys.opened.filter(o => o.series === seriesKey);
   const have = new Set(mine.map(o => o.figure)), missing = s.figures.filter(f => !have.has(f.id));
@@ -86,7 +87,7 @@ function renderToys() {
       <div class="stat"><b>${dups}</b><span>${plural(dups, "повторка", "повторки", "повторок")}</span></div>
       <div class="stat"><b>${list.length}</b><span>${plural(list.length, "коробка ждёт", "коробки ждут", "коробок ждут")}</span></div></div>`;
   $("toysBoxes").innerHTML = list.length ? `<h2 class="fsec">Ждут открытия</h2><div class="box-grid">${list.slice(0, 24).map(b =>
-    `<button type="button" class="box-card" data-box="${esc(b.key)}"><span class="box-tag">${esc(b.tag)}</span><span class="pouch-mini">${pouchSvg("pm" + toyHash(b.key), { tag: b.tag, animate: true })}</span><span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
+    `<button type="button" class="box-card" data-box="${esc(b.key)}"><span class="box-tag">${esc(b.tag)}</span><span class="tet-mini">${tetHtml(b.series, { S: 34, cls: "spin" })}</span><span class="box-series">${esc(toySeries(b.series).short)}</span><span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
     ${list.length > 24 ? `<p class="note">И ещё ${list.length - 24}. Открывай по одной или подряд, они никуда не денутся</p>` : ""}`
     : `<h2 class="fsec">Ждут открытия</h2><p class="note">Все коробки открыты. Следующая придёт за отклики, разобранные вакансии, собес, тестовое, новый этап, отказ или заходы в портфолио.</p>`;
   const counts = {}; for (const o of toys.opened) counts[o.series + ":" + o.figure] = (counts[o.series + ":" + o.figure] || 0) + 1;
@@ -107,7 +108,7 @@ function renderToys() {
       <li><b>Собес или тестовое в дневнике</b> — коробка за каждое</li>
       <li><b>Каждые 2 записи в дневнике и каждая достигнутая цель</b></li>
       <li><b>Каждые 4 захода людей в портфолио</b></li>
-      <li>Серия тоже сюрприз: она выпадает при открытии. В каждой серии 13 фигурок, одна из них секретная и очень редкая. Каждая 10-я коробка серии — точно новая фигурка, остальные могут быть повторками</li>
+      <li>Серию видно по цвету пирамидки, а какая фигурка внутри — сюрприз. Серия не зависит от того, за что дана коробка. В каждой серии 13 фигурок, одна из них секретная и очень редкая. Каждая 10-я коробка серии — точно новая фигурка, остальные могут быть повторками</li>
       <li>Считается всё с 16 ноября, когда появилась коллекция. За старт — 5 коробок</li></ul></details>`;
 }
 
@@ -140,28 +141,17 @@ class Spring {
   constructor(x, response = 0.5, bounce = 0) { this.x = this.to = x; this.v = 0; this.k = (2 * Math.PI / response) ** 2; this.c = 4 * Math.PI * (1 - bounce) / response; }
   step(h) { this.v += (this.k * (this.to - this.x) - this.c * this.v) * h; this.x += this.v * h; }
 }
-const pz = { rx: -8, ry: -18, vx: 0, vy: 0, drag: null, tear: 0, done: false, raf: 0, t0: 0, last: 0, tilt: new Spring(-8, 0.6, 0.35), squeeze: new Spring(1, 0.25, 0.5) };
+const pz = { rx: -14, ry: -28, vx: 0, drag: null, tear: 0, done: false, raf: 0, t0: 0, last: 0, tilt: new Spring(-14, 0.6, 0.35), squeeze: new Spring(1, 0.25, 0.5) };
 function openUnbox(key) {
   const list = unopened() || []; const b = list.find(x => x.key === key) || list[0]; if (!b) return;
   toys.cur = b; const u = $("unbox");
-  Object.assign(pz, { rx: -8, ry: -18, vx: 0, vy: 0, drag: null, tear: 0, done: false, t0: performance.now(), last: performance.now(), tilt: new Spring(-8, 0.6, 0.35), squeeze: new Spring(1, 0.25, 0.5) });
+  Object.assign(pz, { rx: -14, ry: -28, vx: 0, drag: null, tear: 0, done: false, t0: performance.now(), last: performance.now(), tilt: new Spring(-14, 0.6, 0.35), squeeze: new Spring(1, 0.25, 0.5) });
   u.innerHTML = `<div class="ub-card ub-sealed">
       <button class="btn icon-btn ub-close" type="button" data-ub="close" aria-label="Закрыть">✕</button>
       <button class="btn icon-btn ub-mute" type="button" data-ub="mute" aria-pressed="${muted}" aria-label="${muted ? "Включить звук" : "Выключить звук"}">${muted ? "🔇" : "🔊"}</button>
       <p class="ub-why"><span class="box-tag">${esc(b.tag)}</span><br>${esc(b.why)}</p>
-      <div class="pz-stage" id="pzStage">
-        <div class="pz-shadow" id="pzShadow"></div>
-        <div class="pz" id="pz">
-          <div class="pz-side pz-front">
-            <div class="pz-part pz-bottom">${pouchSvg("pzb", { tag: b.tag, part: "bottom" })}</div>
-            <div class="pz-part pz-top" id="pzTop">${pouchSvg("pzt", { tag: b.tag, part: "top" })}</div>
-            <svg class="pz-cut" viewBox="-12 0 224 220" aria-hidden="true"><path id="pzCut" d="M${POUCH_TEAR_X[0]} ${POUCH_TEAR_Y}H${POUCH_TEAR_X[1]}" stroke="#fff" stroke-width="2.6" stroke-linecap="round" fill="none" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/></svg>
-            <span class="pz-notch" aria-hidden="true"></span>
-          </div>
-          <div class="pz-side pz-back">${pouchSvg("pzk", { side: "back" })}</div>
-        </div>
-      </div>
-      <p class="ub-hint">Покрути пакетик · потяни за надрез сверху, чтобы открыть</p>
+      <div class="pz-stage" id="pzStage"><div class="pz-shadow" id="pzShadow"></div><div class="pz" id="pz">${tetHtml(b.series, { tag: b.tag, S: 86, cls: "live" })}</div><span class="pz-notch" aria-hidden="true"></span></div>
+      <p class="ub-hint">${esc(toySeries(b.series).name)} · покрути пирамидку и потяни верхний шов вбок, чтобы надорвать</p>
       <button type="button" class="btn ub-tap" data-ub="tear">Открыть одним нажатием</button></div>`;
   u.hidden = false; document.body.classList.add("ub-open");
   const stage = $("pzStage");
@@ -169,16 +159,11 @@ function openUnbox(key) {
   stage.addEventListener("pointerup", pzUp); stage.addEventListener("pointercancel", pzUp);
   cancelAnimationFrame(pz.raf); pz.raf = requestAnimationFrame(pzLoop);
 }
-// pointer position in the pouch's own 224×220 drawing, as seen on the front
-function pzLocal(e) {
-  const r = $("pz").getBoundingClientRect();
-  return { x: (e.clientX - r.left) / r.width * 224 - 12, y: (e.clientY - r.top) / r.height * 220 };
-}
-const facingFront = () => Math.cos(pz.ry * Math.PI / 180) > 0.35;
 function pzDown(e) {
   if (pz.done) return;
-  const p = pzLocal(e), nearTear = facingFront() && Math.abs(p.y - POUCH_TEAR_Y) < 26 && p.x > POUCH_TEAR_X[0] - 30 && p.x < POUCH_TEAR_X[1] + 20;
-  pz.drag = { mode: nearTear ? "tear" : "spin", x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now() };
+  const r = $("pzStage").getBoundingClientRect(), y = (e.clientY - r.top) / r.height;
+  const nearTear = y < 0.3; // the top seam: grab it and pull sideways to tear
+  pz.drag = { mode: nearTear ? "tear" : "spin", x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), p0: pz.tear };
   e.currentTarget.setPointerCapture(e.pointerId);
   pz.squeeze.to = nearTear ? 0.96 : 0.98; // the bag gives a little under the fingers
   if (!nearTear) sfx("crinkle");
@@ -187,27 +172,25 @@ function pzMove(e) {
   const d = pz.drag; if (!d) return;
   if (d.mode === "spin") {
     const dx = e.clientX - d.x, dy = e.clientY - d.y, dt = Math.max(16, performance.now() - d.t);
-    pz.ry += dx * 0.55; pz.rx = Math.max(-45, Math.min(45, pz.rx - dy * 0.4)); pz.tilt.x = pz.rx; pz.tilt.v = 0;
-    pz.vx = dx * 0.55 / dt * 16; pz.vy = -dy * 0.4 / dt * 16;
+    pz.ry += dx * 0.6; pz.rx = Math.max(-50, Math.min(40, pz.rx - dy * 0.4)); pz.tilt.x = pz.rx; pz.tilt.v = 0;
+    pz.vx = dx * 0.6 / dt * 16; d.vy = -dy * 0.4 / dt * 16;
     if (Math.abs(dx) + Math.abs(dy) > 18 && Math.random() < 0.25) sfx("crinkle");
   } else {
-    const p = pzLocal(e), t = Math.max(pz.tear, Math.min(1, (p.x - POUCH_TEAR_X[0]) / (POUCH_TEAR_X[1] - POUCH_TEAR_X[0])));
+    const t = Math.max(pz.tear, Math.min(1, d.p0 + Math.abs(e.clientX - d.sx) / 120));
     if (Math.floor(t * 10) > Math.floor(pz.tear * 10)) { sfx("tick"); buzz(4); }
     pz.tear = t; pzTearDraw();
-    if (t >= 0.96) finishTear();
+    if (t >= 0.97) finishTear();
   }
   d.x = e.clientX; d.y = e.clientY; d.t = performance.now();
 }
 function pzUp(e) {
   const d = pz.drag; pz.drag = null; pz.squeeze.to = 1; if (!d || pz.done) return;
-  if (d.mode === "spin") { pz.tilt.x = pz.rx; pz.tilt.v = pz.vy * 60; }
-  const moved = Math.hypot(e.clientX - d.sx, e.clientY - d.sy);
-  if (d.mode === "tear" && moved < 8) autoTear(); // a tap on the notch tears it by itself
+  if (d.mode === "spin") { pz.tilt.x = pz.rx; pz.tilt.v = (d.vy || 0) * 60; }
+  if (d.mode === "tear" && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 8) autoTear(); // a tap on the seam tears it by itself
 }
 function pzTearDraw() {
-  const cut = $("pzCut"), top = $("pzTop"); if (!cut || !top) return;
-  cut.style.strokeDashoffset = String(1 - pz.tear);
-  top.style.transform = `translateY(${-pz.tear * 4}px) rotate(${-pz.tear * 9}deg)`; // the corner lifts as it tears
+  const top = $("tetTop"); if (!top) return;
+  top.style.setProperty("--tear", pz.tear.toFixed(3)); // the cut runs along the seam, the fin lifts as it goes
 }
 function autoTear() {
   if (pz.done) return;
@@ -225,32 +208,25 @@ function pzLoop(now) {
   pz.squeeze.step(h);
   if (!pz.drag) { // the spin glides on and slows down; the tilt springs back to rest with a small bounce
     pz.ry += pz.vx; pz.vx *= 0.95;
-    // once the spin slows down, the bag swings back to show its front (a slight three-quarter turn), ready to tear
-    if (Math.abs(pz.vx) < 0.8) { const rest = Math.round((pz.ry + 18) / 360) * 360 - 18; pz.vx += (rest - pz.ry) * 0.01; pz.vx *= 0.9; }
     pz.tilt.step(h); pz.rx = pz.tilt.x;
-    if (!pz.done && Math.abs(pz.vx) < 0.05 && !reduced()) pz.ry += Math.sin((now - pz.t0) / 900) * 0.12; // idle sway
+    if (!pz.done && Math.abs(pz.vx) < 0.05 && !reduced()) pz.ry += Math.sin((now - pz.t0) / 900) * 0.15; // idle sway
   }
   const float = reduced() || pz.done ? 0 : Math.sin((now - pz.t0) / 700) * 5;
-  el.style.transform = `translateY(${float}px) rotateX(${pz.rx}deg) rotateY(${pz.ry}deg) scale(${pz.squeeze.x})`;
-  $("pzShadow").style.transform = `scale(${0.85 + Math.abs(Math.cos(pz.ry * Math.PI / 180)) * 0.15 - float / 60})`;
-  // the holographic stripes slide with the angle, the glare moves across like light on foil
-  const hx = (pz.ry % 360) * 1.4, hy = pz.rx * 2.2;
-  for (const g of el.querySelectorAll(".holo-grad")) g.setAttribute("gradientTransform", `translate(${hx} ${hy}) rotate(${pz.ry * 0.2})`);
-  const glint = 0.2 + Math.abs(Math.sin((pz.ry + pz.rx) * Math.PI / 90)) * 0.5; // glitter catches the light at some angles
-  for (const g of el.querySelectorAll(".glitter")) g.setAttribute("opacity", glint.toFixed(2));
-  for (const g of el.querySelectorAll(".glare-grad")) { g.setAttribute("cx", `${35 - Math.sin(pz.ry * Math.PI / 180) * 30}%`); g.setAttribute("cy", `${30 + pz.rx * 0.6}%`); }
+  el.style.transform = `translateY(${float}px) scale(${pz.squeeze.x})`;
+  el.firstElementChild.style.transform = `rotateX(${pz.rx}deg) rotateY(${pz.ry}deg)`;
+  $("pzShadow").style.transform = `scale(${1 - float / 60})`;
+  tetShade(el, pz.rx, pz.ry);
   pz.raf = requestAnimationFrame(pzLoop);
 }
 async function finishTear() {
   if (pz.done) return; pz.done = true; pz.tear = 1; pzTearDraw();
   sfx("rip"); buzz([12, 40, 22]);
-  const card = $("unbox").querySelector(".ub-card"); card.classList.add("pz-torn");
-  pz.vx = 0; pz.ry = Math.round(pz.ry / 360) * 360; // face front for the reveal
+  $("unbox").querySelector(".ub-card").classList.add("pz-torn");
+  pz.vx = 0;
   await tearBox();
 }
 async function tearBox() {
   const b = toys.cur; if (!b || toys.busy) return; toys.busy = true;
-  b.series = rollSeries(); // the series is a surprise too
   const f = rollFigure(b.series), before = toys.opened.filter(o => o.series === b.series && o.figure === f.id).length;
   const { error } = await sb.from("toy_boxes").insert({ key: b.key, series: b.series, figure: f.id });
   toys.busy = false;
