@@ -78,10 +78,12 @@ const BAG_CSS = `
 .bgm svg{position:relative;width:46%;height:auto;z-index:1}
 .bgm b{position:relative;z-index:1;font:900 8px/1 "Nunito","Arial Rounded MT Bold",system-ui,sans-serif;color:var(--ink);letter-spacing:.02em;-webkit-text-stroke:2.4px #fff;paint-order:stroke fill}
 @keyframes bgm-holo{to{background-position:100% 100%}}
+.bg-mini-img{display:block;width:98px;height:auto;margin:2px 0 0;animation:bg-sway 3.6s ease-in-out infinite;filter:drop-shadow(0 5px 6px rgb(80 60 110 / .2))}
+.box-card:nth-child(2n) .bg-mini-img{animation-delay:-1.4s}
 @keyframes bgm-glint{0%,100%{background-position:0 0,120% 0}50%{background-position:0 0,-20% 0}}
 .box-card:nth-child(2n) .bg-mini{animation-delay:-1.4s}
 @keyframes bg-sway{0%,100%{transform:rotate(-2deg) translateY(0)}50%{transform:rotate(2deg) translateY(-3px)}}
-@media (prefers-reduced-motion:reduce){.bg-fig.rise{transition:none}.bg-mini,.bgm-holo,.bgm::after{animation:none}}
+@media (prefers-reduced-motion:reduce){.bg-fig.rise{transition:none}.bg-mini,.bg-mini-img,.bgm-holo,.bgm::after{animation:none}}
 `;
 // the mascot on the sticker: a little round ghost with a star, holding a letter (our own, not anyone's character)
 const bagMascot = star => `<svg viewBox="0 0 80 70" aria-hidden="true">
@@ -367,7 +369,26 @@ function createBag(stage, P0, opts = {}) {
 // ---------- the app: one bag per series tint, the figure comes from tearBox() in toys.js ----------
 const BAG_TINT = { dubai: "#f6c9b9", spirits: "#bfc0ee", cats: "#e7bfe6", monsters: "#b9dcec" };
 const bagParams = series => ({ tint: BAG_TINT[series] || "#c9c3ef", subtitle: toySeries(series)?.name || "" });
-const bagMini = series => { if (typeof bag3dLoad === "function" && bag3dOk()) bag3dLoad().catch(() => {}); return bagMiniHtml({ ...BAG_DEFAULTS, ...bagParams(series) }); }; // fetch the 3D library while the list is on screen
+// the small bags in the list are pictures of the 3D bag itself (rendered once per series and kept); until the
+// picture is ready, and where there is no WebGL, a drawn look-alike stands in
+const bagStills = {};
+let bagStillBusy = false;
+async function bagStillRun() {
+  if (bagStillBusy || typeof bag3dStill !== "function" || !bag3dOk()) return; bagStillBusy = true;
+  try {
+    const THREE = await bag3dLoad();
+    for (let series; (series = Object.keys(bagStills).find(k => !bagStills[k]));) {
+      const url = await bag3dStill(THREE, { ...bagParams(series), sound: false }); bagStills[series] = url;
+      document.querySelectorAll(`[data-mini="${series}"]`).forEach(el => { el.outerHTML = `<img class="bg-mini-img" src="${url}" alt="">`; });
+    }
+  } catch (e) {}
+  bagStillBusy = false;
+}
+const bagMini = series => {
+  if (bagStills[series]) return `<img class="bg-mini-img" src="${bagStills[series]}" alt="">`;
+  if (!(series in bagStills)) { bagStills[series] = null; setTimeout(bagStillRun, 0); }
+  return bagMiniHtml({ ...BAG_DEFAULTS, ...bagParams(series) }).replace('<span class="bg-mini bgm"', `<span data-mini="${series}" class="bg-mini bgm"`);
+};
 let bagLive = null, bagSeries = null;
 function bagOpen(b) { bagSeries = b.series; return `<div id="bagStage"></div>`; }
 // the bag is real 3D where WebGL and the library are there, the flat bag otherwise

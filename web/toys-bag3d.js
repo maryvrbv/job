@@ -177,7 +177,7 @@ function createBag3D(THREE, stage, P0, opts = {}) {
   let mascotStar = null;
   function loadMascot() {
     mascotStar = P.star; const imgs = [false, true].map(cl => { const im = new Image(); im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(mascotSvg(cl)); return im; });
-    Promise.all(imgs.map(im => im.decode())).then(() => { mascot = imgs; build(); }).catch(() => {});
+    Promise.all(imgs.map(im => im.decode())).then(() => { mascot = imgs; build(); if (opts.still) snap(); }).catch(() => { if (opts.still) snap(); });
   }
   // the pillow: flat seams, the middle puffed out, the sides pulled in by the puff, a bump where the figure lies
   function shape(X, Y, side) {
@@ -349,7 +349,16 @@ function createBag3D(THREE, stage, P0, opts = {}) {
     if (geos) renderer.render(scene, camera);
     raf = requestAnimationFrame(frame);
   }
-  build(); if (P.mascot) loadMascot();
+  // a still picture of the bag at rest, for the small bags in the list: the same render, cropped to the bag
+  function snap() {
+    const w = stage.clientWidth || 340, h = stage.clientHeight || 360, rw = Math.round(P.w * 1.14), rh = Math.round(P.h * 1.1), cx = w / 2, cy = 70 + P.h / 2;
+    resize(); root.position.set(0, (S.cy || 0) - 0.1 * P.h, 0); inner.position.y = 0.1 * P.h; pack.rotation.set(6 * D2R, -14 * D2R, 1.5 * D2R, "XYZ");
+    camera.setViewOffset(w, h, cx - rw / 2, cy - rh / 2, rw, rh); renderer.setPixelRatio(2); renderer.setSize(rw, rh, false);
+    renderer.render(scene, camera); opts.onStill?.(renderer.domElement.toDataURL("image/png"));
+  }
+  build();
+  if (opts.still) { if (P.mascot) loadMascot(); else snap(); return { destroy() { ro.disconnect(); Object.values(geos || {}).forEach(g => g.dispose()); Object.values(mats || {}).forEach(m => m.dispose()); Object.values(maps || {}).forEach(t => t.dispose()); scene.environment?.dispose(); renderer.dispose(); renderer.forceContextLoss(); } }; }
+  if (P.mascot) loadMascot();
   raf = requestAnimationFrame(frame);
   return {
     tear: auto, setFigure: html => { fig.innerHTML = html; },
@@ -361,4 +370,10 @@ function createBag3D(THREE, stage, P0, opts = {}) {
       scene.environment?.dispose(); renderer.dispose(); renderer.forceContextLoss(); stage.classList.remove("bg3d");
     },
   };
+}
+
+// bag3dStill(THREE, P) renders one bag off screen and resolves with a PNG of it
+function bag3dStill(THREE, P) {
+  const host = document.createElement("div"); host.style.cssText = "position:fixed;left:-10000px;top:0;width:340px;height:360px;pointer-events:none"; document.body.append(host);
+  return new Promise(res => { let b = null; const done = url => { setTimeout(() => { b?.destroy(); host.remove(); }, 0); res(url); }; b = createBag3D(THREE, host, P, { still: true, onStill: done }); });
 }
