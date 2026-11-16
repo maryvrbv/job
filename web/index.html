@@ -109,6 +109,7 @@
     <button type="button" role="tab" data-v="dash" aria-selected="false">Дашборд</button>
     <button type="button" role="tab" data-v="diary" aria-selected="false"><span class="long">Дорогой дневник</span><span class="short">Дневник</span></button>
     <button type="button" role="tab" data-v="folio" aria-selected="false">Портфолио</button>
+    <button type="button" role="tab" data-v="toys" aria-selected="false"><span class="long">Коллекция</span><span class="short">Призы</span><span class="tbadge" id="toysBadge" hidden></span></button>
   </div>
   <div class="tabs" role="tablist" id="tabs"></div>
   <p class="intro" id="intro"></p>
@@ -140,6 +141,12 @@
     <div class="panel-card" id="folioTags"></div>
   </section>
 
+  <section class="toys" id="toys" aria-label="Коллекция фигурок" hidden>
+    <div id="toysHead"></div>
+    <div class="fsec-wrap" id="toysBoxes"></div>
+    <div class="shelves" id="toysShelves"></div>
+  </section>
+
   <aside class="gsheet" id="guestSheet" aria-label="История гостя"></aside>
 
   <section class="diary" id="diary" aria-label="Дорогой дневник" hidden>
@@ -151,6 +158,11 @@
     <form class="diary-form" id="diaryForm">
       <label class="lbl" for="diaryText">Новая запись</label>
       <textarea id="diaryText" required placeholder="Что получилось сделать? Маленькие шаги тоже считаются"></textarea>
+      <div class="prio kinds" role="radiogroup" aria-label="Что это было">
+        <label><input type="radio" name="kind-new" value="" checked><span>Обычная</span></label>
+        <label><input type="radio" name="kind-new" value="interview"><span>Был собес</span></label>
+        <label><input type="radio" name="kind-new" value="test"><span>Тестовое</span></label>
+      </div>
       <label class="check"><input type="checkbox" id="diaryGoal"> Это цель</label>
       <div class="goal-fields" id="diaryGoalFields" hidden>
         <span class="lbl">Приоритет</span>
@@ -210,10 +222,13 @@
 </div>
 <div class="backdrop" id="backdrop" hidden></div>
 <div class="toast" id="toast" hidden></div>
+<div class="unbox" id="unbox" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.8/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <script src="profile.js"></script>
+<script src="toys-art.js"></script>
 <script src="app.js"></script>
+<script src="toys.js"></script>
 </body>
 </html>

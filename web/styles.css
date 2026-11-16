@@ -275,6 +275,7 @@ header.top{align-items:center}
 /* Top level switch: Вакансии / Дашборд, two equal halves */
 .segmented{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:4px;background:var(--line);border-radius:14px;width:720px;max-width:100%}
 .segmented .short{display:none}
+#views{grid-template-columns:repeat(5,minmax(0,1fr));width:860px}
 .segmented button{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0;background:none;border-radius:10px;padding:9px 12px;font-weight:500;cursor:pointer;color:var(--muted);text-align:center}
 .segmented button:hover{color:var(--fg)}
 .segmented button{position:relative;z-index:1;transition:color .2s ease}
@@ -328,6 +329,9 @@ i.l0{background:var(--sunken)} i.l1{background:#C9B5F8} i.l2{background:#A783F3}
 .linkbtn.danger{color:var(--bad)}
 @media (max-width:860px){
   .segmented{grid-template-columns:repeat(4,auto)}
+  #views{grid-template-columns:repeat(5,auto);gap:2px}
+  #views button{padding:9px 3px;font-size:13px;text-overflow:clip}
+  #views .tbadge{margin-left:2px;min-width:16px;height:16px;line-height:16px;padding:0 4px}
   .segmented .long{display:none} .segmented .short{display:inline}
   .segmented button{padding:9px 6px;font-size:14px}
   .activity{padding:14px}
@@ -575,3 +579,76 @@ i.bot{background:#D9D3E6}
 .who b{font-weight:500;font-size:14px;color:var(--accent)}
 .who:disabled b{color:var(--fg)}
 .who small{font-size:12px;color:var(--muted)}
+
+/* ---------- «Коллекция»: blind boxes and the shelf ---------- */
+.tbadge{display:inline-block;min-width:18px;height:18px;line-height:18px;padding:0 5px;margin-left:5px;border-radius:9px;background:#ff5c7a;color:#fff;font-size:11px;font-weight:700;vertical-align:1px}
+.toys{display:flex;flex-direction:column;gap:14px}
+.toy-stats .stat b small{color:var(--muted);background:none;padding:0;margin-left:4px}
+.box-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.box-card{border:0;background:var(--surface);border-radius:var(--r);padding:12px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;text-align:center;transition:transform .15s ease}
+.box-card:hover{transform:translateY(-3px)}
+.box-card .tbox{width:96px;height:auto}
+.box-series{font-size:12px;font-weight:600;color:var(--accent)}
+.box-why{font-size:13px;color:var(--fg);line-height:1.35}
+.tbox.idle{animation:tb-bob 3s ease-in-out infinite}
+.box-card:nth-child(2n) .tbox.idle{animation-delay:-1.2s}.box-card:nth-child(3n) .tbox.idle{animation-delay:-2s}
+@keyframes tb-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.shelves{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
+.shelf-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.shelf-head h3{margin:0;font-size:17px}
+.shelf-n{font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums}
+.shelf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px;margin-top:6px}
+.slot{position:relative;border:0;background:var(--sunken);border-radius:var(--r-sm);padding:6px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;min-width:0}
+.slot .toy{width:100%;max-width:72px;height:auto}
+.slot.rare:not(.empty){background:linear-gradient(160deg,#efe6ff,#e3f0ff)}
+.slot.secret:not(.empty){background:linear-gradient(160deg,#fff4cc,#ffe2a8)}
+.slot.empty{cursor:default;aspect-ratio:auto}
+.slot-q{display:flex;align-items:center;justify-content:center;width:100%;max-width:72px;aspect-ratio:120/150;font-size:28px;font-weight:800;color:var(--line);border:2px dashed var(--line);border-radius:10px}
+.slot.secret .slot-q{color:#e2b23a;border-color:#f0d58a}
+.slot-name{font-size:11px;line-height:1.2;color:var(--muted);text-align:center;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.slot-x{position:absolute;top:4px;right:4px;font-size:11px;font-weight:700;background:var(--fg);color:var(--bg);border-radius:8px;padding:0 5px}
+.toy-rules summary{cursor:pointer;font-weight:600}
+.toy-rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.45}
+.prio.kinds{margin-bottom:2px}
+.prio.kinds input:checked + span{background:var(--surface);color:var(--accent);font-weight:600}
+.gtag.kind{background:var(--accent-soft);color:var(--accent)}
+
+/* the unboxing: a dark stage, the box wiggles, the lid flies off, the figure jumps out with light and confetti */
+body.ub-open{overflow:hidden}
+.unbox{position:fixed;inset:0;z-index:40;background:rgb(20 14 36 / .82);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px}
+.unbox[hidden]{display:none}
+.ub-card{position:relative;width:min(420px,100%);background:var(--surface);border-radius:28px;padding:22px 20px 22px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;box-shadow:0 30px 80px rgb(0 0 0 / .35)}
+.ub-close{position:absolute;top:10px;right:10px}
+.ub-why{margin:18px 0 0;font-weight:600;font-size:16px;max-width:30ch}
+.ub-hint{margin:0;color:var(--muted);font-size:13px}
+.ub-box{border:0;background:none;padding:0;cursor:pointer}
+.ub-box .tbox{width:200px;height:auto;overflow:visible}
+.tbox.wiggle{animation:tb-wiggle 2.4s ease-in-out infinite;transform-origin:50% 90%}
+@keyframes tb-wiggle{0%,70%,100%{transform:rotate(0)}74%{transform:rotate(-6deg)}78%{transform:rotate(5deg)}82%{transform:rotate(-4deg)}86%{transform:rotate(3deg)}90%{transform:rotate(0)}}
+.ub-tearing .tbox{animation:tb-shake .5s ease-in-out}
+.ub-tearing .tbox-lid{animation:tb-lid .9s cubic-bezier(.3,1.4,.6,1) forwards;transform-origin:60px 45px}
+.ub-tearing .tbox-body{animation:tb-drop .9s ease-in forwards}
+@keyframes tb-shake{0%,100%{transform:none}20%{transform:rotate(-8deg) scale(1.04)}40%{transform:rotate(8deg) scale(1.06)}60%{transform:rotate(-6deg) scale(1.06)}80%{transform:rotate(4deg) scale(1.08)}}
+@keyframes tb-lid{0%,45%{transform:none}100%{transform:translate(40px,-120px) rotate(35deg);opacity:0}}
+@keyframes tb-drop{0%,55%{transform:none;opacity:1}100%{transform:translateY(30px) scale(.9);opacity:0}}
+.ub-stage{position:relative;width:240px;height:260px;display:flex;align-items:center;justify-content:center;margin-top:10px}
+.ub-fig{position:relative;width:190px;height:auto;z-index:2;animation:ub-pop .7s cubic-bezier(.2,1.6,.4,1) both}
+.still .ub-fig{animation:none}
+@keyframes ub-pop{0%{transform:translateY(60px) scale(.2);opacity:0}100%{transform:none;opacity:1}}
+.ub-rays{position:absolute;inset:-20px;border-radius:50%;background:repeating-conic-gradient(from 0deg,var(--ray) 0 10deg,transparent 10deg 20deg);-webkit-mask:radial-gradient(circle,#000 25%,transparent 68%);mask:radial-gradient(circle,#000 25%,transparent 68%);animation:ub-spin 14s linear infinite;opacity:.9}
+.ub-reveal.common{--ray:#ffe7f0}
+.ub-reveal.rare{--ray:#e4d4ff}
+.ub-reveal.secret{--ray:#ffe08a;background:linear-gradient(180deg,#fffaf0,#fff)}
+@keyframes ub-spin{to{transform:rotate(360deg)}}
+.ub-confetti{position:absolute;left:50%;top:50%;z-index:3;pointer-events:none}
+.ub-confetti i{position:absolute;width:8px;height:12px;border-radius:2px;background:var(--c);transform:rotate(var(--a)) translateY(0);opacity:0;animation:ub-conf 1.2s ease-out var(--t) forwards}
+@keyframes ub-conf{0%{opacity:1;transform:rotate(var(--a)) translateY(0)}100%{opacity:0;transform:rotate(var(--a)) translateY(calc(-1 * var(--d) - 40px)) rotate(200deg)}}
+.ub-badge{margin:4px 0 0;font-size:13px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:3px 12px}
+.secret .ub-badge{color:#8a5a00;background:#ffe9a8}
+.ub-name{margin:2px 0 0;font-size:24px;letter-spacing:-.01em}
+.ub-line{margin:0;max-width:32ch;line-height:1.45}
+.ub-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:10px}
+.ub-actions .btn{background:var(--sunken)}
+.ub-actions .btn.primary{background:var(--lime);color:var(--lime-ink)}
+@media (prefers-reduced-motion:reduce){.tbox.idle,.tbox.wiggle,.ub-rays,.ub-fig,.ub-confetti i,.ub-tearing .tbox,.ub-tearing .tbox-lid,.ub-tearing .tbox-body{animation:none!important}}
+@media (max-width:640px){.box-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.shelves{grid-template-columns:1fr}.shelf-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
