@@ -87,7 +87,7 @@ function renderToys() {
       <div class="stat"><b>${dups}</b><span>${plural(dups, "повторка", "повторки", "повторок")}</span></div>
       <div class="stat"><b>${list.length}</b><span>${plural(list.length, "коробка ждёт", "коробки ждут", "коробок ждут")}</span></div></div>`;
   $("toysBoxes").innerHTML = list.length ? `<h2 class="fsec">Ждут открытия</h2><div class="box-grid">${list.slice(0, 24).map(b =>
-    `<button type="button" class="box-card" data-box="${esc(b.key)}"><span class="box-tag">${esc(b.tag)}</span><span class="tet-mini">${tetHtml(b.series, { S: 34, cls: "spin" })}</span><span class="box-series">${esc(toySeries(b.series).short)}</span><span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
+    `<button type="button" class="box-card" data-box="${esc(b.key)}"><span class="box-tag">${esc(b.tag)}</span><span class="box-mini">${boxHtml(b.series, { S: 52, cls: "spin" })}</span><span class="box-series">${esc(toySeries(b.series).short)}</span><span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
     ${list.length > 24 ? `<p class="note">И ещё ${list.length - 24}. Открывай по одной или подряд, они никуда не денутся</p>` : ""}`
     : `<h2 class="fsec">Ждут открытия</h2><p class="note">Все коробки открыты. Следующая придёт за отклики, разобранные вакансии, собес, тестовое, новый этап, отказ или заходы в портфолио.</p>`;
   const counts = {}; for (const o of toys.opened) counts[o.series + ":" + o.figure] = (counts[o.series + ":" + o.figure] || 0) + 1;
@@ -108,7 +108,7 @@ function renderToys() {
       <li><b>Собес или тестовое в дневнике</b> — коробка за каждое</li>
       <li><b>Каждые 2 записи в дневнике и каждая достигнутая цель</b></li>
       <li><b>Каждые 4 захода людей в портфолио</b></li>
-      <li>Серию видно по цвету пирамидки, а какая фигурка внутри — сюрприз. Серия не зависит от того, за что дана коробка. В каждой серии 13 фигурок, одна из них секретная и очень редкая. Каждая 10-я коробка серии — точно новая фигурка, остальные могут быть повторками</li>
+      <li>Серию видно по цвету коробочки, а какая фигурка внутри — сюрприз. Серия не зависит от того, за что дана коробка. В каждой серии 13 фигурок, одна из них секретная и очень редкая. Каждая 10-я коробка серии — точно новая фигурка, остальные могут быть повторками</li>
       <li>Считается всё с 16 ноября, когда появилась коллекция. За старт — 5 коробок</li></ul></details>`;
 }
 
@@ -150,8 +150,8 @@ function openUnbox(key) {
       <button class="btn icon-btn ub-close" type="button" data-ub="close" aria-label="Закрыть">✕</button>
       <button class="btn icon-btn ub-mute" type="button" data-ub="mute" aria-pressed="${muted}" aria-label="${muted ? "Включить звук" : "Выключить звук"}">${muted ? "🔇" : "🔊"}</button>
       <p class="ub-why"><span class="box-tag">${esc(b.tag)}</span><br>${esc(b.why)}</p>
-      <div class="pz-stage" id="pzStage"><div class="pz-shadow" id="pzShadow"></div><div class="pz" id="pz">${tetHtml(b.series, { tag: b.tag, S: 86, cls: "live" })}</div><span class="pz-notch" aria-hidden="true"></span></div>
-      <p class="ub-hint">${esc(toySeries(b.series).name)} · покрути пирамидку и потяни верхний шов вбок, чтобы надорвать</p>
+      <div class="pz-stage" id="pzStage"><div class="pz-shadow" id="pzShadow"></div><div class="pz" id="pz">${boxHtml(b.series, { tag: b.tag, S: 128, cls: "live" })}</div><span class="pz-notch" aria-hidden="true"></span></div>
+      <p class="ub-hint">${esc(toySeries(b.series).name)} · покрути коробочку и потяни крышку вверх, чтобы открыть</p>
       <button type="button" class="btn ub-tap" data-ub="tear">Открыть одним нажатием</button></div>`;
   u.hidden = false; document.body.classList.add("ub-open");
   const stage = $("pzStage");
@@ -162,7 +162,7 @@ function openUnbox(key) {
 function pzDown(e) {
   if (pz.done) return;
   const r = $("pzStage").getBoundingClientRect(), y = (e.clientY - r.top) / r.height;
-  const nearTear = y < 0.3; // the top seam: grab it and pull sideways to tear
+  const nearTear = y < 0.36; // the lid: grab it and pull up to open
   pz.drag = { mode: nearTear ? "tear" : "spin", x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), p0: pz.tear };
   e.currentTarget.setPointerCapture(e.pointerId);
   pz.squeeze.to = nearTear ? 0.96 : 0.98; // the bag gives a little under the fingers
@@ -176,8 +176,8 @@ function pzMove(e) {
     pz.vx = dx * 0.6 / dt * 16; d.vy = -dy * 0.4 / dt * 16;
     if (Math.abs(dx) + Math.abs(dy) > 18 && Math.random() < 0.25) sfx("crinkle");
   } else {
-    const t = Math.max(pz.tear, Math.min(1, d.p0 + Math.abs(e.clientX - d.sx) / 120));
-    if (Math.floor(t * 10) > Math.floor(pz.tear * 10)) { sfx("tick"); buzz(4); }
+    const t = Math.max(0, Math.min(1, d.p0 + (d.sy - e.clientY) / 130)); // pull up opens, push down closes
+    if (Math.floor(t * 8) !== Math.floor(pz.tear * 8)) { sfx("tick"); buzz(3); }
     pz.tear = t; pzTearDraw();
     if (t >= 0.97) finishTear();
   }
@@ -186,11 +186,19 @@ function pzMove(e) {
 function pzUp(e) {
   const d = pz.drag; pz.drag = null; pz.squeeze.to = 1; if (!d || pz.done) return;
   if (d.mode === "spin") { pz.tilt.x = pz.rx; pz.tilt.v = (d.vy || 0) * 60; }
-  if (d.mode === "tear" && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 8) autoTear(); // a tap on the seam tears it by itself
+  if (d.mode === "tear") {
+    if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 8 || pz.tear > 0.55) autoTear(); // a tap, or a lid lifted past halfway, opens all the way
+    else closeLid(); // let go early: the lid drops back shut
+  }
 }
 function pzTearDraw() {
-  const top = $("tetTop"); if (!top) return;
-  top.style.setProperty("--tear", pz.tear.toFixed(3)); // the cut runs along the seam, the fin lifts as it goes
+  const box = $("pz")?.firstElementChild; if (!box) return;
+  box.style.setProperty("--open", pz.tear.toFixed(3)); // the lid swings on its back hinge, light comes out from inside
+}
+function closeLid() {
+  const from = pz.tear, t0 = performance.now();
+  const step = now => { const k = Math.min(1, (now - t0) / 260); pz.tear = from * (1 - k * k); pzTearDraw(); if (k < 1 && !pz.done) requestAnimationFrame(step); else if (!pz.done) sfx("tick"); };
+  requestAnimationFrame(step);
 }
 function autoTear() {
   if (pz.done) return;
@@ -215,7 +223,7 @@ function pzLoop(now) {
   el.style.transform = `translateY(${float}px) scale(${pz.squeeze.x})`;
   el.firstElementChild.style.transform = `rotateX(${pz.rx}deg) rotateY(${pz.ry}deg)`;
   $("pzShadow").style.transform = `scale(${1 - float / 60})`;
-  tetShade(el, pz.rx, pz.ry);
+  boxShade(el, pz.rx, pz.ry);
   pz.raf = requestAnimationFrame(pzLoop);
 }
 async function finishTear() {

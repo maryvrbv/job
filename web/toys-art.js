@@ -347,61 +347,63 @@ function boxSvg(seriesKey, cls = "") {
       <path d="M60 36q-18-22-26-8q4 8 26 8zM60 36q18-22 26-8q-4 8-26 8z" fill="${a}" stroke="${toyMix(a, -0.3)}" stroke-width="1.5"/><circle cx="60" cy="35" r="4" fill="${toyMix(a, -0.2)}"/></g></svg>`;
 }
 
-// ---------- the pyramid: a tetra blind bag (like a tetra pack) with two scalloped sealed seams ----------
-// Real 3D in CSS: four triangular faces placed with matrix3d, a sealed fin along the bottom edge (across) and one
-// along the top edge (front to back). Each face catches light by its own angle, so the foil shimmers as it turns.
-// The tint tells the series: a box knows its series from the start, the figure stays a surprise.
-const TOY_TINT = { dubai: ["#ffd79a", "#ff8a5c"], spirits: ["#b9c8ff", "#7b68ff"], cats: ["#ffc8e4", "#ff78b8"], monsters: ["#b8f5c8", "#3fc1c9"] };
-const TET_A = 1, TET_H = 1.04; // half the seam length and half the height, in units of the size S
-function tetFaces(S) {
-  const v = { L: [-TET_A, TET_H, 0], R: [TET_A, TET_H, 0], K: [0, -TET_H, -TET_A], F: [0, -TET_H, TET_A] };
-  const sub = (p, q) => p.map((x, i) => x - q[i]), add = (p, q) => p.map((x, i) => x + q[i]), mul = (p, k) => p.map(x => x * k);
-  const dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2], cross = (p, q) => [p[1] * q[2] - p[2] * q[1], p[2] * q[0] - p[0] * q[2], p[0] * q[1] - p[1] * q[0]];
-  const len = p => Math.hypot(...p);
-  return [["front", "F", "R", "L"], ["back", "K", "L", "R"], ["left", "L", "F", "K"], ["right", "R", "K", "F"]].map(([name, a, b, c]) => {
-    let A = mul(v[a], S), B = mul(v[b], S), C = mul(v[c], S);
-    const build = (B, C) => {
-      const W = len(sub(B, C)), cx = mul(sub(B, C), 1 / W), mid = add(C, mul(cx, W / 2)), H = len(sub(A, mid));
-      const cy = mul(sub(mid, A), 1 / H), n = cross(cx, cy), T = sub(C, mul(cy, H)); // element (0,0) is above C by H
-      return { W, H, cx, cy, n, T };
-    };
-    let f = build(B, C);
-    const centroid = mul(add(add(A, B), C), 1 / 3);
-    if (dot(f.n, centroid) < 0) f = build(C, B); // front side of the element must face outwards
-    const m = [...f.cx, 0, ...f.cy, 0, ...f.n, 0, ...f.T, 1].map(x => +x.toFixed(4)).join(",");
-    return { name, W: f.W, H: f.H, n: f.n, m };
-  });
+// ---------- the box: a pastel blind box cube in CSS 3D, with a hinged lid ----------
+// Six faces in real 3D; each face catches light by its own angle, so the foil sheen shimmers while it turns.
+// The tint tells the series (a box knows it from its key); the figure inside stays a surprise.
+const TOY_TINT = { dubai: ["#ffd9b8", "#ffb3c7"], spirits: ["#cfd2ff", "#b9a4ff"], cats: ["#ffd3ea", "#e7b8ff"], monsters: ["#c9f3e4", "#b7c6ff"] };
+const BOX_INK = { dubai: "#7a3fb8", spirits: "#4b3cc4", cats: "#8a3fb0", monsters: "#3f5fc0" };
+const CLOUD = (x, y, k = 1, o = 0.9) => `<path transform="translate(${x} ${y}) scale(${k})" d="M6 18a8 8 0 0 1 2-15.6A10 10 0 0 1 27 2a7.5 7.5 0 0 1 9 8 6 6 0 0 1-2 11.8H8A6 6 0 0 1 6 18z" fill="#fff" opacity="${o}" stroke="#bcd0ff" stroke-width="1.2"/>`;
+const QMARK = (x, y, k = 1, c = "#ffd166", r = 0) => `<text x="${x}" y="${y}" font-family="'Arial Rounded MT Bold',system-ui,sans-serif" font-size="${18 * k}" font-weight="900" fill="${c}" stroke="#f4a261" stroke-width="${0.8 * k}" paint-order="stroke" transform="rotate(${r} ${x} ${y})">?</text>`;
+const SPARK = (x, y, k = 1) => `<path transform="translate(${x} ${y}) scale(${k})" d="M0-6l1.4 4.6L6 0l-4.6 1.4L0 6l-1.4-4.6L-6 0l4.6-1.4z" fill="#fff7d1"/>`;
+function boxFaceArt(name, tag, ink) {
+  const t = (tag || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  if (name === "front") return `<svg viewBox="0 0 100 115" preserveAspectRatio="none">${CLOUD(8, 8, .55)}${CLOUD(64, 78, .62, .8)}${QMARK(74, 26, .8, "#ffd166", 12)}${QMARK(10, 98, .7, "#ffd166", -10)}${SPARK(20, 40, .6)}${SPARK(86, 58, .5)}${SPARK(60, 14, .45)}
+      <text x="50" y="56" text-anchor="middle" font-family="'Arial Rounded MT Bold',system-ui,sans-serif" font-size="17" font-weight="900" fill="${ink}" letter-spacing=".5">BLIND</text>
+      <text x="50" y="74" text-anchor="middle" font-family="'Arial Rounded MT Bold',system-ui,sans-serif" font-size="17" font-weight="900" fill="${ink}" letter-spacing=".5">BOX</text>
+      <text x="50" y="89" text-anchor="middle" font-family="system-ui,sans-serif" font-size="${t.length > 12 ? 6.2 : 7.4}" font-weight="800" fill="#f2b84b" letter-spacing="1">${t ? t.toUpperCase() : "MYSTERY"}</text></svg>`;
+  if (name === "back") return `<svg viewBox="0 0 100 115" preserveAspectRatio="none">${CLOUD(54, 10, .6)}${QMARK(14, 30, .8, "#ffd166", -8)}${SPARK(80, 48, .55)}
+      <text x="50" y="62" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5" font-weight="800" fill="${ink}">сюрприз внутри</text>
+      <text x="50" y="74" text-anchor="middle" font-family="system-ui,sans-serif" font-size="5.6" fill="${ink}" opacity=".75">1 фигурка · 13 в серии · 1 секретная</text>
+      <g fill="${ink}" opacity=".6">${[0, 2, 3.5, 6, 7.5, 9.5, 12, 13.5, 15.5, 18, 19.5, 21].map((x, i) => `<rect x="${39 + x}" y="84" width="${i % 3 ? .9 : 1.6}" height="12"/>`).join("")}</g></svg>`;
+  if (name === "left" || name === "right") return `<svg viewBox="0 0 100 115" preserveAspectRatio="none">${CLOUD(name === "left" ? 14 : 50, 16, .62)}${QMARK(name === "left" ? 66 : 18, 64, 1.2, "#ffd166", name === "left" ? 10 : -12)}${SPARK(30, 92, .7)}${SPARK(80, 34, .5)}${CLOUD(name === "left" ? 52 : 10, 86, .5, .75)}
+      <text x="50" y="${name === "left" ? 108 : 108}" text-anchor="middle" font-family="'Arial Rounded MT Bold',system-ui,sans-serif" font-size="9" font-weight="900" fill="${ink}" opacity=".8">BLIND BOX</text></svg>`;
+  if (name === "top") return `<svg viewBox="0 0 100 100" preserveAspectRatio="none">${CLOUD(26, 34, .95)}${SPARK(18, 18, .6)}${SPARK(82, 76, .6)}${QMARK(74, 30, .7, "#ffd166", 14)}</svg>`;
+  return "";
 }
-const SCALLOP = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="14" height="16"><path d="M0 0h14v10q-3.5 6-7 0t-7 0z" fill="#fff"/></svg>');
-const SCALLOP_UP = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="14" height="16"><path d="M0 16h14V6q-3.5-6-7 0t-7 0z" fill="#fff"/></svg>');
-function tetHtml(series, { tag = "", S = 86, cls = "" } = {}) {
-  const [c1, c2] = TOY_TINT[series] || TOY_TINT.cats, seam = 2 * TET_A * S + 22;
-  const face = f => {
-    const content = f.name === "front"
-      ? `<svg class="tf-art" viewBox="0 0 100 86" preserveAspectRatio="none"><g transform="translate(50 52)"><circle cx="-9" cy="-4" r="2.6" fill="#3a2a4f"/><circle cx="9" cy="-4" r="2.6" fill="#3a2a4f"/><circle cx="-9.8" cy="-4.9" r=".9" fill="#fff"/><circle cx="8.2" cy="-4.9" r=".9" fill="#fff"/><path d="M-3 1q3 3 6 0" stroke="#3a2a4f" stroke-width="1.3" fill="none" stroke-linecap="round"/><ellipse cx="-15" cy="1.5" rx="3.4" ry="2" fill="#ff6fa3" opacity=".45"/><ellipse cx="15" cy="1.5" rx="3.4" ry="2" fill="#ff6fa3" opacity=".45"/></g>
-         <text x="50" y="69" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="5.2" font-weight="600" fill="#4a3b66" opacity=".7" letter-spacing=".3">blind box</text>${tag ? `<text x="50" y="78" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="7" font-weight="800" fill="#3d25b0">${tag.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text>` : ""}</svg>`
-      : f.name === "back" ? `<svg class="tf-art" viewBox="0 0 100 86" preserveAspectRatio="none"><text x="50" y="58" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="6" font-weight="700" fill="#4a3b66" opacity=".75">сюрприз внутри</text><g fill="#4a3b66" opacity=".5">${[0, 2, 3.5, 6, 7.5, 9.5, 12, 13.5, 15.5, 18, 19.5, 21].map((x, i) => `<rect x="${39 + x}" y="64" width="${i % 3 ? .9 : 1.5}" height="9"/>`).join("")}</g></svg>` : "";
-    return `<div class="tf tf-${f.name}" style="width:${f.W.toFixed(1)}px;height:${f.H.toFixed(1)}px;transform:matrix3d(${f.m})" data-n="${f.n.map(x => x.toFixed(3)).join(" ")}"><i class="tf-holo"></i><i class="tf-glit"></i>${content}<i class="tf-light"></i></div>`;
-  };
-  return `<div class="tet ${cls}" style="--c1:${c1};--c2:${c2};--seam:${seam.toFixed(0)}px;--h:${(TET_H * S).toFixed(1)}px">
-    ${tetFaces(S).map(face).join("")}
-    <div class="tfin tfin-bottom" style="width:${seam.toFixed(0)}px;--scal:url('${SCALLOP}')"></div>
-    <div class="tfin tfin-top" ${cls.includes("live") ? 'id="tetTop"' : ""} style="width:${seam.toFixed(0)}px;--scal:url('${SCALLOP_UP}')"><i class="tfin-cut"></i></div>
+// a face: tinted card stock, the art, a soft foil sheen and the light that follows its angle
+function boxFace(name, W, H, transform, n, art, origin = "50% 50%") {
+  return `<div class="bf bf-${name}" style="width:${W}px;height:${H}px;margin:${-H / 2}px 0 0 ${-W / 2}px;transform:${transform};transform-origin:${origin}" data-n="${n}"><i class="bf-holo"></i>${art}<i class="bf-light"></i></div>`;
+}
+function boxHtml(series, { tag = "", S = 140, cls = "" } = {}) {
+  const [c1, c2] = TOY_TINT[series] || TOY_TINT.cats, ink = BOX_INK[series] || "#4b3cc4";
+  const W = S, D = S, H = Math.round(S * 1.12);
+  const f = (name, w, h, tr, n) => boxFace(name, w, h, tr, n, boxFaceArt(name, tag, ink));
+  return `<div class="box3d ${cls}" style="--c1:${c1};--c2:${c2};--w:${W}px;--h:${H}px;--d:${D}px">
+    ${f("front", W, H, `translateZ(${D / 2}px)`, "0 0 1")}
+    ${f("back", W, H, `rotateY(180deg) translateZ(${D / 2}px)`, "0 0 -1")}
+    ${f("right", D, H, `rotateY(90deg) translateZ(${W / 2}px)`, "1 0 0")}
+    ${f("left", D, H, `rotateY(-90deg) translateZ(${W / 2}px)`, "-1 0 0")}
+    ${f("bottom", W, D, `rotateX(-90deg) translateZ(${H / 2}px)`, "0 1 0")}
+    <div class="bx-inside" style="width:${W - 2}px;height:${D - 2}px;margin:${-(D - 2) / 2}px 0 0 ${-(W - 2) / 2}px;transform:rotateX(90deg) translateZ(${H / 2 - 2}px)"></div>
+    <div class="bx-lid" ${cls.includes("live") ? 'id="boxLid"' : ""} style="transform:translate3d(0,${-H / 2}px,${-D / 2}px) rotateX(calc(var(--open, 0) * 118deg))">
+      <div class="bf bf-top" style="width:${W}px;height:${D}px;margin-left:${-W / 2}px;transform-origin:50% 0;transform:rotateX(90deg)" data-n="0 -1 0"><i class="bf-holo"></i>${boxFaceArt("top", tag, ink)}<i class="bf-light"></i>
+        <div class="bf-flap" style="width:${W}px"></div></div>
+    </div>
+    <div class="bx-glow" style="transform:translate3d(0,${-H / 2}px,0) rotateX(90deg)"></div>
   </div>`;
 }
-// light and foil follow the angle: each face gets its own brightness, rainbow offset and glare spot
-function tetShade(el, rx, ry) {
+// light and foil follow the angle: each face gets its own brightness, sheen offset and glare spot
+function boxShade(el, rx, ry) {
   const a = ry * Math.PI / 180, b = rx * Math.PI / 180;
-  for (const f of el.querySelectorAll(".tf")) {
+  for (const f of el.querySelectorAll(".bf")) {
     const [x, y, z] = f.dataset.n.split(" ").map(Number);
     const x1 = x * Math.cos(a) + z * Math.sin(a), z1 = -x * Math.sin(a) + z * Math.cos(a);
     const y2 = y * Math.cos(b) - z1 * Math.sin(b), z2 = y * Math.sin(b) + z1 * Math.cos(b);
-    const light = Math.max(0, 0.35 * -y2 + 0.25 * -x1 + 0.6 * z2); // light from the upper left front
-    f.style.setProperty("--l", (0.55 + light * 0.5).toFixed(3));
-    f.style.setProperty("--hx", (50 + x1 * 60 + ry * 0.35).toFixed(1) + "%");
+    const light = Math.max(0, 0.35 * -y2 + 0.3 * -x1 + 0.6 * z2); // light from the upper left front
+    f.style.setProperty("--l", (0.6 + light * 0.45).toFixed(3));
+    f.style.setProperty("--hx", (50 + x1 * 60 + ry * 0.4).toFixed(1) + "%");
     f.style.setProperty("--hy", (50 + y2 * 60 + rx * 0.5).toFixed(1) + "%");
-    f.style.setProperty("--gx", (50 - x1 * 70).toFixed(1) + "%");
-    f.style.setProperty("--gy", (40 + y2 * 70).toFixed(1) + "%");
-    f.style.setProperty("--g", Math.pow(Math.max(0, z2), 3).toFixed(3)); // glitter flashes when the face looks right at you
+    f.style.setProperty("--gx", (50 - x1 * 80).toFixed(1) + "%");
+    f.style.setProperty("--gy", (35 + y2 * 80).toFixed(1) + "%");
   }
 }
