@@ -609,7 +609,9 @@ i.bot{background:#D9D3E6}
 .slot-dup{font-size:10px;color:var(--accent);font-weight:600}
 .toy-rules summary{cursor:pointer;font-weight:600}
 .toy-rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.45}
-.prio.kinds{margin-bottom:2px}
+.prio.kinds{margin-bottom:2px;grid-template-columns:repeat(4,minmax(0,1fr))}
+.prio.kinds span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:400px){.prio.kinds span{font-size:13px;padding-inline:2px}}
 .prio.kinds input:checked + span{background:var(--surface);color:var(--accent);font-weight:600}
 .gtag.kind{background:var(--accent-soft);color:var(--accent)}
 
