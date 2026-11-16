@@ -258,6 +258,9 @@ const TOY_SERIES = [
     { id: "jerboa", name: "Тушканчик", line: "Чемодан собран, мечта ждёт", hood: "roundears", color: "#e8c796", tail: "long", prop: "suitcase" },
     { id: "dugong", name: "Дюгонь", line: "Спокойствие — твоя суперсила", hood: "dugong", color: "#a9bfcb", eyes: "sleepy", rare: 1 },
     { id: "sandcat", name: "Барханный кот", line: "Тебя видно, даже когда кажется, что нет", hood: "wideears", color: "#dcc59e", tail: true, eyes: "happy", rare: 1 },
+    { id: "hedgehog", name: "Пустынный ёжик", line: "Колючки — это просто границы. Они тебе нужны", hood: "spiky", color: "#c8a17a", eyes: "happy", prop: "heart" },
+    { id: "agama", name: "Агамка", line: "Погрейся на солнышке: твой момент ещё придёт", hood: "smallhorns", color: "#e9b56b", tail: "long", prop: "magnifier", mouth: "smile" },
+    { id: "leopard", name: "Аравийский леопард", line: "Редкая и сильная — как ты", hood: "roundears", color: "#e8c06a", pattern: "spots", eyes: "wink", rare: 1 },
     { id: "goldfalcon", name: "Золотой сокол", line: "Секретный. Прилетает, когда ты уже почти в Дубае", hood: "kandura", robe: true, body: "#fffdf6", rare: 2, eyes: "star", mouth: "smile" },
   ] },
   { key: "spirits", name: "Дизайбик", short: "Дизайбик", color: "#7b8cde", accent: "#ffd166", draw: drawKid, figures: [
@@ -273,6 +276,9 @@ const TOY_SERIES = [
     { id: "frame", name: "Фреймик", line: "Дай идее место — и она вырастет", hood: "frame", color: "#64dfdf" },
     { id: "comment", name: "Комментарий", line: "Фидбек — это подарок, даже в странной упаковке", hood: "bubble", color: "#ffb3c6", mouth: "open", rare: 1 },
     { id: "autolayout", name: "Автолейаут", line: "Подстроишься под любые требования и не сломаешься", hood: "auto", color: "#9381ff", eyes: "happy", rare: 1 },
+    { id: "eraser", name: "Ластик", line: "Стереть и сделать заново — это нормально", hood: "round", color: "#ffb4a2", prop: "pencil", eyes: "happy" },
+    { id: "padding", name: "Отступик", line: "Оставь себе воздуха: отступы нужны и людям", hood: "frame", color: "#a0c4ff", prop: "ruler", mouth: "smile" },
+    { id: "prototype", name: "Прототипчик", line: "Кликабельная мечта уже почти работает", hood: "cursor", color: "#ff8fab", prop: "laptop", eyes: "wink", rare: 1 },
     { id: "designsystem", name: "Дизайн-система", line: "Секретный. Всё твоё уже собрано в систему", hood: "system", color: "#7b8cde", rare: 2, eyes: "star", mouth: "smile" },
   ] },
   { key: "cats", name: "Котики «Мяу-оффер»", short: "Котики", color: "#ffafcc", accent: "#cdb4db", draw: drawKid, figures: [
@@ -288,6 +294,9 @@ const TOY_SERIES = [
     { id: "pixelcat", name: "Котик Пиксель-перфект", line: "Видишь детали, которые другие пропускают", hood: "cat", color: "#ffc6dd", prop: "tablet", collar: "#ff8fab", fluffy: true },
     { id: "weekend", name: "Котик Выходной", line: "Отдых — это стратегия, а не слабость", hood: "cat", color: "#d6c2ef", hat: "nightcap", neck: "scarf", eyes: "sleepy", fluffy: true, rare: 1 },
     { id: "lead", name: "Котик Лид", line: "Ты уже ведёшь — просто ещё не по должности", hood: "cat", color: "#f28482", neck: "tie", prop: "cv", eyes: "wink", fluffy: true, rare: 1 },
+    { id: "cover", name: "Котик Сопроводительное", line: "Пара тёплых строк — и тебя запомнят", hood: "cat", color: "#f6d6b8", pattern: "patch", patch: "#c58a5a", prop: "note", eyes: "happy", fluffy: true },
+    { id: "research", name: "Котик Ресёрч", line: "Задавай вопросы — это тоже сила", hood: "cat", color: "#e3e3ea", pattern: "stripes", prop: "magnifier", glasses: true, fluffy: true },
+    { id: "feedback", name: "Котик Фидбек", line: "Каждый фидбек делает тебя сильнее", hood: "cat", color: "#ffd166", neck: "scarf", prop: "heart", eyes: "wink", fluffy: true, rare: 1 },
     { id: "offer", name: "Котик Оффер", line: "Секретный. Пришёл сказать: всё получилось", hood: "cat", hat: "crown", prop: "trophy", rare: 2, eyes: "star", mouth: "open", fluffy: true },
   ] },
   { key: "monsters", name: "Монстрики страхов", short: "Монстрики", color: "#9381ff", accent: "#ff8fa3", draw: drawKid, figures: [
@@ -303,6 +312,9 @@ const TOY_SERIES = [
     { id: "testtask", name: "Страх тестового", line: "Дедлайн не съест тебя. Ты сильнее", hood: "antenna", color: "#fdba74", prop: "clock", eyes: "worried", mouth: "open" },
     { id: "burnout", name: "Выгорашка", line: "Береги огонёк: отдых — часть работы", hood: "flame", color: "#8a8f98", eyes: "sleepy", mouth: "flat", fluffy: true, rare: 1 },
     { id: "unknown", name: "Неизвестность", line: "Не знаешь, что впереди? Значит, там может быть лучшее", hood: "eyes3", color: "#4c4f7a", mouth: "o", fluffy: true, rare: 1 },
+    { id: "silence", name: "Страх тишины", line: "Тишина — не ответ. Это просто пауза", hood: "ghost", color: "#c7d2fe", eyes: "side", mouth: "o", prop: "phone" },
+    { id: "doubt", name: "Сомневашка", line: "Сомнения — знак, что ты растёшь", hood: "ask", color: "#fca5a5", eyes: "worried", mouth: "wobble", fluffy: true },
+    { id: "salary", name: "Страх торга", line: "Называй свою цену спокойно. Ты её стоишь", hood: "devil", color: "#fcd34d", prop: "note", eyes: "side", mouth: "pout", rare: 1 },
     { id: "courage", name: "Смелость", line: "Секретная. Вырастает из всех страхов сразу", hood: "smallhorns", hornColor: "#fff4e0", cape: true, rare: 2, eyes: "star", mouth: "grin", fluffy: true },
   ] },
 ];
