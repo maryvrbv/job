@@ -42,6 +42,8 @@ function earnedBoxes() {
   // every two days spent on test tasks (days with a diary entry marked «Тестовое»)
   const testDays = [...new Set((diary.rows || []).filter(r => r.kind === "test").map(r => r.day))].sort();
   for (let i = 2; i <= testDays.length; i += 2) add("test2:" + i, `Два дня над тестовым (${i / 2}-я пара)`, testDays[i - 1]);
+  // every goal from the diary marked as reached
+  for (const g of diary.rows || []) if (g.is_goal && g.done) add("goal:" + g.id, `Цель достигнута: ${String(g.text || "").slice(0, 70)}`, g.day);
   // every two applications and every 8 visits of people to the portfolio, over all time (past work counts too)
   const applied = state.jobs.filter(j => isApplied(j) && j.applied_at).map(j => j.applied_at).sort();
   for (let i = 2; i <= applied.length; i += 2) add("app:" + i, `${i} ${plural(i, "отклик", "отклика", "откликов")}`, applied[i - 1]);
@@ -126,6 +128,7 @@ function renderToys() {
   }).join("") + `<details class="panel-card toy-rules"><summary>За что дают пакетики</summary><ul>
       <li><b>Каждый отказ после собеса</b> (начиная со скрининга с HR). Отказ — это смелость, а не провал</li>
       <li><b>Каждые два дня над тестовым</b>: отмечай такие дни в дневнике записью «Тестовое»</li>
+      <li><b>Каждая выполненная цель</b> из дневника</li>
       <li><b>Каждые 2 отклика</b></li>
       <li><b>Каждые 8 заходов людей в портфолио</b> (один гость за день — один заход)</li>
       <li>За отклики и заходы до 16 ноября — 8 пакетиков за прошлые заслуги</li>
