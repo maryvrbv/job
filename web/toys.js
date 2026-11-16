@@ -5,7 +5,9 @@
 const TOYS_LAUNCH = "2026-11-16";
 const toys = { opened: null, last: null, cur: null, pack: "bag" };
 // the packaging is a choice in the «Мастерская упаковки» on the collection page, kept on this device
-try { const p = localStorage.getItem("toys-pack"); if (p === "bag" || p === "box") toys.pack = p; } catch (e) {}
+// the packaging workshop is hidden for now: the reward always comes in the holographic bag
+const TOYS_WORKSHOP = false;
+if (TOYS_WORKSHOP) try { const p = localStorage.getItem("toys-pack"); if (p === "bag" || p === "box") toys.pack = p; } catch (e) {}
 const PACKS = [["bag", "Пакетик"], ["box", "Коробочка"]];
 const toyHash = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 const mskDay = ts => new Date(ts).toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
@@ -38,7 +40,15 @@ function earnedBoxes() {
 }
 // while testing, one bag of every series waits on the shelf too; they always bring the test figure and never count
 const testBoxes = () => TOYS_TEST ? TOY_SERIES.map(s => ({ key: "demo:" + s.key, why: `Тест: ${s.name}`, series: s.key, demo: true })) : [];
-const unopened = () => { const e = earnedBoxes(); if (!e) return null; for (const b of e) b.series = seriesOf(b.key); const got = new Set(toys.opened.map(o => o.key)); return e.filter(b => !got.has(b.key)).sort((a, b) => (b.day || "").localeCompare(a.day || "")); };
+function dealSeries(boxes) {
+  const order = [...boxes].sort((a, b) => (a.day || "").localeCompare(b.day || "") || a.key.localeCompare(b.key)), n = TOY_SERIES.length;
+  order.forEach((b, i) => {
+    let h = toyHash("deal" + Math.floor(i / n)); const perm = TOY_SERIES.map(s => s.key);
+    for (let j = n - 1; j > 0; j--) { h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0; const k = h % (j + 1); [perm[j], perm[k]] = [perm[k], perm[j]]; }
+    b.series = TOYS_TEST ? TOYS_TEST.series : perm[i % n];
+  });
+}
+const unopened = () => { const e = earnedBoxes(); if (!e) return null; dealSeries(e); const got = new Set(toys.opened.map(o => o.key)); return e.filter(b => !got.has(b.key)).sort((a, b) => (b.day || "").localeCompare(a.day || "")); };
 
 // the tab carries the number of boxes waiting; a box earned while the app is open says so right away
 function updateToyBadge() {
@@ -72,11 +82,11 @@ function renderToys() {
   $("toysHead").innerHTML = `<div class="stats toy-stats">
       <div class="stat"><b>${have.size}<small> из ${total}</small></b><span>фигурок в коллекции</span></div>
       <div class="stat"><b>${dups}</b><span>${plural(dups, "повторка", "повторки", "повторок")}</span></div>
-      <div class="stat"><b>${list.length}</b><span>${plural(list.length, "коробка ждёт", "коробки ждут", "коробок ждут")}</span></div></div>
+      <div class="stat"><b>${list.length}</b><span>${plural(list.length, "пакетик ждёт", "пакетика ждут", "пакетиков ждут")}</span></div></div>${!TOYS_WORKSHOP ? "" : `
     <div class="panel-card pack-shop"><div class="shelf-head"><h3>Мастерская упаковки</h3></div>
       <p class="rv-meta">Выбери, в чём приходят награды. Пробное открытие ничего не тратит</p>
       <div class="pack-row"><div class="segmented pack-seg" role="radiogroup" aria-label="Упаковка">${PACKS.map(([k, l]) => `<button type="button" role="radio" data-pack="${k}" aria-checked="${toys.pack === k}" class="${toys.pack === k ? "on" : ""}">${l}</button>`).join("")}</div>
-      <button type="button" class="btn" data-demo>Попробовать открыть</button></div></div>`;
+      <button type="button" class="btn" data-demo>Попробовать открыть</button></div></div>`}`;
   const shown = [...testBoxes(), ...list];
   $("toysBoxes").innerHTML = shown.length ? `<h2 class="fsec">Ждут открытия</h2><div class="box-grid">${shown.slice(0, 60 + testBoxes().length).map(b =>
     `<button type="button" class="box-card" data-box="${esc(b.key)}">${toys.pack === "bag" ? bagMini(b.series) : `<span class="box-mini">${boxHtml(b.series, { S: 64, cls: "spin" })}</span>`}<span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
