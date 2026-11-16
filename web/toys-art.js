@@ -122,8 +122,8 @@ function kidMouth(style) {
 }
 // the hair under the hood: a soft fringe
 const kidHair = (c, style) => style === "none" ? "" : style === "side"
-  ? `<path d="M36 66q2-16 24-18q20 0 24 16q-10-8-22-6q-12 2-26 8z" fill="${c}"/>`
-  : `<path d="M36 64q4-16 24-16t24 16q-6-5-12-5q-2 5-6 5q-2-5-6-5q-2 5-6 5q-2-5-6-5q-6 0-12 5z" fill="${c}"/>`;
+  ? `<path d="M34.6 67q0-22 25.4-22.8q25.4 0.8 25.4 20q-10-8-22-6q-12 2-28.8 8.8z" fill="${c}"/>`
+  : `<path d="M34.6 65q1-20.6 25.4-20.6t25.4 20.6q-6.6-5.6-13.4-5.6q-2 5-6 5q-2-5-6-5q-2 5-6 5q-2-5-6-5q-6.8 0-13.4 5.6z" fill="${c}"/>`; // the hair covers the top of the face, so no skin peeks out under the hood
 // small signs of each character on or around the hood
 function hoodParts(f, c, dark, inner) {
   const back = [], front = [];
