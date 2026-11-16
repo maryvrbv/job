@@ -4,6 +4,7 @@
 // welcome pack, so old history does not flood the shelf. A box has no series: the series is rolled when it opens.
 const TOYS_LAUNCH = "2026-11-16";
 const toys = { opened: null, last: null, cur: null };
+const toyHash = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 const mskDay = ts => new Date(ts).toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
 const STAGE_BOX = ["Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес"]; // the process, not the offer
 const FOLIO_STEP = 4, SORT_STEP = 3, NOTE_STEP = 2; // a box for every 4 portfolio visits, 3 sorted vacancies, 2 diary notes
@@ -85,7 +86,7 @@ function renderToys() {
       <div class="stat"><b>${dups}</b><span>${plural(dups, "повторка", "повторки", "повторок")}</span></div>
       <div class="stat"><b>${list.length}</b><span>${plural(list.length, "коробка ждёт", "коробки ждут", "коробок ждут")}</span></div></div>`;
   $("toysBoxes").innerHTML = list.length ? `<h2 class="fsec">Ждут открытия</h2><div class="box-grid">${list.slice(0, 24).map(b =>
-    `<button type="button" class="box-card" data-box="${esc(b.key)}"><span class="box-tag">${esc(b.tag)}</span>${boxSvg("mystery", "idle")}<span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
+    `<button type="button" class="box-card" data-box="${esc(b.key)}"><span class="box-tag">${esc(b.tag)}</span><span class="pouch-mini">${pouchSvg("pm" + toyHash(b.key), { tag: b.tag, animate: true })}</span><span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
     ${list.length > 24 ? `<p class="note">И ещё ${list.length - 24}. Открывай по одной или подряд, они никуда не денутся</p>` : ""}`
     : `<h2 class="fsec">Ждут открытия</h2><p class="note">Все коробки открыты. Следующая придёт за отклики, разобранные вакансии, собес, тестовое, новый этап, отказ или заходы в портфолио.</p>`;
   const counts = {}; for (const o of toys.opened) counts[o.series + ":" + o.figure] = (counts[o.series + ":" + o.figure] || 0) + 1;
@@ -111,15 +112,141 @@ function renderToys() {
 }
 
 // ---------- unboxing ----------
+// The pouch sits in 3D: drag it to spin and tilt (the holographic sheen follows), pull the notch at the top
+// to tear the corner off, a small tap on the notch tears it by itself. Soft sounds and a vibration on phones.
+const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+let actx = null, muted = false;
+try { muted = localStorage.getItem("toys-muted") === "1"; } catch (e) {}
+function sfx(kind) {
+  if (muted) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const now = actx.currentTime, g = actx.createGain(); g.connect(actx.destination);
+    if (kind === "pop") { // a bright little «plop» when the figure jumps out
+      const o = actx.createOscillator(); o.type = "sine"; o.frequency.setValueAtTime(520, now); o.frequency.exponentialRampToValueAtTime(1300, now + 0.12);
+      g.gain.setValueAtTime(0.12, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.22); o.connect(g); o.start(now); o.stop(now + 0.25); return;
+    }
+    const dur = kind === "rip" ? 0.32 : kind === "crinkle" ? 0.12 : 0.035, buf = actx.createBuffer(1, Math.ceil(actx.sampleRate * dur), actx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, kind === "rip" ? 1.2 : 2.5) * (Math.random() < (kind === "tick" ? 1 : 0.18) ? 1 : 0.35);
+    const src = actx.createBufferSource(), f = actx.createBiquadFilter(); src.buffer = buf; f.type = "bandpass";
+    f.frequency.value = kind === "rip" ? 2600 : kind === "crinkle" ? 5200 : 3800; f.Q.value = 0.9;
+    g.gain.value = kind === "rip" ? 0.32 : kind === "crinkle" ? 0.05 : 0.09; src.connect(f).connect(g); src.start(now);
+  } catch (e) {}
+}
+const buzz = p => { try { navigator.vibrate?.(p); } catch (e) {} };
+
+// springs in the SwiftUI sense (response, bounce): the bag swings back to rest with a little bounce
+class Spring {
+  constructor(x, response = 0.5, bounce = 0) { this.x = this.to = x; this.v = 0; this.k = (2 * Math.PI / response) ** 2; this.c = 4 * Math.PI * (1 - bounce) / response; }
+  step(h) { this.v += (this.k * (this.to - this.x) - this.c * this.v) * h; this.x += this.v * h; }
+}
+const pz = { rx: -8, ry: -18, vx: 0, vy: 0, drag: null, tear: 0, done: false, raf: 0, t0: 0, last: 0, tilt: new Spring(-8, 0.6, 0.35), squeeze: new Spring(1, 0.25, 0.5) };
 function openUnbox(key) {
   const list = unopened() || []; const b = list.find(x => x.key === key) || list[0]; if (!b) return;
   toys.cur = b; const u = $("unbox");
+  Object.assign(pz, { rx: -8, ry: -18, vx: 0, vy: 0, drag: null, tear: 0, done: false, t0: performance.now(), last: performance.now(), tilt: new Spring(-8, 0.6, 0.35), squeeze: new Spring(1, 0.25, 0.5) });
   u.innerHTML = `<div class="ub-card ub-sealed">
       <button class="btn icon-btn ub-close" type="button" data-ub="close" aria-label="Закрыть">✕</button>
+      <button class="btn icon-btn ub-mute" type="button" data-ub="mute" aria-pressed="${muted}" aria-label="${muted ? "Включить звук" : "Выключить звук"}">${muted ? "🔇" : "🔊"}</button>
       <p class="ub-why"><span class="box-tag">${esc(b.tag)}</span><br>${esc(b.why)}</p>
-      <button type="button" class="ub-box" data-ub="tear" aria-label="Открыть коробку">${boxSvg("mystery", "wiggle")}</button>
-      <p class="ub-hint">Серия — тоже сюрприз · нажми, чтобы открыть</p></div>`;
+      <div class="pz-stage" id="pzStage">
+        <div class="pz-shadow" id="pzShadow"></div>
+        <div class="pz" id="pz">
+          <div class="pz-side pz-front">
+            <div class="pz-part pz-bottom">${pouchSvg("pzb", { tag: b.tag, part: "bottom" })}</div>
+            <div class="pz-part pz-top" id="pzTop">${pouchSvg("pzt", { tag: b.tag, part: "top" })}</div>
+            <svg class="pz-cut" viewBox="-12 0 224 220" aria-hidden="true"><path id="pzCut" d="M${POUCH_TEAR_X[0]} ${POUCH_TEAR_Y}H${POUCH_TEAR_X[1]}" stroke="#fff" stroke-width="2.6" stroke-linecap="round" fill="none" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/></svg>
+            <span class="pz-notch" aria-hidden="true"></span>
+          </div>
+          <div class="pz-side pz-back">${pouchSvg("pzk", { side: "back" })}</div>
+        </div>
+      </div>
+      <p class="ub-hint">Покрути пакетик · потяни за надрез сверху, чтобы открыть</p>
+      <button type="button" class="btn ub-tap" data-ub="tear">Открыть одним нажатием</button></div>`;
   u.hidden = false; document.body.classList.add("ub-open");
+  const stage = $("pzStage");
+  stage.addEventListener("pointerdown", pzDown); stage.addEventListener("pointermove", pzMove);
+  stage.addEventListener("pointerup", pzUp); stage.addEventListener("pointercancel", pzUp);
+  cancelAnimationFrame(pz.raf); pz.raf = requestAnimationFrame(pzLoop);
+}
+// pointer position in the pouch's own 224×220 drawing, as seen on the front
+function pzLocal(e) {
+  const r = $("pz").getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * 224 - 12, y: (e.clientY - r.top) / r.height * 220 };
+}
+const facingFront = () => Math.cos(pz.ry * Math.PI / 180) > 0.35;
+function pzDown(e) {
+  if (pz.done) return;
+  const p = pzLocal(e), nearTear = facingFront() && Math.abs(p.y - POUCH_TEAR_Y) < 26 && p.x > POUCH_TEAR_X[0] - 30 && p.x < POUCH_TEAR_X[1] + 20;
+  pz.drag = { mode: nearTear ? "tear" : "spin", x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now() };
+  e.currentTarget.setPointerCapture(e.pointerId);
+  pz.squeeze.to = nearTear ? 0.96 : 0.98; // the bag gives a little under the fingers
+  if (!nearTear) sfx("crinkle");
+}
+function pzMove(e) {
+  const d = pz.drag; if (!d) return;
+  if (d.mode === "spin") {
+    const dx = e.clientX - d.x, dy = e.clientY - d.y, dt = Math.max(16, performance.now() - d.t);
+    pz.ry += dx * 0.55; pz.rx = Math.max(-45, Math.min(45, pz.rx - dy * 0.4)); pz.tilt.x = pz.rx; pz.tilt.v = 0;
+    pz.vx = dx * 0.55 / dt * 16; pz.vy = -dy * 0.4 / dt * 16;
+    if (Math.abs(dx) + Math.abs(dy) > 18 && Math.random() < 0.25) sfx("crinkle");
+  } else {
+    const p = pzLocal(e), t = Math.max(pz.tear, Math.min(1, (p.x - POUCH_TEAR_X[0]) / (POUCH_TEAR_X[1] - POUCH_TEAR_X[0])));
+    if (Math.floor(t * 10) > Math.floor(pz.tear * 10)) { sfx("tick"); buzz(4); }
+    pz.tear = t; pzTearDraw();
+    if (t >= 0.96) finishTear();
+  }
+  d.x = e.clientX; d.y = e.clientY; d.t = performance.now();
+}
+function pzUp(e) {
+  const d = pz.drag; pz.drag = null; pz.squeeze.to = 1; if (!d || pz.done) return;
+  if (d.mode === "spin") { pz.tilt.x = pz.rx; pz.tilt.v = pz.vy * 60; }
+  const moved = Math.hypot(e.clientX - d.sx, e.clientY - d.sy);
+  if (d.mode === "tear" && moved < 8) autoTear(); // a tap on the notch tears it by itself
+}
+function pzTearDraw() {
+  const cut = $("pzCut"), top = $("pzTop"); if (!cut || !top) return;
+  cut.style.strokeDashoffset = String(1 - pz.tear);
+  top.style.transform = `translateY(${-pz.tear * 4}px) rotate(${-pz.tear * 9}deg)`; // the corner lifts as it tears
+}
+function autoTear() {
+  if (pz.done) return;
+  const from = pz.tear, t0 = performance.now(), dur = reduced() ? 1 : 520;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur), t = from + (1 - from) * (1 - Math.pow(1 - k, 2));
+    if (Math.floor(t * 10) > Math.floor(pz.tear * 10)) { sfx("tick"); buzz(4); }
+    pz.tear = t; pzTearDraw(); if (k < 1) requestAnimationFrame(step); else finishTear();
+  };
+  requestAnimationFrame(step);
+}
+function pzLoop(now) {
+  const el = $("pz"); if (!el) return;
+  const h = Math.min(0.05, (now - pz.last) / 1000); pz.last = now;
+  pz.squeeze.step(h);
+  if (!pz.drag) { // the spin glides on and slows down; the tilt springs back to rest with a small bounce
+    pz.ry += pz.vx; pz.vx *= 0.95;
+    // once the spin slows down, the bag swings back to show its front (a slight three-quarter turn), ready to tear
+    if (Math.abs(pz.vx) < 0.8) { const rest = Math.round((pz.ry + 18) / 360) * 360 - 18; pz.vx += (rest - pz.ry) * 0.01; pz.vx *= 0.9; }
+    pz.tilt.step(h); pz.rx = pz.tilt.x;
+    if (!pz.done && Math.abs(pz.vx) < 0.05 && !reduced()) pz.ry += Math.sin((now - pz.t0) / 900) * 0.12; // idle sway
+  }
+  const float = reduced() || pz.done ? 0 : Math.sin((now - pz.t0) / 700) * 5;
+  el.style.transform = `translateY(${float}px) rotateX(${pz.rx}deg) rotateY(${pz.ry}deg) scale(${pz.squeeze.x})`;
+  $("pzShadow").style.transform = `scale(${0.85 + Math.abs(Math.cos(pz.ry * Math.PI / 180)) * 0.15 - float / 60})`;
+  // the holographic stripes slide with the angle, the glare moves across like light on foil
+  const hx = (pz.ry % 360) * 1.4, hy = pz.rx * 2.2;
+  for (const g of el.querySelectorAll(".holo-grad")) g.setAttribute("gradientTransform", `translate(${hx} ${hy}) rotate(${pz.ry * 0.2})`);
+  const glint = 0.2 + Math.abs(Math.sin((pz.ry + pz.rx) * Math.PI / 90)) * 0.5; // glitter catches the light at some angles
+  for (const g of el.querySelectorAll(".glitter")) g.setAttribute("opacity", glint.toFixed(2));
+  for (const g of el.querySelectorAll(".glare-grad")) { g.setAttribute("cx", `${35 - Math.sin(pz.ry * Math.PI / 180) * 30}%`); g.setAttribute("cy", `${30 + pz.rx * 0.6}%`); }
+  pz.raf = requestAnimationFrame(pzLoop);
+}
+async function finishTear() {
+  if (pz.done) return; pz.done = true; pz.tear = 1; pzTearDraw();
+  sfx("rip"); buzz([12, 40, 22]);
+  const card = $("unbox").querySelector(".ub-card"); card.classList.add("pz-torn");
+  pz.vx = 0; pz.ry = Math.round(pz.ry / 360) * 360; // face front for the reveal
+  await tearBox();
 }
 async function tearBox() {
   const b = toys.cur; if (!b || toys.busy) return; toys.busy = true;
@@ -130,17 +257,18 @@ async function tearBox() {
   if (error) { toast(error.code === "23505" ? "Эта коробка уже открыта" : "Не получилось открыть: " + error.message); closeUnbox(); loadToys(); return; }
   toys.opened.push({ key: b.key, series: b.series, figure: f.id, opened_at: new Date().toISOString() });
   toys.last = Math.max(0, (toys.last || 1) - 1); updateToyBadge();
-  const card = $("unbox").querySelector(".ub-card"); card.classList.add("ub-tearing");
+  const card = $("unbox").querySelector(".ub-card");
   const rare = f.rare === 2 ? "secret" : f.rare === 1 ? "rare" : "common", more = (unopened() || []).length;
   const confetti = Array.from({ length: f.rare ? 36 : 22 }, (_, i) => `<i style="--a:${(i * 137) % 360}deg;--d:${60 + (i * 53) % 90}px;--c:${["#ff6b81", "#ffd166", "#4cc9f0", "#80ed99", "#b388eb", "#f4a261"][i % 6]};--t:${(i % 7) * 40}ms"></i>`).join("");
   setTimeout(() => {
+    cancelAnimationFrame(pz.raf); sfx("pop"); buzz(18);
     card.className = `ub-card ub-reveal ${rare}`;
     card.innerHTML = `<button class="btn icon-btn ub-close" type="button" data-ub="close" aria-label="Закрыть">✕</button>
       <div class="ub-stage"><div class="ub-rays" aria-hidden="true"></div><div class="ub-confetti" aria-hidden="true">${confetti}</div>${toySvg(b.series, f.id, "ub-fig")}</div>
       <p class="ub-badge">${before ? `Повторка · у тебя их ${before}` : f.rare === 2 ? "Секретная фигурка!" : f.rare === 1 ? "Редкая! Новинка в коллекции" : "Новинка в коллекции!"}</p>
       <h3 class="ub-name">${esc(f.name)}</h3><p class="ub-line">${esc(f.line)}</p><p class="ub-hint">${esc(toySeries(b.series).name)}</p>
       <div class="ub-actions">${more ? `<button type="button" class="btn primary" data-ub="next">Следующая коробка · ${more}</button>` : ""}<button type="button" class="btn" data-ub="close">В коллекцию</button></div>`;
-  }, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 900);
+  }, reduced() ? 0 : 950);
 }
 function showFigure(seriesKey, figId) {
   const s = toySeries(seriesKey), f = toyFigure(seriesKey, figId), mine = toys.opened.filter(o => o.series === seriesKey && o.figure === figId);
@@ -150,10 +278,11 @@ function showFigure(seriesKey, figId) {
     <h3 class="ub-name">${esc(f.name)}</h3><p class="ub-line">${esc(f.line)}</p><p class="ub-hint">${esc(s.name)} · впервые ${esc(shortDate(mskDay(mine[0].opened_at)))}</p></div>`;
   $("unbox").hidden = false; document.body.classList.add("ub-open");
 }
-function closeUnbox() { $("unbox").hidden = true; $("unbox").innerHTML = ""; document.body.classList.remove("ub-open"); toys.cur = null; if (state.view === "toys") renderToys(); }
+function closeUnbox() { cancelAnimationFrame(pz.raf); $("unbox").hidden = true; $("unbox").innerHTML = ""; document.body.classList.remove("ub-open"); toys.cur = null; if (state.view === "toys") renderToys(); }
 $("unbox").addEventListener("click", e => {
   const a = e.target.closest("[data-ub]")?.dataset.ub;
-  if (a === "tear") return tearBox();
+  if (a === "tear") return autoTear();
+  if (a === "mute") { muted = !muted; try { localStorage.setItem("toys-muted", muted ? "1" : "0"); } catch (x) {} const m = e.target.closest("[data-ub]"); m.textContent = muted ? "🔇" : "🔊"; m.setAttribute("aria-pressed", muted); m.setAttribute("aria-label", muted ? "Включить звук" : "Выключить звук"); if (!muted) sfx("crinkle"); return; }
   if (a === "next") return openUnbox();
   if (a === "close" || e.target === $("unbox")) return closeUnbox();
 });
