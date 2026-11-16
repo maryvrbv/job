@@ -346,3 +346,60 @@ function boxSvg(seriesKey, cls = "") {
     <g class="tbox-lid"><rect x="12" y="36" width="96" height="18" rx="5" fill="${toyMix(c, -0.08)}"/><rect x="54" y="36" width="12" height="18" fill="${toyMix(a, -0.1)}"/>
       <path d="M60 36q-18-22-26-8q4 8 26 8zM60 36q18-22 26-8q-4 8-26 8z" fill="${a}" stroke="${toyMix(a, -0.3)}" stroke-width="1.5"/><circle cx="60" cy="35" r="4" fill="${toyMix(a, -0.2)}"/></g></svg>`;
 }
+
+// ---------- the pouch: a frosted triangular blind bag with scalloped sealed edges and a holographic sheen ----------
+// Drawn in a 200×220 box. TEAR_Y is the notch line: everything above it is the corner that tears off.
+const POUCH_TEAR_Y = 84, POUCH_TEAR_X = [61, 139];
+// the tear is ragged, not a straight cut: a zigzag across the notch line, wider than the bag
+const POUCH_ZIG = (() => { const pts = []; for (let x = -20, i = 0; x <= 230; x += 4, i++) pts.push(`${x} ${(POUCH_TEAR_Y + (i % 2 ? 2.4 : -2.4) + (i % 5 === 0 ? 1.2 : 0)).toFixed(1)}`); return pts; })();
+const POUCH_D = (() => {
+  const P = [[100, 12], [190, 204], [10, 204]], cx = 100, cy = 140;
+  let d = `M${P[0][0]} ${P[0][1]}`;
+  for (let e = 0; e < 3; e++) {
+    const [x1, y1] = P[e], [x2, y2] = P[(e + 1) % 3], n = e === 1 ? 10 : 9, len = Math.hypot(x2 - x1, y2 - y1);
+    let nx = (y2 - y1) / len, ny = -(x2 - x1) / len;
+    if ((((x1 + x2) / 2 - cx) * nx + ((y1 + y2) / 2 - cy) * ny) < 0) { nx = -nx; ny = -ny; }
+    for (let i = 1; i <= n; i++) {
+      const ax = x1 + (x2 - x1) * (i - 0.5) / n, ay = y1 + (y2 - y1) * (i - 0.5) / n, bx = x1 + (x2 - x1) * i / n, by = y1 + (y2 - y1) * i / n;
+      d += ` Q${(ax + nx * 7).toFixed(1)} ${(ay + ny * 7).toFixed(1)} ${bx.toFixed(1)} ${by.toFixed(1)}`;
+    }
+  }
+  return d + "Z";
+})();
+// the inner seam where the edges are sealed
+const POUCH_SEAM = "M100 30L176 194H24Z";
+function pouchSvg(id, { tag = "", part = "whole", side = "front", animate = false } = {}) {
+  const T = POUCH_TEAR_Y;
+  const clip = part === "top" ? `<clipPath id="${id}c"><path d="M-20 -20H230V${T}L${POUCH_ZIG.slice().reverse().join("L")}Z"/></clipPath>`
+    : part === "bottom" ? `<clipPath id="${id}c"><path d="M${POUCH_ZIG.join("L")}L230 240H-20Z"/></clipPath>` : "";
+  const holoStops = ["#ff6fc3", "#ffd84a", "#5dffb4", "#4cc3ff", "#a77bff", "#ff6fc3"].map((c, i, a) => `<stop offset="${i / (a.length - 1)}" stop-color="${c}"/>`).join("");
+  const anim = animate ? `<animateTransform attributeName="gradientTransform" type="translate" values="-140 -40;140 40;-140 -40" dur="7s" repeatCount="indefinite"/>` : "";
+  const face = side === "front"
+    ? `<g transform="translate(100 140)"><circle cx="-15" cy="-6" r="4.6" fill="#3a2a4f"/><circle cx="15" cy="-6" r="4.6" fill="#3a2a4f"/><circle cx="-16.4" cy="-7.6" r="1.5" fill="#fff"/><circle cx="13.6" cy="-7.6" r="1.5" fill="#fff"/>
+        <path d="M-5 2q5 5 10 0" stroke="#3a2a4f" stroke-width="2.2" fill="none" stroke-linecap="round"/><ellipse cx="-25" cy="3" rx="6" ry="3.4" fill="#ff7aa8" opacity=".45"/><ellipse cx="25" cy="3" rx="6" ry="3.4" fill="#ff7aa8" opacity=".45"/></g>
+       <text x="100" y="172" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="9.5" font-weight="600" fill="#5b4a7a" opacity=".75" letter-spacing=".5">blind box</text>
+       ${tag ? `<text x="100" y="188" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="13" font-weight="800" fill="#4b2fc2" transform="rotate(-6 100 188)">${tag.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text>` : ""}`
+    : `<text x="100" y="128" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="11" font-weight="700" fill="#5b4a7a" opacity=".8">сюрприз внутри</text>
+       <text x="100" y="146" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="8.5" fill="#5b4a7a" opacity=".6">1 фигурка · 4 серии · 1 секрет</text>
+       <g fill="#5b4a7a" opacity=".55">${[0, 3, 5, 9, 11, 14, 18, 20, 23, 27, 29, 32].map((x, i) => `<rect x="${82 + x}" y="160" width="${i % 3 ? 1.4 : 2.4}" height="16"/>`).join("")}</g>`;
+  return `<svg class="pouch-svg" viewBox="-12 0 224 220" aria-hidden="true"><defs>${clip}
+      <linearGradient id="${id}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb8dc"/><stop offset=".5" stop-color="#ffdcbf"/><stop offset="1" stop-color="#d6ffa8"/></linearGradient>
+      <linearGradient id="${id}h" class="holo-grad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="120" y2="70" spreadMethod="repeat">${holoStops}${anim}</linearGradient>
+      <radialGradient id="${id}g" class="glare-grad" cx="35%" cy="30%" r="55%"><stop offset="0" stop-color="#fff" stop-opacity=".85"/><stop offset=".45" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+      <pattern id="${id}s" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="2" cy="3" r=".7" fill="#fff" opacity=".9"/><circle cx="7" cy="7.5" r=".45" fill="#fff" opacity=".7"/></pattern>
+      <filter id="${id}n" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="7"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  12 0 0 0 -8"/><feComposite in2="SourceGraphic" operator="in"/></filter>
+    </defs>
+    <g ${clip ? `clip-path="url(#${id}c)"` : ""}>
+      <path d="${POUCH_D}" fill="url(#${id}b)"/>
+      <path d="${POUCH_D}" fill="url(#${id}h)" opacity=".55" style="mix-blend-mode:overlay"/>
+      <path d="${POUCH_D}" fill="url(#${id}h)" opacity=".28" style="mix-blend-mode:hard-light"/>
+      <path d="${POUCH_D}" fill="url(#${id}s)" opacity=".5"/>
+      <path class="glitter" d="${POUCH_D}" fill="#fff" filter="url(#${id}n)" opacity=".35" style="mix-blend-mode:screen"/>
+      <path d="${POUCH_SEAM}" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="1.4" stroke-dasharray="1.5 3" stroke-linejoin="round"/>
+      <path d="${POUCH_D}" fill="url(#${id}g)"/>
+      <path d="${POUCH_D}" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="1.2"/>
+      ${face}
+    </g>
+    ${side === "front" && part !== "top" ? `<path d="M${POUCH_TEAR_X[0] - 9} ${T - 4}l9 4-9 4z" fill="#fff" opacity=".9"/><path class="tear-guide" d="M${POUCH_TEAR_X[0]} ${T}H${POUCH_TEAR_X[1]}" stroke="#fff" stroke-width="1.6" stroke-dasharray="3 3" opacity=".9"/>` : ""}
+  </svg>`;
+}
