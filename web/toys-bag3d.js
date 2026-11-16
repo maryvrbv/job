@@ -25,36 +25,51 @@ function bag3dMix(a, b, t) {
 function bag3dMaps(THREE, P, W, H, blink, mascotImg) {
   const TW = 512, TH = Math.round(TW * H / W), k = TW / W, c = P.crimp / 100 * H;
   const canvas = () => { const cv = document.createElement("canvas"); cv.width = TW; cv.height = TH; return [cv, cv.getContext("2d")]; };
-  const st = { s: P.ssize / 100 * W }; st.x = (W - st.s) / 2; st.y = P.stop / 100 * H;
   const crimpStripe = (g, a, b) => { for (const y0 of [0, H - c]) for (let x = 0; x < W; x += 4) { g.fillStyle = a; g.fillRect(x * k, y0 * k, 2 * k, c * k); g.fillStyle = b; g.fillRect((x + 2) * k, y0 * k, 2 * k, c * k); } };
   const notches = g => { g.save(); g.globalCompositeOperation = "destination-out"; for (const x of [0, W]) { g.beginPath(); const y = c - 0.01 * H; g.moveTo((x - 6) * k, y * k); g.lineTo(x * k, (y - 6) * k); g.lineTo((x + 6) * k, y * k); g.lineTo(x * k, (y + 6) * k); g.fill(); } g.restore(); };
+  // a little seeded random, so the pattern is the same on every redraw (the blink redraws the front)
+  let seed = [...String(P.tint) + P.title].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  const srnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const pattern = [];
+  for (let i = 0; i < 46; i++) pattern.push({ x: srnd() * W, y: c + 6 + srnd() * (H - 2 * c - 12), r: 2 + srnd() * 5.5, kind: srnd(), rot: srnd() * 6.28, a: 0.45 + srnd() * 0.5 });
+  const sparkle = (g, x, y, r, rot) => { g.save(); g.translate(x * k, y * k); g.rotate(rot); g.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, rr = (i % 2 ? r * 0.28 : r) * k; g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } g.closePath(); g.fill(); g.restore(); };
+  // holographic foil all over: the series colour as a pale metallic base, a scatter of sparkles, dots and question
+  // marks printed on it, the mascot and the title printed straight on the foil (no sticker)
   function print(front, closedEyes) {
-    const [cv, g] = canvas();
-    g.fillStyle = P.foil; g.fillRect(0, 0, TW, TH);
-    crimpStripe(g, bag3dMix(P.foil, "#7a7065", 0.13), bag3dMix(P.foil, "#ffffff", 0.55));
-    for (const [x0, x1] of [[0, 0.05 * W], [W, 0.95 * W]]) { const gr = g.createLinearGradient(x0 * k, 0, x1 * k, 0); gr.addColorStop(0, bag3dMix(P.foil, "#7a7065", 0.1)); gr.addColorStop(1, bag3dMix(P.foil, "#ffffff", 0.5)); g.fillStyle = gr; g.fillRect(Math.min(x0, x1) * k, c * k, Math.abs(x1 - x0) * k, (H - 2 * c) * k); }
+    const [cv, g] = canvas(), base = bag3dMix(P.tint, "#ffffff", 0.22);
+    const gr = g.createLinearGradient(0, 0, 0, TH); gr.addColorStop(0, bag3dMix(P.tint, "#ffffff", 0.45)); gr.addColorStop(0.5, base); gr.addColorStop(1, bag3dMix(P.tint, "#8a7fb0", 0.12));
+    g.fillStyle = gr; g.fillRect(0, 0, TW, TH);
+    crimpStripe(g, bag3dMix(P.tint, "#9aa0ad", 0.35), bag3dMix(P.tint, "#ffffff", 0.7));
+    for (const q of pattern) {
+      if (front && Math.abs(q.x - W / 2) < W * 0.3 && q.y > H * 0.22 && q.y < H * 0.8 && q.kind < 0.8) continue; // keep the middle calm for the mascot
+      g.globalAlpha = q.a;
+      if (q.kind < 0.55) { g.fillStyle = "#ffffff"; sparkle(g, q.x, q.y, q.r, q.rot); }
+      else if (q.kind < 0.8) { g.fillStyle = bag3dMix(P.tint, P.ink, 0.35); g.beginPath(); g.arc(q.x * k, q.y * k, q.r * 0.38 * k, 0, 6.28); g.fill(); }
+      else { g.fillStyle = bag3dMix(P.tint, "#ffffff", 0.8); g.font = `900 ${q.r * 3.2 * k}px Nunito, "Arial Rounded MT Bold", system-ui, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.save(); g.translate(q.x * k, q.y * k); g.rotate(q.rot * 0.25 - 0.4); g.fillText("?", 0, 0); g.restore(); }
+    }
+    g.globalAlpha = 1;
     if (front) {
-      g.strokeStyle = "rgba(150,140,130,.45)"; g.lineWidth = 1.5 * k; g.setLineDash([4 * k, 3 * k]); g.beginPath(); g.moveTo(0.07 * W * k, (c + 0.025 * H) * k); g.lineTo(0.93 * W * k, (c + 0.025 * H) * k); g.stroke(); g.setLineDash([]);
-      // the sticker: tint, the mascot, the title and the series
-      g.save(); g.shadowColor = "rgba(90,70,120,.22)"; g.shadowBlur = 7 * k; g.shadowOffsetY = 3 * k; g.fillStyle = P.tint;
-      g.beginPath(); g.roundRect(st.x * k, st.y * k, st.s * k, st.s * k, P.srad * k); g.fill(); g.restore();
-      g.save(); g.beginPath(); g.roundRect(st.x * k, st.y * k, st.s * k, st.s * k, P.srad * k); g.clip();
-      const hl = g.createLinearGradient(0, st.y * k, 0, (st.y + st.s) * k); hl.addColorStop(0, "rgba(255,255,255,.35)"); hl.addColorStop(0.4, "rgba(255,255,255,0)"); g.fillStyle = hl; g.fillRect(st.x * k, st.y * k, st.s * k, st.s * k);
-      const tSize = 0.062 * W, sSize = 0.04 * W, mW = P.mascot ? st.s * 0.6 : 0, mH = mW * 70 / 80, block = mH + tSize * 1.25 + (P.subtitle ? sSize * 1.4 : 0);
-      let y = st.y + (st.s - block) / 2;
-      if (P.mascot && mascotImg?.[closedEyes ? 1 : 0]) g.drawImage(mascotImg[closedEyes ? 1 : 0], (W / 2 - mW / 2) * k, y * k, mW * k, mH * k);
-      y += mH; g.fillStyle = P.ink; g.textAlign = "center"; g.textBaseline = "top";
-      g.font = `900 ${tSize * k}px Nunito, "Arial Rounded MT Bold", system-ui, sans-serif`; g.fillText(P.title || "", W / 2 * k, (y + tSize * 0.15) * k, (st.s - 12) * k); y += tSize * 1.25;
-      if (P.subtitle) { g.globalAlpha = 0.72; g.font = `700 ${sSize * k}px system-ui, sans-serif`; g.fillText(P.subtitle, W / 2 * k, (y + sSize * 0.2) * k, (st.s - 12) * k); g.globalAlpha = 1; }
-      g.restore();
+      g.strokeStyle = bag3dMix(P.tint, "#ffffff", 0.75); g.lineWidth = 1.5 * k; g.setLineDash([4 * k, 3 * k]); g.beginPath(); g.moveTo(0.07 * W * k, (c + 0.025 * H) * k); g.lineTo(0.93 * W * k, (c + 0.025 * H) * k); g.stroke(); g.setLineDash([]);
+      const tSize = 0.092 * W, sSize = 0.046 * W, mW = P.mascot ? W * 0.5 : 0, mH = mW * 70 / 80, block = mH + tSize * 1.2 + (P.subtitle ? sSize * 1.5 : 0);
+      let y = (H - block) / 2 + 0.02 * H;
+      if (P.mascot) { // a soft white halo, then the mascot
+        const hg = g.createRadialGradient(W / 2 * k, (y + mH * 0.55) * k, 0, W / 2 * k, (y + mH * 0.55) * k, mW * 0.75 * k); hg.addColorStop(0, "rgba(255,255,255,.75)"); hg.addColorStop(1, "rgba(255,255,255,0)");
+        g.fillStyle = hg; g.fillRect(0, 0, TW, TH);
+        if (mascotImg?.[closedEyes ? 1 : 0]) g.drawImage(mascotImg[closedEyes ? 1 : 0], (W / 2 - mW / 2) * k, y * k, mW * k, mH * k);
+      }
+      y += mH; g.textAlign = "center"; g.textBaseline = "top"; g.lineJoin = "round";
+      g.font = `900 ${tSize * k}px Nunito, "Arial Rounded MT Bold", system-ui, sans-serif`;
+      g.lineWidth = tSize * 0.32 * k; g.strokeStyle = "#ffffff"; g.strokeText(P.title || "", W / 2 * k, (y + tSize * 0.1) * k, W * 0.86 * k);
+      g.fillStyle = P.ink; g.fillText(P.title || "", W / 2 * k, (y + tSize * 0.1) * k, W * 0.86 * k); y += tSize * 1.2;
+      if (P.subtitle) { g.font = `800 ${sSize * k}px Nunito, system-ui, sans-serif`; g.lineWidth = sSize * 0.35 * k; g.strokeText(P.subtitle, W / 2 * k, (y + sSize * 0.2) * k, W * 0.8 * k); g.globalAlpha = 0.85; g.fillText(P.subtitle, W / 2 * k, (y + sSize * 0.2) * k, W * 0.8 * k); g.globalAlpha = 1; }
     }
     notches(g);
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
   }
-  // roughness (green): foil satin, crimps a bit rougher, the paper sticker matte; holo (red): only on the sticker
-  const [rcv, rg] = canvas(); rg.fillStyle = "rgb(0,105,0)"; rg.fillRect(0, 0, TW, TH); rg.fillStyle = "rgb(0,135,0)"; rg.fillRect(0, 0, TW, c * k); rg.fillRect(0, (H - c) * k, TW, c * k);
-  rg.fillStyle = "rgb(0,200,0)"; rg.beginPath(); rg.roundRect(st.x * k, st.y * k, st.s * k, st.s * k, P.srad * k); rg.fill();
-  const [icv, ig] = canvas(); ig.fillStyle = "#000"; ig.fillRect(0, 0, TW, TH); ig.fillStyle = "#fff"; ig.beginPath(); ig.roundRect(st.x * k, st.y * k, st.s * k, st.s * k, P.srad * k); ig.fill();
+  // roughness (green): glossy foil, satin crimps; holo strength (red): full on the foil, less on the crimps
+  const [rcv, rg] = canvas(); rg.fillStyle = "rgb(0,58,0)"; rg.fillRect(0, 0, TW, TH); rg.fillStyle = "rgb(0,110,0)"; rg.fillRect(0, 0, TW, c * k); rg.fillRect(0, (H - c) * k, TW, c * k);
+  const [icv, ig] = canvas(); ig.fillStyle = "#fff"; ig.fillRect(0, 0, TW, TH); ig.fillStyle = "#b0b0b0"; ig.fillRect(0, 0, TW, c * k); ig.fillRect(0, (H - c) * k, TW, c * k);
+  { const cx = W / 2 * k, cy = H * 0.52 * k, hg = ig.createRadialGradient(cx, cy, 0, cx, cy, W * 0.42 * k); hg.addColorStop(0, "rgba(40,40,40,.85)"); hg.addColorStop(0.7, "rgba(40,40,40,.5)"); hg.addColorStop(1, "rgba(40,40,40,0)"); ig.fillStyle = hg; ig.fillRect(0, 0, TW, TH); }
   // relief: soft dents and a few sharp creases, ribbed crimps, a calmer sticker; turned into normals
   const hf = new Float32Array(TW * TH), rnd = Math.random;
   for (const [cell, amp] of [[64, 1], [26, 0.45], [11, 0.18]]) {
@@ -68,13 +83,12 @@ function bag3dMaps(THREE, P, W, H, blink, mascotImg) {
     const x0 = Math.max(0, Math.floor(px - len)), x1 = Math.min(TW, Math.ceil(px + len)), y0 = Math.max(0, Math.floor(py - len)), y1 = Math.min(TH, Math.ceil(py + len));
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const dx = x - px, dy = y - py, along = dx * ny - dy * nx, dist = Math.abs(dx * nx + dy * ny); if (dist < wd && Math.abs(along) < len) hf[y * TW + x] += amp * (1 - dist / wd) * (1 - Math.abs(along) / len); }
   }
-  const normals = withSticker => {
-    const h = Float32Array.from(hf), ck = c * k, s0 = st.x * k, s1 = (st.x + st.s) * k, t0 = st.y * k, t1 = (st.y + st.s) * k;
+  const normals = () => {
+    const h = Float32Array.from(hf), ck = c * k;
     for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) {
       const i = y * TW + x;
       if (y < ck || y > TH - ck) h[i] = 0.55 * Math.sin(2 * Math.PI * x / (4 * k)) + h[i] * 0.15;
       else if (x < 0.05 * TW || x > 0.95 * TW) h[i] *= 0.3;
-      else if (withSticker && x > s0 && x < s1 && y > t0 && y < t1) h[i] *= 0.12;
     }
     const [cv, g] = canvas(), img = g.createImageData(TW, TH), D = img.data, s = 2.4;
     for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) {
@@ -89,7 +103,15 @@ function bag3dMaps(THREE, P, W, H, blink, mascotImg) {
   for (const [o, col] of [[0, "#f1f3f6"], [0.12, "#d9dde3"], [0.16, "#a19fac"], [0.27, "#3b3142"], [1, "#221a25"]]) gr.addColorStop(o, col);
   ng.fillStyle = gr; ng.fillRect(0, 0, TW, TH);
   const tex = cv => new THREE.CanvasTexture(cv), inner = tex(ncv); inner.colorSpace = THREE.SRGBColorSpace;
-  return { front: print(true, false), frontBlink: print(true, true), back: print(false), rough: tex(rcv), holo: tex(icv), nFront: normals(true), nBack: normals(false), inner };
+  // the thickness of the holo film (green) wanders over the bag, so the rainbow comes in patches and bands
+  const [tcv, tg] = canvas(), timg = tg.createImageData(TW, TH), TD = timg.data, cell = 170, gx = Math.ceil(TW / cell) + 2, gy = Math.ceil(TH / cell) + 2, ng2 = Float32Array.from({ length: gx * gy }, () => rnd());
+  for (let y = 0; y < TH; y++) { const fy = y / cell, j = fy | 0, ty = fy - j, sy = ty * ty * (3 - 2 * ty);
+    for (let x = 0; x < TW; x++) { const fx = x / cell, i = fx | 0, tx = fx - i, sx = tx * tx * (3 - 2 * tx), a = ng2[j * gx + i], b = ng2[j * gx + i + 1], cc = ng2[(j + 1) * gx + i], d = ng2[(j + 1) * gx + i + 1];
+      const nv = a + (b - a) * sx + (cc - a + (a - b - cc + d) * sx) * sy, v = Math.round(255 * (0.5 + 0.5 * Math.sin((x + y * 0.7) / TW * Math.PI * 2.2 + nv * 3 + hf[y * TW + x] * 0.25)));
+      const o = (y * TW + x) * 4; TD[o] = TD[o + 1] = TD[o + 2] = v; TD[o + 3] = 255; } }
+  tg.putImageData(timg, 0, 0);
+  const nm = normals();
+  return { front: print(true, false), frontBlink: print(true, true), back: print(false), rough: tex(rcv), holo: tex(icv), thick: tex(tcv), nFront: nm, nBack: nm, inner };
 }
 // a soft studio to reflect: a light room, a big softbox up left, a smaller one to the right and a pink bounce below
 function bag3dStudio(THREE, renderer) {
@@ -98,7 +120,8 @@ function bag3dStudio(THREE, renderer) {
   geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
   scene.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ side: THREE.BackSide, vertexColors: true })));
   const box = (w, h, x, y, z, rgb) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(...rgb), side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); scene.add(m); };
-  box(34, 22, -22, 28, 26, [5, 5, 5]); box(14, 30, 34, 6, 22, [2.6, 2.6, 2.7]); box(50, 10, 0, -26, 18, [1.6, 1.1, 1.4]); box(30, 30, 0, 10, -45, [1.4, 1.4, 1.5]);
+  box(34, 22, -22, 28, 26, [5, 5, 5]); box(14, 30, 34, 6, 22, [1.6, 2.6, 3.2]); box(50, 10, 0, -26, 18, [3, 1.4, 2.4]); box(30, 30, 0, 10, -45, [1.4, 1.4, 1.5]);
+  box(16, 16, -38, -6, 12, [2.8, 1.6, 3.2]); box(20, 12, 20, 30, 10, [3.2, 2.8, 1.4]);
   const pm = new THREE.PMREMGenerator(renderer), env = pm.fromScene(scene, 0.035).texture; pm.dispose(); geo.dispose(); return env;
 }
 
@@ -180,8 +203,10 @@ function createBag3D(THREE, stage, P0, opts = {}) {
     for (const m of meshes) inner.remove(m), stripG.remove(m);
     geos && Object.values(geos).forEach(g => g.dispose()); mats && Object.values(mats).forEach(m => m.dispose()); maps && Object.values(maps).forEach(t => t.dispose());
     maps = bag3dMaps(THREE, P, W, H, false, mascot);
-    const n = new THREE.Vector2(P.wrink * 0.95, P.wrink * 0.95), common = { roughness: 1.25 - 0.5 * P.sheen, roughnessMap: maps.rough, metalness: 0.32, clearcoat: 0.1 + 0.3 * P.sheen, clearcoatRoughness: 0.4, envMapIntensity: 0.4 + 0.5 * P.sheen, transparent: true, alphaTest: 0.02, normalScale: n };
-    const front = new THREE.MeshPhysicalMaterial({ ...common, map: maps.front, normalMap: maps.nFront, iridescence: P.holo, iridescenceMap: maps.holo, iridescenceIOR: 1.35, iridescenceThicknessRange: [140, 460] });
+    const n = new THREE.Vector2(P.wrink * 0.95, P.wrink * 0.95), holo = Math.min(1, 0.35 + P.holo * 1.8);
+    const common = { roughness: 1.3 - 0.5 * P.sheen, roughnessMap: maps.rough, metalness: 0.55, clearcoat: 0.3 + 0.4 * P.sheen, clearcoatRoughness: 0.25, envMapIntensity: 0.75 + 0.6 * P.sheen, transparent: true, alphaTest: 0.02, normalScale: n,
+      iridescence: holo, iridescenceMap: maps.holo, iridescenceIOR: 1.5, iridescenceThicknessMap: maps.thick, iridescenceThicknessRange: [200, 700] };
+    const front = new THREE.MeshPhysicalMaterial({ ...common, map: maps.front, normalMap: maps.nFront });
     const back = new THREE.MeshPhysicalMaterial({ ...common, map: maps.back, normalMap: maps.nBack });
     const ins = new THREE.MeshStandardMaterial({ map: maps.inner, metalness: 0.85, roughness: 0.34, normalMap: maps.nBack, normalScale: n, side: THREE.BackSide, transparent: true, alphaTest: 0.02, envMapIntensity: 1 });
     mats = { front, back, ins, sFront: front.clone(), sBack: back.clone(), sIns: ins.clone() };
