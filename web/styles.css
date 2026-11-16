@@ -604,7 +604,7 @@ i.bot{background:#D9D3E6}
 .slot.secret:not(.empty){background:linear-gradient(160deg,#fff4cc,#ffe2a8)}
 .slot.empty{cursor:default;aspect-ratio:auto}
 .slot-q{display:flex;align-items:center;justify-content:center;width:100%;max-width:72px;aspect-ratio:120/150;font-size:28px;font-weight:800;color:var(--line);border:2px dashed var(--line);border-radius:10px}
-.slot-name{font-size:11px;line-height:1.2;color:var(--muted);text-align:center;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.slot-name{max-width:100%;font-size:11px;line-height:1.2;color:var(--muted);text-align:center;overflow:hidden;overflow-wrap:anywhere;hyphens:auto;-webkit-hyphens:auto;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .slot-x{position:absolute;top:4px;right:4px;font-size:11px;font-weight:700;background:var(--fg);color:var(--bg);border-radius:8px;padding:0 5px}
 .slot-dup{font-size:10px;color:var(--accent);font-weight:600}
 .toy-rules summary{cursor:pointer;font-weight:600}
