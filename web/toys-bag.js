@@ -80,10 +80,15 @@ const BAG_CSS = `
 @keyframes bgm-holo{to{background-position:100% 100%}}
 .bg-mini-img{display:block;width:150px;max-width:100%;height:auto;margin:2px 0 4px;animation:bg-sway 3.6s ease-in-out infinite;filter:drop-shadow(0 5px 6px rgb(80 60 110 / .2))}
 .box-card:nth-child(2n) .bg-mini-img{animation-delay:-1.4s}
+.bg-mini-img.appear{animation:bg-appear .45s ease-out both,bg-sway 3.6s ease-in-out .45s infinite}
+@keyframes bg-appear{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
+.bg-mini-ph{display:block;width:150px;max-width:100%;aspect-ratio:240/260;margin:2px 0 4px;border-radius:14px;
+  background:radial-gradient(60% 55% at 50% 50%,color-mix(in srgb,var(--tint) 70%,#fff),transparent 75%);animation:bg-ph 1.3s ease-in-out infinite alternate}
+@keyframes bg-ph{from{opacity:.35;transform:scale(.96)}to{opacity:.8;transform:scale(1)}}
 @keyframes bgm-glint{0%,100%{background-position:0 0,120% 0}50%{background-position:0 0,-20% 0}}
 .box-card:nth-child(2n) .bg-mini{animation-delay:-1.4s}
 @keyframes bg-sway{0%,100%{transform:rotate(-2deg) translateY(0)}50%{transform:rotate(2deg) translateY(-3px)}}
-@media (prefers-reduced-motion:reduce){.bg-fig.rise{transition:none}.bg-mini,.bg-mini-img,.bgm-holo,.bgm::after{animation:none}}
+@media (prefers-reduced-motion:reduce){.bg-fig.rise{transition:none}.bg-mini,.bg-mini-img,.bg-mini-ph,.bgm-holo,.bgm::after{animation:none}}
 `;
 // the mascot on the sticker: a little round ghost with a star, holding a letter (our own, not anyone's character)
 const bagMascot = star => `<svg viewBox="0 0 80 70" aria-hidden="true">
@@ -373,21 +378,30 @@ const bagParams = series => ({ tint: BAG_TINT[series] || "#c9c3ef", subtitle: to
 // picture is ready, and where there is no WebGL, a drawn look-alike stands in
 const bagStills = {};
 let bagStillBusy = false;
+// pictures are kept in the browser, so after the first visit the list shows the real bags at once
+const BAG_STILL_VER = "s1";
+const bagStillKey = series => { const p = bagParams(series); return `bag-still:${BAG_STILL_VER}:${series}:${toyHash(p.tint + p.subtitle)}`; };
+function bagStillCached(series) { try { return localStorage.getItem(bagStillKey(series)); } catch (e) { return null; } }
 async function bagStillRun() {
   if (bagStillBusy || typeof bag3dStill !== "function" || !bag3dOk()) return; bagStillBusy = true;
   try {
     const THREE = await bag3dLoad();
     for (let series; (series = Object.keys(bagStills).find(k => !bagStills[k]));) {
       const url = await bag3dStill(THREE, { ...bagParams(series), sound: false }); bagStills[series] = url;
-      document.querySelectorAll(`[data-mini="${series}"]`).forEach(el => { el.outerHTML = `<img class="bg-mini-img" src="${url}" alt="">`; });
+      try { localStorage.setItem(bagStillKey(series), url); } catch (e) {}
+      document.querySelectorAll(`[data-mini="${series}"]`).forEach(el => { el.outerHTML = `<img class="bg-mini-img appear" src="${url}" alt="">`; });
     }
   } catch (e) {}
   bagStillBusy = false;
 }
 const bagMini = series => {
+  if (!bagStills[series]) { const c = bagStillCached(series); if (c) bagStills[series] = c; }
   if (bagStills[series]) return `<img class="bg-mini-img" src="${bagStills[series]}" alt="">`;
+  const flat = () => bagMiniHtml({ ...BAG_DEFAULTS, ...bagParams(series) });
+  if (typeof bag3dStill !== "function" || !bag3dOk()) return flat(); // no 3D here: the drawn bag is all there is
   if (!(series in bagStills)) { bagStills[series] = null; setTimeout(bagStillRun, 0); }
-  return bagMiniHtml({ ...BAG_DEFAULTS, ...bagParams(series) }).replace('<span class="bg-mini bgm"', `<span data-mini="${series}" class="bg-mini bgm"`);
+  // until the picture is ready, a soft glow in the series colour holds its place
+  return `<span class="bg-mini-ph" data-mini="${series}" style="--tint:${bagParams(series).tint}" aria-hidden="true"></span>`;
 };
 let bagLive = null, bagSeries = null;
 function bagOpen(b) { bagSeries = b.series; return `<div id="bagStage"></div>`; }
