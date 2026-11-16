@@ -13,7 +13,7 @@ const toyHash = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(
 const mskDay = ts => new Date(ts).toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
 const STAGE_BOX = ["Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес"]; // stages with a meeting
 const TOYS_FOLIO_STEP = 8;
-const TOYS_GIFTS = []; // [day, how many, label]
+const TOYS_GIFTS = [["2026-11-16", 2, "Подарок: два котика, как ты просила", "cats"]]; // [day, how many, label, series (optional)]
 const TOYS_PAST_MAX = 8; // bags for past applications and visits, at most
 
 async function loadToys() {
@@ -48,7 +48,7 @@ function earnedBoxes() {
   const visits = Object.values(folio.data?.guests || {}).flatMap(g => g.days.map(d => d.day)).filter(Boolean).sort(); // one guest on one day is one visit
   for (let i = TOYS_FOLIO_STEP; i <= visits.length; i += TOYS_FOLIO_STEP) add("folio:" + i, `${i} ${plural(i, "заход", "захода", "заходов")} в портфолио`, visits[i - 1]);
   // gifts: bags handed out by hand when Masha asks for more
-  for (const [day, n, why] of TOYS_GIFTS) for (let i = 1; i <= n; i++) add(`gift:${day}:${i}`, why, day);
+  for (const [day, n, why, series] of TOYS_GIFTS) for (let i = 1; i <= n; i++) { add(`gift:${day}:${series || ""}${i}`, why, day); if (series) out[out.length - 1].fixed = series; }
   // past merit is capped: of the bags for applications and visits from before the collection started, only the latest
   // TOYS_PAST_MAX count (opened ones always stay); from the start on everything counts
   const got = new Set(toys.opened.map(o => o.key)), isPast = b => /^v\d+:(app|folio):/.test(b.key) && b.day < TOYS_LAUNCH;
@@ -59,7 +59,8 @@ function earnedBoxes() {
 // while testing, one bag of every series waits on the shelf too; they always bring the test figure and never count
 const testBoxes = () => TOYS_TEST ? TOY_SERIES.map(s => ({ key: "demo:" + s.key, why: `Тест: ${s.name}`, series: s.key, demo: true })) : [];
 function dealSeries(boxes) {
-  const order = [...boxes].sort((a, b) => (a.day || "").localeCompare(b.day || "") || a.key.localeCompare(b.key)), n = TOY_SERIES.length;
+  for (const b of boxes) if (b.fixed) b.series = b.fixed; // a gift of a chosen series keeps it
+  const order = boxes.filter(b => !b.fixed).sort((a, b) => (a.day || "").localeCompare(b.day || "") || a.key.localeCompare(b.key)), n = TOY_SERIES.length;
   order.forEach((b, i) => {
     let h = toyHash("deal" + Math.floor(i / n)); const perm = TOY_SERIES.map(s => s.key);
     for (let j = n - 1; j > 0; j--) { h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0; const k = h % (j + 1); [perm[j], perm[k]] = [perm[k], perm[j]]; }
