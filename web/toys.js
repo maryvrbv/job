@@ -13,7 +13,7 @@ const toyHash = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(
 const mskDay = ts => new Date(ts).toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
 const STAGE_BOX = ["Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес"]; // stages with a meeting
 const TOYS_FOLIO_STEP = 8;
-const TOYS_GIFTS = [["2026-11-16", 4, "Подарок: просто так, за то, что ты молодец"]]; // [day, how many, label]
+const TOYS_GIFTS = []; // [day, how many, label]
 
 async function loadToys() {
   const { data, error } = await sb.from("toy_boxes").select("key,series,figure,opened_at").order("opened_at");
@@ -31,7 +31,6 @@ function earnedBoxes() {
   const out = [], add = (key, why, day) => out.push({ key: TOYS_VER + key, why, day: day || todayIso() });
   const byId = Object.fromEntries(state.jobs.map(j => [j.id, j]));
   const who = id => byId[id]?.company || byId[id]?.title || "вакансия";
-  const after = d => d && d >= TOYS_LAUNCH;
   // every rejection after a meeting (HR screening or later), over all time; a rejection right after applying brings nothing
   const met = new Set(events.filter(e => STAGE_BOX.includes(e.to_status)).map(e => e.job_id));
   for (const j of state.jobs) if (j.reject_stage && STAGE_BOX.includes(j.reject_stage)) met.add(j.id);
@@ -42,10 +41,10 @@ function earnedBoxes() {
   // every two days spent on test tasks (days with a diary entry marked «Тестовое»)
   const testDays = [...new Set((diary.rows || []).filter(r => r.kind === "test").map(r => r.day))].sort();
   for (let i = 2; i <= testDays.length; i += 2) add("test2:" + i, `Два дня над тестовым (${i / 2}-я пара)`, testDays[i - 1]);
-  // every two applications and every 8 visits of people to the portfolio, counted from the start of the collection
-  const applied = state.jobs.filter(j => isApplied(j) && after(j.applied_at)).map(j => j.applied_at).sort();
-  for (let i = 2; i <= applied.length; i += 2) add("app:" + i, `${i} ${plural(i, "отклик", "отклика", "откликов")} с начала коллекции`, applied[i - 1]);
-  const visits = Object.values(folio.data?.guests || {}).flatMap(g => g.days.map(d => d.day)).filter(after).sort(); // one guest on one day is one visit
+  // every two applications and every 8 visits of people to the portfolio, over all time (past work counts too)
+  const applied = state.jobs.filter(j => isApplied(j) && j.applied_at).map(j => j.applied_at).sort();
+  for (let i = 2; i <= applied.length; i += 2) add("app:" + i, `${i} ${plural(i, "отклик", "отклика", "откликов")}`, applied[i - 1]);
+  const visits = Object.values(folio.data?.guests || {}).flatMap(g => g.days.map(d => d.day)).filter(Boolean).sort(); // one guest on one day is one visit
   for (let i = TOYS_FOLIO_STEP; i <= visits.length; i += TOYS_FOLIO_STEP) add("folio:" + i, `${i} ${plural(i, "заход", "захода", "заходов")} в портфолио`, visits[i - 1]);
   // gifts: bags handed out by hand when Masha asks for more
   for (const [day, n, why] of TOYS_GIFTS) for (let i = 1; i <= n; i++) add(`gift:${day}:${i}`, why, day);
@@ -118,8 +117,8 @@ function renderToys() {
   }).join("") + `<details class="panel-card toy-rules"><summary>За что дают пакетики</summary><ul>
       <li><b>Каждый отказ после собеса</b> (начиная со скрининга с HR). Отказ — это смелость, а не провал</li>
       <li><b>Каждые два дня над тестовым</b>: отмечай такие дни в дневнике записью «Тестовое»</li>
-      <li><b>Каждые 2 отклика</b> с начала коллекции</li>
-      <li><b>Каждые 8 заходов людей в портфолио</b> (один гость за день — один заход)</li>
+      <li><b>Каждые 2 отклика</b>, за всё время</li>
+      <li><b>Каждые 8 заходов людей в портфолио</b> (один гость за день — один заход), за всё время</li>
       <li>Цвет и название на коробке — это серия. Какая фигурка внутри — сюрприз. В каждой серии 13 фигурок, одна из них секретная и очень редкая. Каждая 10-я коробка серии — точно новая фигурка, остальные могут быть повторками</li></ul></details>`;
 }
 
