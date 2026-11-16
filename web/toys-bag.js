@@ -1,12 +1,13 @@
 // ---------- the mystery bag engine: a puffy foil pouch with a sticker, torn open along the top ----------
 // One engine for the app and for the bag editor artifact. It tilts after the pointer on springs, wiggles when left
 // alone, stretches when tugged up or down, and tears along a fresh ragged line when pulled sideways: the torn strip
-// is cut into slices that each bend a little more, so its loose end curls up toward you. Light beams grow out of the
-// torn part and glowing stars fly from the mouth while it tears; when the tear runs through, the strip is thrown up,
-// the stars burst and the figure rises out of the bag. The bag has thickness and a soft bulge where the figure sits.
+// is cut into slices that each bend a little more, so its loose end curls up toward you. A soft pink light grows out of
+// the torn part and glowing stars fly from the mouth while it tears; when the tear runs through, the strip is thrown up,
+// the stars burst and the figure rises out of the bag. The bag has thickness, a pillow outline, crinkled foil lit from
+// a light that moves with the tilt, a bulge where the figure sits and a silver inside that shows through the mouth.
 
 const BAG_DEFAULTS = {
-  foil: "#f4f2ee", w: 210, h: 236, rad: 6, crimp: 9, wrink: 0.7, depth: 22, puff: 0.7, lump: 0.6,
+  foil: "#f4f2ee", w: 210, h: 236, rad: 6, crimp: 9, wrink: 0.7, depth: 22, puff: 0.7, lump: 0.6, sheen: 0.6,
   tint: "#e7bfe6", ink: "#5a3b3f", star: "#ff6f91", ssize: 66, stop: 30, srad: 12, holo: 0.35, title: "MYSTERY BAG", subtitle: "", mascot: true,
   tilt: 20, response: 0.7, bounce: 0.28, float: 6, wiggle: 5, stretch: 120,
   curl: 1, ragged: 1, pull: 0.85, tearSpeed: 2.2, throw: 1900, rays: true, stars: true, starCount: 1, sound: true, haptics: true,
@@ -24,7 +25,7 @@ const BAG_CSS = `
 .bg-fig.rise{opacity:1;transform:translateY(-44px) scale(1);transition:transform .85s .2s cubic-bezier(.2,1.5,.4,1),opacity .25s .2s}
 .bg-shadow{position:absolute;left:50%;bottom:22px;width:190px;height:20px;margin-left:-95px;border-radius:50%;background:radial-gradient(closest-side,rgb(60 30 90 / .26),transparent)}
 .bg-pack{position:absolute;left:50%;top:70px;width:var(--w);height:var(--h);margin-left:calc(var(--w) / -2);transform-style:preserve-3d;transform-origin:50% 60%;z-index:2;--gx:50%;--gy:30%;--ha:0deg;--lx:0px;--ly:0px}
-.bg-skin{position:absolute;inset:0;border-radius:var(--rad);overflow:hidden;background:var(--foil);box-shadow:inset 0 0 calc(var(--w) * .14 * var(--puff)) rgb(110 98 85 / calc(var(--puff) * .38));backface-visibility:hidden;-webkit-backface-visibility:hidden;transform:translateZ(calc(var(--d) / 2))}
+.bg-skin{position:absolute;inset:0;border-radius:var(--rad);overflow:hidden;background:var(--foil);-webkit-mask:var(--pillow) 0 0/100% 100% no-repeat;mask:var(--pillow) 0 0/100% 100% no-repeat;box-shadow:inset 0 0 calc(var(--w) * .14 * var(--puff)) rgb(110 98 85 / calc(var(--puff) * .38));backface-visibility:hidden;-webkit-backface-visibility:hidden;transform:translateZ(calc(var(--d) / 2))}
 .bg-skin.back{transform:rotateY(180deg) translateZ(calc(var(--d) / 2))}
 .bg-skin i{position:absolute;pointer-events:none}
 .bg-side{position:absolute;top:10%;bottom:8%;width:var(--d);border-radius:40%/8%;background:linear-gradient(90deg,color-mix(in srgb,var(--foil) 70%,#5e544a),color-mix(in srgb,var(--foil) 85%,#5e544a) 50%,color-mix(in srgb,var(--foil) 70%,#5e544a))}
@@ -41,6 +42,11 @@ const BAG_CSS = `
 .bg-perf{left:7%;right:7%;top:calc(var(--crimp) + 2.5%);border-top:1.5px dashed rgb(150 140 130 / .38)}
 .bg-notch{top:calc(var(--crimp) - 1%);width:10px;height:10px;background:var(--notchbg,#fff);transform:rotate(45deg)}
 .bg-notch.l{left:-6px}.bg-notch.r{right:-6px}
+.bg-lit{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.bg-lit .crinkle{mix-blend-mode:multiply;opacity:calc(var(--wrink) * .42)}
+.bg-lit .sheen{mix-blend-mode:screen;opacity:var(--sheen)}
+.bg-tiltshade{inset:0;background:linear-gradient(90deg,rgb(70 60 55 / var(--sl,0)),transparent 45%,transparent 55%,rgb(70 60 55 / var(--sr,0))),linear-gradient(180deg,rgb(255 255 255 / var(--st,0)),transparent 40%,transparent 65%,rgb(70 60 55 / var(--sb,0)))}
+.bg-mouth{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;transform:translateZ(0)}
 .bg-glare{inset:0;background:radial-gradient(circle at var(--gx) var(--gy),rgb(255 255 255 / .9),rgb(255 255 255 / 0) 40%);mix-blend-mode:soft-light}
 .bg-sticker{position:absolute;left:calc((100% - var(--ssize)) / 2);width:var(--ssize);top:var(--stop);aspect-ratio:1;border-radius:var(--srad);background:var(--tint);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   box-shadow:0 1px 0 rgb(255 255 255 / .6) inset,0 3px 7px rgb(90 70 120 / .18);overflow:hidden;transform:translate(calc(var(--lx) * .35),calc(var(--ly) * .35)) scale(calc(1 + var(--puff) * .03))}
@@ -55,7 +61,7 @@ const BAG_CSS = `
 .bg-plyin{position:absolute}
 .bg-plyin>*{position:absolute;inset:0}
 .bg-ply .bg-skin{transform:none;backface-visibility:visible;-webkit-backface-visibility:visible}
-.bg-plyback{display:none;background:linear-gradient(180deg,color-mix(in srgb,var(--foil) 78%,#8b8178),color-mix(in srgb,var(--foil) 90%,#8b8178))}
+.bg-plyback{display:none;background:linear-gradient(180deg,#eef0f4,#b9bec8 45%,#e3e6ec 70%,#a9aeb8)}
 .bg-ply.flip .bg-plyback{display:block}
 .bg-shade{background:#3a2c20;opacity:0}
 .bg-cut{position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:none;overflow:visible;transform:translateZ(calc(var(--d) / 2 + 1px));filter:drop-shadow(0 1px 0 rgb(0 0 0 / .14))}
@@ -77,21 +83,39 @@ const bagMascot = star => `<svg viewBox="0 0 80 70" aria-hidden="true">
   <path d="M38 46q2 2 4 0" stroke="#3b2b33" stroke-width="1.2" fill="none" stroke-linecap="round"/>
   <rect x="31" y="50" width="18" height="11" rx="2" fill="#ffc9d6" stroke="#e0889f" stroke-width="1"/><path d="M31.5 51l8.5 5.5 8.5-5.5" fill="none" stroke="#e0889f" stroke-width="1"/></svg>`;
 const bagEsc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-function bagSkinHtml(P, back) {
-  if (back) return `<i class="bg-foil"></i><i class="bg-crimp top"></i><i class="bg-crimp bottom"></i><i class="bg-seal l"></i><i class="bg-seal r"></i><i class="bg-wrinkles"></i><i class="bg-glare"></i>`;
-  return `<i class="bg-foil"></i><i class="bg-lump"></i><i class="bg-crimp top"></i><i class="bg-crimp bottom"></i><i class="bg-seal l"></i><i class="bg-seal r"></i>
-    <i class="bg-wrinkles"></i><i class="bg-perf"></i><i class="bg-notch l"></i><i class="bg-notch r"></i>
+// crinkled foil lit by a light that moves with the tilt: a noise relief through diffuse light (the creases) and
+// specular light (the soft sheen of matte foil); the filters are shared by id, one set per bag
+const bagLitHtml = (id, seed) => `<svg class="bg-lit" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${bagLitDefs(id, seed)}<rect class="crinkle" width="100" height="100" filter="url(#${id}c)"/><rect class="sheen" width="100" height="100" filter="url(#${id}s)"/></svg>`;
+const bagLitDefs = (id, seed) => `<defs>
+  <filter id="${id}c" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.018 0.03" numOctaves="4" seed="${seed}" result="n"/>
+    <feDiffuseLighting in="n" surfaceScale="4" diffuseConstant="1.3" lighting-color="#fff"><feDistantLight class="lt" azimuth="235" elevation="48"/></feDiffuseLighting></filter>
+  <filter id="${id}s" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.018" numOctaves="2" seed="${seed + 7}" result="n"/>
+    <feSpecularLighting in="n" surfaceScale="6" specularConstant=".9" specularExponent="14" lighting-color="#fff" result="s"><feDistantLight class="lt" azimuth="235" elevation="48"/></feSpecularLighting>
+    <feComposite in="s" in2="SourceAlpha" operator="in"/></filter></defs>`;
+function bagSkinHtml(P, back, lit) {
+  const L = lit ? bagLitHtml(lit[0] + (back ? "b" : "f"), lit[1]) : "";
+  if (back) return `<i class="bg-foil"></i>${L}<i class="bg-crimp top"></i><i class="bg-crimp bottom"></i><i class="bg-seal l"></i><i class="bg-seal r"></i><i class="bg-wrinkles"></i><i class="bg-tiltshade"></i><i class="bg-glare"></i>`;
+  return `<i class="bg-foil"></i>${L}<i class="bg-lump"></i><i class="bg-crimp top"></i><i class="bg-crimp bottom"></i><i class="bg-seal l"></i><i class="bg-seal r"></i>
+    <i class="bg-wrinkles"></i><i class="bg-perf"></i><i class="bg-notch l"></i><i class="bg-notch r"></i><i class="bg-tiltshade"></i>
     <div class="bg-sticker">${P.mascot ? bagMascot(P.star) : ""}<b>${bagEsc(P.title)}</b>${P.subtitle ? `<small>${bagEsc(P.subtitle)}</small>` : ""}<i class="bg-holo"></i></div><i class="bg-glare"></i>`;
+}
+// the pillow outline: crimped seams stay flat and full width, the puffed middle pulls the sides in a little
+function bagPillow(P) {
+  const c = +P.crimp, k = Math.max(0, P.puff) * 4, t = c + 2, b = 98 - c;
+  const d = `M0 0H100V${t}Q${100 - 2 * k} 50 100 ${b}V100H0V${b}Q${2 * k} 50 0 ${t}Z`;
+  return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path d='${d}'/></svg>`)}")`;
 }
 function bagLook(stage, P) { // colours and sizes as CSS variables on the stage
   const set = (k, v) => stage.style.setProperty(k, v);
   set("--w", P.w + "px"); set("--h", P.h + "px"); set("--rad", P.rad + "px"); set("--crimp", P.crimp + "%"); set("--wrink", P.wrink); set("--d", P.depth + "px");
   set("--puff", P.puff); set("--lump", P.lump); set("--foil", P.foil); set("--tint", P.tint); set("--ink", P.ink);
   set("--ssize", P.ssize + "%"); set("--stop", P.stop + "%"); set("--srad", P.srad + "px"); set("--holo", P.holo);
+  set("--sheen", P.sheen); set("--pillow", bagPillow(P));
 }
 // a small still bag for lists (no engine): the front skin only
-const bagMiniHtml = P => `<span class="bg-mini" style="--w:86px;--h:97px;--rad:${P.rad * .4}px;--crimp:${P.crimp}%;--wrink:${P.wrink};--d:0px;--puff:${P.puff};--lump:${P.lump};--foil:${P.foil};--tint:${P.tint};--ink:${P.ink};--ssize:${P.ssize}%;--stop:${P.stop}%;--srad:${P.srad * .4}px;--holo:${P.holo}"><span class="bg-skin">${bagSkinHtml({ ...P, subtitle: "" })}</span></span>`;
+const bagMiniHtml = P => `<span class="bg-mini" style="--w:86px;--h:97px;--rad:${P.rad * .4}px;--crimp:${P.crimp}%;--wrink:${P.wrink};--d:0px;--puff:${P.puff};--lump:${P.lump};--foil:${P.foil};--tint:${P.tint};--ink:${P.ink};--ssize:${P.ssize}%;--stop:${P.stop}%;--srad:${P.srad * .4}px;--holo:${P.holo};--sheen:${P.sheen};--pillow:${bagPillow(P).replace(/"/g, "'")}"><span class="bg-skin">${bagSkinHtml({ ...P, subtitle: "" })}</span></span>`;
 
+let bagSeq = 0;
 class BagSpring {
   constructor(x, response = 0.5, bounce = 0) { this.x = this.to = x; this.v = 0; this.set(response, bounce); }
   set(response, bounce = 0) { this.k = (2 * Math.PI / response) ** 2; this.c = 4 * Math.PI * (1 - bounce) / response; return this; }
@@ -147,17 +171,21 @@ function createBag(stage, P0, opts = {}) {
   const rays = Array.from({ length: NR }, (_, j) => ({ x: 6 + 88 * (j + 0.5) / NR, c: BAG_RAY_COLORS[j % BAG_RAY_COLORS.length], g: new BagSpring(0, 0.45, 0.3), on: false, ph: Math.random() * 6.28, len: 40 + Math.random() * 22 }));
 
   stage.classList.add("bg-stage"); stage.classList.remove("opened"); bagLook(stage, P);
+  const lid = "bgl" + (++bagSeq), seed = 1 + Math.floor(Math.random() * 400);
   stage.innerHTML = `<svg class="bg-rays" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs>${rays.map((r, j) => `<radialGradient id="bgr${j}" cx=".5" cy=".75" r=".6"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".35" stop-color="${r.c}" stop-opacity=".85"/><stop offset="1" stop-color="${r.c}" stop-opacity="0"/></radialGradient>`).join("")}</defs>${rays.map((r, j) => `<path id="bgr-p${j}" fill="url(#bgr${j})" d=""/>`).join("")}</svg>
     <div class="bg-fig"${opts.figId ? ` id="${opts.figId}"` : ""} aria-hidden="true">${opts.figure || ""}</div><div class="bg-shadow"></div>
     <div class="bg-pack">
       <i class="bg-side l"></i><i class="bg-side r"></i>
-      <div class="bg-skin back">${bagSkinHtml(P, true)}</div>
-      <div class="bg-skin front">${bagSkinHtml(P)}</div>
+      <div class="bg-skin back">${bagSkinHtml(P, true, [lid, seed])}</div>
+      <svg class="bg-mouth" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${lid}m" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3f5f8"/><stop offset=".22" stop-color="#b7bcc6"/><stop offset=".5" stop-color="#5e5466"/><stop offset="1" stop-color="#2b2230"/></linearGradient></defs><path fill="url(#${lid}m)" d=""/></svg>
+      <div class="bg-skin front">${bagSkinHtml(P, false, [lid, seed])}</div>
       <div class="bg-strip">${Array.from({ length: BAG_K }, () => `<div class="bg-ply" hidden><div class="bg-plyin"><div class="bg-skin front">${bagSkinHtml(P)}</div><i class="bg-plyback"></i><i class="bg-shade"></i></div></div>`).join("")}</div>
-      <svg class="bg-cut" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="#fff" stroke-width="1.4" vector-effect="non-scaling-stroke" points=""/></svg>
+      <svg class="bg-cut" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline class="ag" fill="none" stroke="#b9bec8" stroke-width="2.4" vector-effect="non-scaling-stroke" points=""/><polyline fill="none" stroke="#fff" stroke-width="1" vector-effect="non-scaling-stroke" points=""/></svg>
     </div><canvas class="bg-fx"></canvas>`;
   const $q = s => stage.querySelector(s);
-  const pack = $q(".bg-pack"), body = $q(".bg-pack > .bg-skin.front"), strip = $q(".bg-strip"), cut = $q(".bg-cut polyline"), fig = $q(".bg-fig");
+  const pack = $q(".bg-pack"), body = $q(".bg-pack > .bg-skin.front"), strip = $q(".bg-strip"), cuts = [...stage.querySelectorAll(".bg-cut polyline")], fig = $q(".bg-fig");
+  const cut = { setAttribute: (k, v) => cuts.forEach(c => c.setAttribute(k, v)), get parentNode() { return cuts[0].parentNode; } };
+  const mouth = $q(".bg-mouth path"), lights = [...stage.querySelectorAll(".lt")]; let litAt = [999, 999];
   const plies = [...stage.querySelectorAll(".bg-ply")].map(el => ({ el, inner: el.querySelector(".bg-plyin"), shade: el.querySelector(".bg-shade") }));
   const rayEls = rays.map((_, j) => $q("#bgr-p" + j)), raysEl = $q(".bg-rays"), fx = $q(".bg-fx"), g2 = fx.getContext("2d");
   try { stage.style.setProperty("--notchbg", getComputedStyle(stage.parentElement).backgroundColor); } catch (e) {}
@@ -165,10 +193,18 @@ function createBag(stage, P0, opts = {}) {
   // the tear: the body keeps everything but the torn strip; each slice of the strip is cut once the tear passed it
   function clips(p) {
     const d = S.dir, xt = d > 0 ? p * 100 : 100 - p * 100, yt = yAt(xt);
-    if (p <= 0) { body.style.clipPath = ""; cut.setAttribute("points", ""); plies.forEach(s => s.el.hidden = true); return; }
+    if (p <= 0) { body.style.clipPath = ""; cut.setAttribute("points", ""); mouth.setAttribute("d", ""); plies.forEach(s => s.el.hidden = true); return; }
     const torn = jag.filter(([x]) => d > 0 ? x < xt : x > xt);
     body.style.clipPath = poly(d > 0 ? [[xt, -5], [105, -5], [105, 105], [-5, 105], [-5, torn[0]?.[1] ?? yt], ...torn, [xt, yt]] : [[-5, -5], [xt, -5], [xt, yt], ...torn, [105, torn[torn.length - 1]?.[1] ?? yt], [105, 105], [-5, 105]]);
-    cut.setAttribute("points", (d > 0 ? [...torn, [xt, yt]] : [[xt, yt], ...torn]).map(([x, y]) => `${(+x).toFixed(2)},${(y + 0.5).toFixed(2)}`).join(" "));
+    const edge = d > 0 ? [...torn, [xt, yt]] : [[xt, yt], ...torn];
+    cut.setAttribute("points", edge.map(([x, y]) => `${(+x).toFixed(2)},${(y + 0.5).toFixed(2)}`).join(" "));
+    // the mouth: through the torn part you see the silver inside of the back panel and the dark of the bag below it,
+    // gaping a little wider in the middle of the torn stretch (the puffed bag pulls it open)
+    if (edge.length > 1) {
+      const x0 = edge[0][0], x1 = edge[edge.length - 1][0], span = Math.max(1, x1 - x0), gape = (1.2 + 2.6 * Math.min(1, span / 60)) * (0.6 + 0.4 * P.puff);
+      const upper = edge.map(([x, y]) => [x, y - gape * Math.max(0, Math.sin(Math.PI * Math.min(1, Math.max(0, (x - x0) / span)))) ** 0.7]);
+      mouth.setAttribute("d", "M" + upper.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join("L") + "L" + edge.slice().reverse().map(([x, y]) => `${x.toFixed(2)} ${(y + 1.5).toFixed(2)}`).join("L") + "Z");
+    }
     // each slice is a small layer of exactly its own piece of the strip (full-size layers tilted every which way
     // confuse the browser's 3D sorting and vanish); the pack's own coordinates are kept through the transform origin
     const w = 100 / BAG_K, lap = 0.3, W = pack.offsetWidth, H = pack.offsetHeight, yMax = Math.max(...jag.map(q => q[1])) + 1.5, top = 0.05 * H, bandH = (yMax + 5) / 100 * H;
@@ -189,7 +225,7 @@ function createBag(stage, P0, opts = {}) {
     for (let n = 0, k = k0; k >= 0 && k < BAG_K; n++, k -= d) {
       const x = ((n ? (d > 0 ? k + 1 : k) * w : xt) / 100 * W).toFixed(2), a = d * (bend * (0.4 + 0.32 * n) + Math.sin(t * 16 + n * 0.9) * jit);
       sum += a; m += `translateX(${x}px) rotateY(${a.toFixed(2)}deg) rotateX(${(-Math.abs(a) * 0.7).toFixed(2)}deg) translateX(-${x}px) `;
-      plies[k].el.style.transform = m; plies[k].shade.style.opacity = Math.min(0.45, Math.abs(sum) / 220).toFixed(2); plies[k].el.classList.toggle("flip", Math.abs(sum) > 90);
+      plies[k].el.style.transform = m; plies[k].shade.style.opacity = Math.min(0.26, Math.abs(sum) / 300).toFixed(2); plies[k].el.classList.toggle("flip", Math.abs(sum) > 80);
     }
   }
   // soft diffused light from the mouth: a pastel haze grows wherever the tear has run past, breathes gently,
@@ -294,6 +330,13 @@ function createBag(stage, P0, opts = {}) {
     }
     pack.style.transform = `translateY(${S.y.x.toFixed(1)}px) rotateX(${S.rx.x.toFixed(2)}deg) rotateY(${S.ry.x.toFixed(2)}deg) rotate(${S.rz.x.toFixed(2)}deg) scaleY(${S.stretch.x.toFixed(3)})`;
     pack.style.setProperty("--gx", `${50 + S.ry.x * 2}%`); pack.style.setProperty("--gy", `${30 - S.rx.x * 2}%`); pack.style.setProperty("--ha", `${S.ry.x * 6 + S.rx.x * 4}deg`);
+    // one light from the upper left: tilting turns one side of the bag toward it and the other into shade
+    const sl = Math.max(0, S.ry.x) / 40 + 0.04, sr = Math.max(0, -S.ry.x) / 40 + 0.06, sb = Math.max(0, -S.rx.x - 2) / 45 + 0.05, stt = Math.max(0, S.rx.x + 8) / 60;
+    for (const [k, v] of [["--sl", sl], ["--sr", sr], ["--sb", sb], ["--st", stt]]) pack.style.setProperty(k, Math.min(0.4, v).toFixed(3));
+    if (Math.abs(S.ry.x - litAt[0]) + Math.abs(S.rx.x - litAt[1]) > 1.2) { // relight the creases only when the tilt really changed
+      litAt = [S.ry.x, S.rx.x]; const az = (235 - S.ry.x * 3.5).toFixed(1), el = Math.max(20, Math.min(75, 48 + S.rx.x * 1.4)).toFixed(1);
+      for (const l of lights) { l.setAttribute("azimuth", az); l.setAttribute("elevation", el); }
+    }
     pack.style.setProperty("--lx", `${(S.ry.x * 0.35).toFixed(2)}px`); pack.style.setProperty("--ly", `${(-S.rx.x * 0.3).toFixed(2)}px`); // the figure inside shifts as it tilts
     $q(".bg-shadow").style.transform = `scale(${(1 - S.y.x / 300).toFixed(3)})`;
     if (S.fly) { // the strip is thrown: it races up, flips and spins away
