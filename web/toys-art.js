@@ -336,7 +336,8 @@ function toySvg(seriesKey, figId, cls = "") {
 }
 // the sealed box of a series: a cube with the series colour, a ribbon and a question mark; the lid is its own group
 function boxSvg(seriesKey, cls = "") {
-  const s = toySeries(seriesKey) || TOY_SERIES[0], c = s.color, a = s.accent, id = "bx" + s.key;
+  // a box does not tell its series: the same mystery colours for all, the series falls out with the figure
+  const s = toySeries(seriesKey) || { key: "mystery", color: "#8b5cf6", accent: "#c6f432" }, c = s.color, a = s.accent, id = "bx" + s.key;
   return `<svg class="tbox ${cls}" viewBox="0 0 120 130" aria-hidden="true"><defs>${vinyl(id, c)}<pattern id="${id}p" width="14" height="14" patternUnits="userSpaceOnUse"><circle cx="7" cy="7" r="2" fill="#fff" opacity=".28"/></pattern></defs>
     <ellipse cx="60" cy="124" rx="40" ry="5" fill="#000" opacity=".13"/>
     <g class="tbox-body"><path d="M18 50h84v62a8 8 0 0 1-8 8H26a8 8 0 0 1-8-8z" fill="url(#${id})"/><path d="M18 50h84v62a8 8 0 0 1-8 8H26a8 8 0 0 1-8-8z" fill="url(#${id}p)"/>
