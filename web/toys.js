@@ -36,6 +36,8 @@ function earnedBoxes() {
   for (const r of diary.rows || []) if (r.kind === "test") add("test:" + r.id, `Тестовое: ${r.text.slice(0, 70)}`, r.day);
   return out;
 }
+// while testing, one bag of every series waits on the shelf too; they always bring the test figure and never count
+const testBoxes = () => TOYS_TEST ? TOY_SERIES.map(s => ({ key: "demo:" + s.key, why: `Тест: ${s.name}`, series: s.key, demo: true })) : [];
 const unopened = () => { const e = earnedBoxes(); if (!e) return null; for (const b of e) b.series = seriesOf(b.key); const got = new Set(toys.opened.map(o => o.key)); return e.filter(b => !got.has(b.key)).sort((a, b) => (b.day || "").localeCompare(a.day || "")); };
 
 // the tab carries the number of boxes waiting; a box earned while the app is open says so right away
@@ -75,7 +77,8 @@ function renderToys() {
       <p class="rv-meta">Выбери, в чём приходят награды. Пробное открытие ничего не тратит</p>
       <div class="pack-row"><div class="segmented pack-seg" role="radiogroup" aria-label="Упаковка">${PACKS.map(([k, l]) => `<button type="button" role="radio" data-pack="${k}" aria-checked="${toys.pack === k}" class="${toys.pack === k ? "on" : ""}">${l}</button>`).join("")}</div>
       <button type="button" class="btn" data-demo>Попробовать открыть</button></div></div>`;
-  $("toysBoxes").innerHTML = list.length ? `<h2 class="fsec">Ждут открытия</h2><div class="box-grid">${list.slice(0, 24).map(b =>
+  const shown = [...testBoxes(), ...list];
+  $("toysBoxes").innerHTML = shown.length ? `<h2 class="fsec">Ждут открытия</h2><div class="box-grid">${shown.slice(0, 24 + testBoxes().length).map(b =>
     `<button type="button" class="box-card" data-box="${esc(b.key)}">${toys.pack === "bag" ? bagMini(b.series) : `<span class="box-mini">${boxHtml(b.series, { S: 64, cls: "spin" })}</span>`}<span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
     ${list.length > 24 ? `<p class="note">И ещё ${list.length - 24}. Открывай по одной или подряд, они никуда не денутся</p>` : ""}`
     : `<h2 class="fsec">Ждут открытия</h2><p class="note">Все коробки открыты. Следующая придёт за отказ или сделанное тестовое.</p>`;
@@ -93,7 +96,7 @@ function renderToys() {
       <li><b>Каждый отказ</b>. Отказ — это смелость, а не провал</li>
       <li><b>Каждое сделанное тестовое</b>: отметь запись в дневнике как «Тестовое»</li>
       <li>Цвет и название на коробке — это серия. Какая фигурка внутри — сюрприз. В каждой серии 13 фигурок, одна из них секретная и очень редкая. Каждая 10-я коробка серии — точно новая фигурка, остальные могут быть повторками</li>
-      <li>Сейчас идёт тест: из всех коробок выпадает одна и та же фигурка</li></ul></details>`;
+      <li>Сейчас идёт тест: из всех коробок выпадает одна и та же фигурка, а пакетики с пометкой «Тест» открываются сколько угодно и в коллекцию не идут</li></ul></details>`;
 }
 
 // ---------- unboxing ----------
@@ -128,7 +131,8 @@ class Spring {
 const pz = { rx: -14, ry: -28, vx: 0, drag: null, tear: 0, done: false, raf: 0, t0: 0, last: 0, tilt: new Spring(-14, 0.6, 0.35), squeeze: new Spring(1, 0.25, 0.5) };
 function openUnbox(key, demo = false) {
   const list = unopened() || [];
-  const b = demo ? { key: "demo", why: "Пробное открытие: в коллекцию не попадёт", series: seriesOf("demo"), demo: true } : list.find(x => x.key === key) || list[0]; if (!b) return;
+  const tb = testBoxes().find(x => x.key === key); // a test bag of one series: opens like a real one, saves nothing
+  const b = tb ? { ...tb, why: `Пробное открытие: ${toySeries(tb.series).name}. В коллекцию не попадёт` } : demo ? { key: "demo", why: "Пробное открытие: в коллекцию не попадёт", series: seriesOf("demo"), demo: true } : list.find(x => x.key === key) || list[0]; if (!b) return;
   toys.cur = b; const u = $("unbox");
   if (toys.pack === "bag") {
     u.innerHTML = `<div class="ub-card ub-sealed ub-bag">
@@ -228,6 +232,7 @@ async function finishTear() {
 }
 async function tearBox() {
   const b = toys.cur; if (!b || toys.busy) return; toys.busy = true;
+  const fs = TOYS_TEST ? TOYS_TEST.series : b.series; // while testing every bag holds the test figure, whatever its series
   const f = rollFigure(b.series), before = toys.opened.filter(o => o.series === b.series && o.figure === f.id).length;
   if (!b.demo) { // a trial opening in the workshop saves nothing
     const { error } = await sb.from("toy_boxes").insert({ key: b.key, series: b.series, figure: f.id });
@@ -237,7 +242,7 @@ async function tearBox() {
     toys.last = Math.max(0, (toys.last || 1) - 1); updateToyBadge();
   }
   toys.busy = false;
-  const fig = $("bagFig"); if (fig) { fig.innerHTML = toySvg(b.series, f.id); requestAnimationFrame(() => fig.classList.add("rise")); } // out of the bag
+  const fig = $("bagFig"); if (fig) { fig.innerHTML = toySvg(fs, f.id); requestAnimationFrame(() => fig.classList.add("rise")); } // out of the bag
   const card = $("unbox").querySelector(".ub-card");
   const rare = f.rare === 2 ? "secret" : f.rare === 1 ? "rare" : "common", more = (unopened() || []).length;
   const confetti = Array.from({ length: f.rare ? 36 : 22 }, (_, i) => `<i style="--a:${(i * 137) % 360}deg;--d:${60 + (i * 53) % 90}px;--c:${["#ff6b81", "#ffd166", "#4cc9f0", "#80ed99", "#b388eb", "#f4a261"][i % 6]};--t:${(i % 7) * 40}ms"></i>`).join("");
@@ -245,9 +250,9 @@ async function tearBox() {
     cancelAnimationFrame(pz.raf); bagClose(); sfx("pop"); buzz(18);
     card.className = `ub-card ub-reveal ${rare}`;
     card.innerHTML = `<button class="btn icon-btn ub-close" type="button" data-ub="close" aria-label="Закрыть">✕</button>
-      <div class="ub-stage"><div class="ub-rays" aria-hidden="true"></div><div class="ub-confetti" aria-hidden="true">${confetti}</div>${toySvg(b.series, f.id, "ub-fig")}</div>
+      <div class="ub-stage"><div class="ub-rays" aria-hidden="true"></div><div class="ub-confetti" aria-hidden="true">${confetti}</div>${toySvg(fs, f.id, "ub-fig")}</div>
       <p class="ub-badge">${b.demo ? "Пробное открытие" : before ? `Повторка · у тебя их ${before}` : f.rare === 2 ? "Секретная фигурка!" : f.rare === 1 ? "Редкая! Новинка в коллекции" : "Новинка в коллекции!"}</p>
-      <h3 class="ub-name">${esc(f.name)}</h3><p class="ub-line">${esc(f.line)}</p><p class="ub-hint">${esc(toySeries(b.series).name)}</p>
+      <h3 class="ub-name">${esc(f.name)}</h3><p class="ub-line">${esc(f.line)}</p><p class="ub-hint">${esc(toySeries(fs).name)}</p>
       <div class="ub-actions">${b.demo ? `<button type="button" class="btn primary" data-ub="demo">Ещё раз</button>` : more ? `<button type="button" class="btn primary" data-ub="next">Следующая коробка · ${more}</button>` : ""}<button type="button" class="btn" data-ub="close">${b.demo ? "Закрыть" : "В коллекцию"}</button></div>`;
   }, reduced() ? 0 : toys.pack === "bag" ? 1500 : 950);
 }
@@ -265,7 +270,7 @@ $("unbox").addEventListener("click", e => {
   if (a === "tear") return autoTear();
   if (a === "mute") { muted = !muted; try { localStorage.setItem("toys-muted", muted ? "1" : "0"); } catch (x) {} const m = e.target.closest("[data-ub]"); m.textContent = muted ? "🔇" : "🔊"; m.setAttribute("aria-pressed", muted); m.setAttribute("aria-label", muted ? "Включить звук" : "Выключить звук"); if (!muted) sfx("crinkle"); return; }
   if (a === "next") return openUnbox();
-  if (a === "demo") return openUnbox(null, true);
+  if (a === "demo") return openUnbox(toys.cur?.key?.startsWith("demo:") ? toys.cur.key : null, true);
   if (a === "close" || e.target === $("unbox")) return closeUnbox();
 });
 addEventListener("keydown", e => { if (e.key === "Escape" && !$("unbox").hidden) closeUnbox(); });
