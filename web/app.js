@@ -658,6 +658,7 @@ async function loadFolio() {
   if (error) { showBanner("Не получилось загрузить статистику портфолио: " + error.message); return; }
   folio.data = data?.data || null; folio.at = data?.updated_at || null;
   renderFolio(); loadAvatars().catch(() => {}); loadGuestNotes().catch(() => {}); if (state.view === "jobs") render(); // vacancy cards show visits too
+  if (toys.opened) { updateToyBadge(); if (state.view === "toys") renderToys(); } // portfolio visits bring bags too
 }
 // Masha's own guess where a guest came from: a vacancy picked by hand and a comment (table guest_notes, keyed by the
 // guest's analytics mark). Shown with a «✎ вручную» chip, never mixed up with a vacancy found through a link tag.

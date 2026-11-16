@@ -11,7 +11,8 @@ if (TOYS_WORKSHOP) try { const p = localStorage.getItem("toys-pack"); if (p === 
 const PACKS = [["bag", "Пакетик"], ["box", "Коробочка"]];
 const toyHash = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 const mskDay = ts => new Date(ts).toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
-const STAGE_BOX = ["Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес"]; // the process, not the offer
+const STAGE_BOX = ["Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес"]; // stages with a meeting
+const TOYS_FOLIO_STEP = 8;
 
 async function loadToys() {
   const { data, error } = await sb.from("toy_boxes").select("key,series,figure,opened_at").order("opened_at");
@@ -29,13 +30,22 @@ function earnedBoxes() {
   const out = [], add = (key, why, day) => out.push({ key: TOYS_VER + key, why, day: day || todayIso() });
   const byId = Object.fromEntries(state.jobs.map(j => [j.id, j]));
   const who = id => byId[id]?.company || byId[id]?.title || "вакансия";
-  // every rejection, over all time
+  const after = d => d && d >= TOYS_LAUNCH;
+  // every rejection after a meeting (HR screening or later), over all time; a rejection right after applying brings nothing
+  const met = new Set(events.filter(e => STAGE_BOX.includes(e.to_status)).map(e => e.job_id));
+  for (const j of state.jobs) if (j.reject_stage && STAGE_BOX.includes(j.reject_stage)) met.add(j.id);
   const rej = new Map();
   for (const e of events) if (e.to_status === REJECT && !rej.has(e.job_id)) rej.set(e.job_id, mskDay(e.at));
   for (const j of state.jobs) if (j.status === REJECT && !rej.has(j.id) && j.updated_at) rej.set(j.id, mskDay(j.updated_at));
-  for (const [id, day] of rej) add("rej:" + id, `Отказ: ${who(id)}`, day);
-  // every test task marked as done in the diary
-  for (const r of diary.rows || []) if (r.kind === "test") add("test:" + r.id, `Тестовое: ${r.text.slice(0, 70)}`, r.day);
+  for (const [id, day] of rej) if (met.has(id)) add("rej:" + id, `Отказ после собеса: ${who(id)}`, day);
+  // every two days spent on test tasks (days with a diary entry marked «Тестовое»)
+  const testDays = [...new Set((diary.rows || []).filter(r => r.kind === "test").map(r => r.day))].sort();
+  for (let i = 2; i <= testDays.length; i += 2) add("test2:" + i, `Два дня над тестовым (${i / 2}-я пара)`, testDays[i - 1]);
+  // every two applications and every 8 visits of people to the portfolio, counted from the start of the collection
+  const applied = state.jobs.filter(j => isApplied(j) && after(j.applied_at)).map(j => j.applied_at).sort();
+  for (let i = 2; i <= applied.length; i += 2) add("app:" + i, `${i} ${plural(i, "отклик", "отклика", "откликов")} с начала коллекции`, applied[i - 1]);
+  const visits = Object.values(folio.data?.guests || {}).flatMap(g => g.days.map(d => d.day)).filter(after).sort(); // one guest on one day is one visit
+  for (let i = TOYS_FOLIO_STEP; i <= visits.length; i += TOYS_FOLIO_STEP) add("folio:" + i, `${i} ${plural(i, "заход", "захода", "заходов")} в портфолио`, visits[i - 1]);
   return out;
 }
 // while testing, one bag of every series waits on the shelf too; they always bring the test figure and never count
@@ -55,8 +65,8 @@ function updateToyBadge() {
   const list = unopened(); if (!list) return;
   const b = $("toysBadge"); b.textContent = list.length; b.hidden = !list.length;
   if (toys.last != null && list.length > toys.last && state.view !== "toys")
-    toast(list.length - toys.last > 1 ? `Новые коробки: ${list.length - toys.last}!` : "Новая коробка! " + list[0].why, { label: "Открыть", run: () => { state.view = "toys"; render(); openUnbox(list[0].key); } });
-  if (diary.rows) toys.last = list.length; // start announcing only once the diary is in, or its old boxes would pop up as new
+    toast(list.length - toys.last > 1 ? `Новые пакетики: ${list.length - toys.last}!` : "Новый пакетик! " + list[0].why, { label: "Открыть", run: () => { state.view = "toys"; render(); openUnbox(list[0].key); } });
+  if (diary.rows && folio.at) toys.last = list.length; // start announcing only once the diary and the portfolio are in, or old boxes would pop up as new
 }
 
 // a figure out of the box: common ones weigh 10, rare 4, the secret 1.5 (about 1 in 72, like real blind boxes);
@@ -102,9 +112,11 @@ function renderToys() {
         if (!n) return `<div class="slot empty" title="Ещё не выпала"><span class="slot-q">?</span><span class="slot-name">???</span></div>`;
         return `<button type="button" class="slot ${rare}" data-fig="${s.key}:${f.id}">${toySvg(s.key, f.id)}${n > 1 ? `<span class="slot-x" title="Повторки">+${n - 1}</span>` : ""}<span class="slot-name">${esc(f.name)}</span>${n > 1 ? `<span class="slot-dup">${n - 1} ${plural(n - 1, "повторка", "повторки", "повторок")}</span>` : ""}</button>`;
       }).join("")}</div></div>`;
-  }).join("") + `<details class="panel-card toy-rules"><summary>За что дают коробки</summary><ul>
-      <li><b>Каждый отказ</b>. Отказ — это смелость, а не провал</li>
-      <li><b>Каждое сделанное тестовое</b>: отметь запись в дневнике как «Тестовое»</li>
+  }).join("") + `<details class="panel-card toy-rules"><summary>За что дают пакетики</summary><ul>
+      <li><b>Каждый отказ после собеса</b> (начиная со скрининга с HR). Отказ — это смелость, а не провал</li>
+      <li><b>Каждые два дня над тестовым</b>: отмечай такие дни в дневнике записью «Тестовое»</li>
+      <li><b>Каждые 2 отклика</b> с начала коллекции</li>
+      <li><b>Каждые 8 заходов людей в портфолио</b> (один гость за день — один заход)</li>
       <li>Цвет и название на коробке — это серия. Какая фигурка внутри — сюрприз. В каждой серии 13 фигурок, одна из них секретная и очень редкая. Каждая 10-я коробка серии — точно новая фигурка, остальные могут быть повторками</li></ul></details>`;
 }
 
