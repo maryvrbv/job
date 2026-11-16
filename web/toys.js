@@ -77,7 +77,7 @@ function updateToyBadge() {
   if (diary.rows && folio.at) toys.last = list.length; // start announcing only once the diary and the portfolio are in, or old boxes would pop up as new
 }
 
-// a figure out of the box: common ones weigh 10, rare 4, the secret 1.5 (about 1 in 72, like real blind boxes);
+// a figure out of the box: common ones weigh 10, rare 4, the secret 1.5 (about 1 in 72, like real blind boxes), less for ones I have;
 // every 10th box of a series is sure to bring a figure I don't have yet, while there are some left
 // a box gets its series from its key: random to me, unrelated to what it was for, the same on every visit
 const seriesOf = key => TOYS_TEST ? TOYS_TEST.series : TOY_SERIES[toyHash("s" + key) % TOY_SERIES.length].key;
@@ -86,7 +86,9 @@ function rollFigure(seriesKey) {
   const s = toySeries(seriesKey), mine = toys.opened.filter(o => o.series === seriesKey);
   const have = new Set(mine.map(o => o.figure)), missing = s.figures.filter(f => !have.has(f.id));
   const pool = (mine.length + 1) % 10 === 0 && missing.length ? missing : s.figures;
-  const w = f => f.rare === 2 ? 1.5 : f.rare === 1 ? 4 : 10;
+  // a figure I already have comes up far less often (a quarter of its weight, a tenth once I have two), so repeats stay rare
+  const owned = f => mine.filter(o => o.figure === f.id).length;
+  const w = f => (f.rare === 2 ? 1.5 : f.rare === 1 ? 4 : 10) * (owned(f) >= 2 ? 0.1 : owned(f) ? 0.25 : 1);
   let r = Math.random() * pool.reduce((a, f) => a + w(f), 0);
   for (const f of pool) { r -= w(f); if (r <= 0) return f; }
   return pool[pool.length - 1];
