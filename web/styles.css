@@ -652,3 +652,5 @@ body.ub-open{overflow:hidden}
 .ub-actions .btn.primary{background:var(--lime);color:var(--lime-ink)}
 @media (prefers-reduced-motion:reduce){.tbox.idle,.tbox.wiggle,.ub-rays,.ub-fig,.ub-confetti i,.ub-tearing .tbox,.ub-tearing .tbox-lid,.ub-tearing .tbox-body{animation:none!important}}
 @media (max-width:640px){.box-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.shelves{grid-template-columns:1fr}.shelf-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.box-tag{display:inline-block;font-size:13px;font-weight:700;color:var(--lime-ink);background:var(--lime);border-radius:999px;padding:3px 10px;margin-bottom:2px}
+.ub-why .box-tag{font-size:14px;margin-bottom:6px}

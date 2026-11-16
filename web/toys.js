@@ -6,7 +6,7 @@ const TOYS_LAUNCH = "2026-11-16";
 const toys = { opened: null, last: null, cur: null };
 const mskDay = ts => new Date(ts).toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
 const STAGE_BOX = ["Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес"]; // the process, not the offer
-const FOLIO_STEP = 8; // a box for every 8 visits of people to the portfolio
+const FOLIO_STEP = 4, SORT_STEP = 3, NOTE_STEP = 2; // a box for every 4 portfolio visits, 3 sorted vacancies, 2 diary notes
 
 async function loadToys() {
   const { data, error } = await sb.from("toy_boxes").select("key,series,figure,opened_at").order("opened_at");
@@ -18,32 +18,37 @@ async function loadToys() {
 
 function earnedBoxes() {
   if (!events || !toys.opened) return null;
-  const out = [], add = (key, why, day) => out.push({ key, why, day: day || todayIso() });
+  // tag: what the box is for in a word or two, printed on the box; why: the longer story
+  const out = [], add = (key, tag, why, day) => out.push({ key, tag, why, day: day || todayIso() });
   const after = d => d && d >= TOYS_LAUNCH;
   const byId = Object.fromEntries(state.jobs.map(j => [j.id, j]));
   const who = id => byId[id]?.company || byId[id]?.title || "вакансия";
-  for (let i = 1; i <= 3; i++) add("start:" + i, "Стартовый набор: добро пожаловать в коллекцию", TOYS_LAUNCH);
+  for (let i = 1; i <= 5; i++) add("start:" + i, "Старт", "Стартовый набор: добро пожаловать в коллекцию", TOYS_LAUNCH);
   // every rejection: a fear met face to face
   const rej = new Map();
   for (const e of events) if (e.to_status === REJECT && !rej.has(e.job_id)) rej.set(e.job_id, mskDay(e.at));
   for (const j of state.jobs) if (j.status === REJECT && !rej.has(j.id) && j.updated_at) rej.set(j.id, mskDay(j.updated_at));
-  for (const [id, day] of rej) if (after(day)) add("rej:" + id, `Отказ от ${who(id)}. Ты встретила страх лицом к лицу`, day);
+  for (const [id, day] of rej) if (after(day)) add("rej:" + id, "Отказ", `${who(id)}. Отказ — это смелость, а не провал`, day);
   // every new stage of the process; the offer is a reward of its own
   const stg = new Map();
   for (const e of events) if (STAGE_BOX.includes(e.to_status)) { const k = e.job_id + "|" + e.to_status; if (!stg.has(k)) stg.set(k, mskDay(e.at)); }
   for (const j of state.jobs) if (STAGE_BOX.includes(j.status)) { const k = j.id + "|" + j.status; if (!stg.has(k)) stg.set(k, j.applied_at || ""); }
-  for (const [k, day] of stg) { const [id, st] = k.split("|"); if (after(day)) add(`stg:${id}:${st}`, `${who(id)}: новый этап «${st}»`, day); }
+  for (const [k, day] of stg) { const [id, st] = k.split("|"); if (after(day)) add(`stg:${id}:${st}`, "Новый этап", `${who(id)}: ${st}`, day); }
   // interviews and test tasks marked in the diary
-  for (const r of diary.rows || []) if (r.kind && after(r.day)) add("dia:" + r.id, r.kind === "interview" ? "Собес в дневнике" : "Тестовое в дневнике", r.day);
+  for (const r of diary.rows || []) if (r.kind && after(r.day)) add("dia:" + r.id, r.kind === "interview" ? "Собес" : "Тестовое", r.text.slice(0, 80), r.day);
+  // the diary itself: every 2 notes and every reached goal
+  const notes = (diary.rows || []).filter(r => !r.is_goal && after(r.day)).map(r => r.day).sort();
+  for (let i = NOTE_STEP; i <= notes.length; i += NOTE_STEP) add("note:" + i, "Дневник", `${i} ${plural(i, "запись", "записи", "записей")} в дневнике`, notes[i - 1]);
+  for (const r of diary.rows || []) if (r.is_goal && r.done && after(r.day)) add("goal:" + r.id, "Цель", r.text.slice(0, 80), r.day);
   // every 5 sorted vacancies (my first decision on a new one) and every 2 applications
   const sorted = [], seenJob = new Set();
   for (const e of events) if (e.by_me && e.from_status === NEW && !seenJob.has(e.job_id)) { seenJob.add(e.job_id); if (after(mskDay(e.at))) sorted.push(mskDay(e.at)); }
-  for (let i = 5; i <= sorted.length; i += 5) add("sort:" + i, `Разобрано ${i} ${plural(i, "вакансия", "вакансии", "вакансий")}`, sorted[i - 1]);
-  const applied = state.jobs.filter(j => isApplied(j) && after(j.applied_at)).map(j => j.applied_at).sort();
-  for (let i = 2; i <= applied.length; i += 2) add("app:" + i, `${i} ${plural(i, "отклик", "отклика", "откликов")} с начала коллекции`, applied[i - 1]);
+  for (let i = SORT_STEP; i <= sorted.length; i += SORT_STEP) add("sort:" + i, "Разбор вакансий", `Разобрано ${i} ${plural(i, "вакансия", "вакансии", "вакансий")}`, sorted[i - 1]);
+  // every application
+  for (const j of state.jobs) if (isApplied(j) && after(j.applied_at)) add("app1:" + j.id, "Отклик", who(j.id), j.applied_at);
   // every 8 visits of people to the portfolio: one guest on one day is one visit
   const visits = Object.values(folio.data?.guests || {}).flatMap(g => g.days.map(d => d.day)).filter(after).sort();
-  for (let i = FOLIO_STEP; i <= visits.length; i += FOLIO_STEP) add("folio:" + i, `${i} ${plural(i, "заход", "захода", "заходов")} в портфолио`, visits[i - 1]);
+  for (let i = FOLIO_STEP; i <= visits.length; i += FOLIO_STEP) add("folio:" + i, "Портфолио", `${i} ${plural(i, "заход", "захода", "заходов")} людей в портфолио`, visits[i - 1]);
   return out;
 }
 const unopened = () => { const e = earnedBoxes(); if (!e) return null; const got = new Set(toys.opened.map(o => o.key)); return e.filter(b => !got.has(b.key)).sort((a, b) => (b.day || "").localeCompare(a.day || "")); };
@@ -80,7 +85,7 @@ function renderToys() {
       <div class="stat"><b>${dups}</b><span>${plural(dups, "повторка", "повторки", "повторок")}</span></div>
       <div class="stat"><b>${list.length}</b><span>${plural(list.length, "коробка ждёт", "коробки ждут", "коробок ждут")}</span></div></div>`;
   $("toysBoxes").innerHTML = list.length ? `<h2 class="fsec">Ждут открытия</h2><div class="box-grid">${list.slice(0, 24).map(b =>
-    `<button type="button" class="box-card" data-box="${esc(b.key)}">${boxSvg("mystery", "idle")}<span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
+    `<button type="button" class="box-card" data-box="${esc(b.key)}"><span class="box-tag">${esc(b.tag)}</span>${boxSvg("mystery", "idle")}<span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
     ${list.length > 24 ? `<p class="note">И ещё ${list.length - 24}. Открывай по одной или подряд, они никуда не денутся</p>` : ""}`
     : `<h2 class="fsec">Ждут открытия</h2><p class="note">Все коробки открыты. Следующая придёт за отклики, разобранные вакансии, собес, тестовое, новый этап, отказ или заходы в портфолио.</p>`;
   const counts = {}; for (const o of toys.opened) counts[o.series + ":" + o.figure] = (counts[o.series + ":" + o.figure] || 0) + 1;
@@ -94,13 +99,15 @@ function renderToys() {
         return `<button type="button" class="slot ${rare}" data-fig="${s.key}:${f.id}">${toySvg(s.key, f.id)}${n > 1 ? `<span class="slot-x" title="Повторки">+${n - 1}</span>` : ""}<span class="slot-name">${esc(f.name)}</span>${n > 1 ? `<span class="slot-dup">${n - 1} ${plural(n - 1, "повторка", "повторки", "повторок")}</span>` : ""}</button>`;
       }).join("")}</div></div>`;
   }).join("") + `<details class="panel-card toy-rules"><summary>За что дают коробки</summary><ul>
+      <li><b>Каждый отклик</b></li>
+      <li><b>Каждые 3 разобранные вакансии</b>: отклик или «не подходит»</li>
       <li><b>Каждый отказ</b>. Отказ — это смелость, а не провал</li>
       <li><b>Каждый новый этап</b>: скрининг, собес с лидом, тестовое, финал. Оффер — награда сам по себе</li>
       <li><b>Собес или тестовое в дневнике</b> — коробка за каждое</li>
-      <li><b>Каждые 2 отклика и каждые 5 разобранных вакансий</b></li>
-      <li><b>Каждые 8 заходов людей в портфолио</b></li>
+      <li><b>Каждые 2 записи в дневнике и каждая достигнутая цель</b></li>
+      <li><b>Каждые 4 захода людей в портфолио</b></li>
       <li>Серия тоже сюрприз: она выпадает при открытии. В каждой серии 13 фигурок, одна из них секретная и очень редкая. Каждая 10-я коробка серии — точно новая фигурка, остальные могут быть повторками</li>
-      <li>Считается всё с 16 ноября, когда появилась коллекция. За старт — 3 коробки</li></ul></details>`;
+      <li>Считается всё с 16 ноября, когда появилась коллекция. За старт — 5 коробок</li></ul></details>`;
 }
 
 // ---------- unboxing ----------
@@ -109,7 +116,7 @@ function openUnbox(key) {
   toys.cur = b; const u = $("unbox");
   u.innerHTML = `<div class="ub-card ub-sealed">
       <button class="btn icon-btn ub-close" type="button" data-ub="close" aria-label="Закрыть">✕</button>
-      <p class="ub-why">${esc(b.why)}</p>
+      <p class="ub-why"><span class="box-tag">${esc(b.tag)}</span><br>${esc(b.why)}</p>
       <button type="button" class="ub-box" data-ub="tear" aria-label="Открыть коробку">${boxSvg("mystery", "wiggle")}</button>
       <p class="ub-hint">Серия — тоже сюрприз · нажми, чтобы открыть</p></div>`;
   u.hidden = false; document.body.classList.add("ub-open");
