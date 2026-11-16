@@ -14,6 +14,7 @@ const mskDay = ts => new Date(ts).toLocaleDateString("sv-SE", { timeZone: "Europ
 const STAGE_BOX = ["Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес"]; // stages with a meeting
 const TOYS_FOLIO_STEP = 8;
 const TOYS_GIFTS = []; // [day, how many, label]
+const TOYS_PAST_MAX = 8; // bags for past applications and visits, at most
 
 async function loadToys() {
   const { data, error } = await sb.from("toy_boxes").select("key,series,figure,opened_at").order("opened_at");
@@ -48,7 +49,12 @@ function earnedBoxes() {
   for (let i = TOYS_FOLIO_STEP; i <= visits.length; i += TOYS_FOLIO_STEP) add("folio:" + i, `${i} ${plural(i, "заход", "захода", "заходов")} в портфолио`, visits[i - 1]);
   // gifts: bags handed out by hand when Masha asks for more
   for (const [day, n, why] of TOYS_GIFTS) for (let i = 1; i <= n; i++) add(`gift:${day}:${i}`, why, day);
-  return out;
+  // past merit is capped: of the bags for applications and visits from before the collection started, only the latest
+  // TOYS_PAST_MAX count (opened ones always stay); from the start on everything counts
+  const got = new Set(toys.opened.map(o => o.key)), isPast = b => /^v\d+:(app|folio):/.test(b.key) && b.day < TOYS_LAUNCH;
+  const past = out.filter(isPast).sort((a, b) => b.day.localeCompare(a.day)), keep = new Set(past.filter(b => got.has(b.key)).map(b => b.key));
+  for (const b of past) if (keep.size < TOYS_PAST_MAX) keep.add(b.key);
+  return out.filter(b => !isPast(b) || keep.has(b.key));
 }
 // while testing, one bag of every series waits on the shelf too; they always bring the test figure and never count
 const testBoxes = () => TOYS_TEST ? TOY_SERIES.map(s => ({ key: "demo:" + s.key, why: `Тест: ${s.name}`, series: s.key, demo: true })) : [];
@@ -117,8 +123,9 @@ function renderToys() {
   }).join("") + `<details class="panel-card toy-rules"><summary>За что дают пакетики</summary><ul>
       <li><b>Каждый отказ после собеса</b> (начиная со скрининга с HR). Отказ — это смелость, а не провал</li>
       <li><b>Каждые два дня над тестовым</b>: отмечай такие дни в дневнике записью «Тестовое»</li>
-      <li><b>Каждые 2 отклика</b>, за всё время</li>
-      <li><b>Каждые 8 заходов людей в портфолио</b> (один гость за день — один заход), за всё время</li>
+      <li><b>Каждые 2 отклика</b></li>
+      <li><b>Каждые 8 заходов людей в портфолио</b> (один гость за день — один заход)</li>
+      <li>За отклики и заходы до 16 ноября — 8 пакетиков за прошлые заслуги</li>
       <li>Цвет и название на коробке — это серия. Какая фигурка внутри — сюрприз. В каждой серии 13 фигурок, одна из них секретная и очень редкая. Каждая 10-я коробка серии — точно новая фигурка, остальные могут быть повторками</li></ul></details>`;
 }
 
