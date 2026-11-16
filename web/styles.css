@@ -655,37 +655,35 @@ body.ub-open{overflow:hidden}
 .box-tag{display:inline-block;font-size:13px;font-weight:700;color:var(--lime-ink);background:var(--lime);border-radius:999px;padding:3px 10px;margin-bottom:2px}
 .ub-why .box-tag{font-size:14px;margin-bottom:6px}
 
-/* the pyramid: a tetra bag in real 3D; faces are placed by matrix3d from toys-art.js */
-.tet{position:absolute;left:50%;top:50%;width:0;height:0;transform-style:preserve-3d}
-.tf{position:absolute;left:0;top:0;transform-origin:0 0;clip-path:polygon(50% 0,100% 100%,0 100%);backface-visibility:hidden;-webkit-backface-visibility:hidden;
-  background:linear-gradient(165deg,var(--c1),var(--c2));--l:.85;--hx:50%;--hy:50%;--gx:40%;--gy:30%;--g:0}
-.tf i{position:absolute;inset:0;pointer-events:none}
-.tf-holo{background:repeating-linear-gradient(115deg,#ff6fc3 0%,#ffd84a 6%,#5dffb4 12%,#4cc3ff 18%,#a77bff 24%,#ff6fc3 30%);background-size:400% 400%;background-position:var(--hx) var(--hy);mix-blend-mode:soft-light;opacity:.9}
-.tf-glit{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 14 0 0 0 -9'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");mix-blend-mode:screen;opacity:calc(.15 + var(--g) * .85)}
-.tf-light{background:radial-gradient(circle at var(--gx) var(--gy),rgb(255 255 255 / .75),rgb(255 255 255 / 0) 42%),linear-gradient(rgb(50 20 80 / calc((1 - var(--l)) * .55)),rgb(50 20 80 / calc((1 - var(--l)) * .55)))}
-.tf-art{position:absolute;inset:0;width:100%;height:100%}
-.tfin{position:absolute;left:0;top:0;height:16px;transform-origin:0 0;background:linear-gradient(90deg,var(--c1),var(--c2));-webkit-mask:var(--scal) repeat-x left top/14px 16px;mask:var(--scal) repeat-x left top/14px 16px}
-.tfin::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,#ff6fc3,#ffd84a 20px,#5dffb4 40px,#4cc3ff 60px,#ff6fc3 80px);mix-blend-mode:overlay;opacity:.7}
-.tfin-bottom{transform:translate3d(calc(var(--seam) / -2),calc(var(--h) - 3px),0)}
-.tfin-top{transform:translate3d(0,calc(var(--h) * -1 - 13px - var(--tear, 0) * 6px),0) rotateY(90deg) translateX(calc(var(--seam) / -2)) rotate(calc(var(--tear, 0) * -6deg))}
-.tfin-cut{position:absolute;left:0;bottom:2px;height:0;width:calc(var(--tear, 0) * 100%);border-bottom:2px dashed #fff;z-index:2}
-.tet-mini{position:relative;display:block;width:96px;height:96px;perspective:500px}
-.tet.spin{animation:tet-spin 9s linear infinite}
-.tet.spin .tf-holo{animation:tet-holo 4.5s ease-in-out infinite alternate}
-@keyframes tet-spin{from{transform:rotateX(-14deg) rotateY(0)}to{transform:rotateX(-14deg) rotateY(360deg)}}
+/* the box: a pastel blind box cube in real 3D with a hinged lid */
+.box3d{position:absolute;left:50%;top:50%;width:0;height:0;transform-style:preserve-3d;--open:0}
+.bf{position:absolute;left:0;top:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;border-radius:3px;
+  background:linear-gradient(170deg,var(--c1),var(--c2));--l:.85;--hx:50%;--hy:50%;--gx:40%;--gy:30%;box-shadow:inset 0 0 0 1px rgb(255 255 255 / .55)}
+.bf i{position:absolute;inset:0;pointer-events:none}
+.bf svg{position:absolute;inset:0;width:100%;height:100%}
+.bf-holo{background:repeating-linear-gradient(115deg,#ff9ad5 0%,#ffe58a 7%,#9dffcf 14%,#8fd8ff 21%,#c7a6ff 28%,#ff9ad5 35%);background-size:400% 400%;background-position:var(--hx) var(--hy);mix-blend-mode:soft-light;opacity:.65}
+.bf-light{z-index:2;background:radial-gradient(circle at var(--gx) var(--gy),rgb(255 255 255 / .55),rgb(255 255 255 / 0) 45%),linear-gradient(rgb(60 30 90 / calc((1 - var(--l)) * .5)),rgb(60 30 90 / calc((1 - var(--l)) * .5)))}
+.bx-lid{position:absolute;left:0;top:0;transform-style:preserve-3d}
+.bf-top{backface-visibility:visible;-webkit-backface-visibility:visible;overflow:visible}
+.bf-flap{position:absolute;left:0;top:100%;height:14px;background:linear-gradient(var(--c2),var(--c1));border-radius:0 0 8px 8px / 0 0 10px 10px;transform-origin:50% 0;transform:rotateX(-90deg)}
+.bx-inside{position:absolute;left:0;top:0;background:radial-gradient(closest-side,#fff8e0,#f6d6ff 60%,#d9c6ff);backface-visibility:visible}
+.bx-glow{position:absolute;left:0;top:0;width:var(--w);height:var(--d);margin:calc(var(--d) / -2) 0 0 calc(var(--w) / -2);border-radius:50%;background:radial-gradient(closest-side,rgb(255 248 200 / .9),rgb(255 230 255 / 0));opacity:calc(var(--open) * 1.2);pointer-events:none}
+.box-mini{position:relative;display:block;width:96px;height:96px;perspective:500px}
+.box3d.spin{animation:box-spin 10s linear infinite}
+.box3d.spin .bf-holo{animation:tet-holo 4.5s ease-in-out infinite alternate}
+@keyframes box-spin{from{transform:rotateX(-16deg) rotateY(0)}to{transform:rotateX(-16deg) rotateY(360deg)}}
 @keyframes tet-holo{from{background-position:0% 30%}to{background-position:100% 70%}}
-.box-card:nth-child(2n) .tet.spin{animation-duration:11s;animation-direction:reverse}
+.box-card:nth-child(2n) .box3d.spin{animation-duration:12s;animation-direction:reverse}
 .pz-stage{position:relative;width:260px;height:290px;margin:4px auto 0;perspective:900px;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
 .pz-stage:active{cursor:grabbing}
 .pz{position:absolute;inset:0;transform-style:preserve-3d;will-change:transform}
-.pz .tet{top:50%}
-.pz-notch{position:absolute;left:50%;top:13%;width:30px;height:30px;margin-left:-15px;border-radius:50%;border:2px solid #fff;animation:pz-ping 1.8s ease-out infinite;pointer-events:none}
+.pz .box3d{top:55%}
+.pz-notch{position:absolute;left:50%;top:22%;width:30px;height:30px;margin-left:-15px;border-radius:50%;border:2px solid #fff;animation:pz-ping 1.8s ease-out infinite;pointer-events:none}
 @keyframes pz-ping{0%{box-shadow:0 0 0 0 rgb(124 58 237 / .45);opacity:1}100%{box-shadow:0 0 0 16px rgb(124 58 237 / 0);opacity:.25}}
 .pz-shadow{position:absolute;left:50%;bottom:10px;width:170px;height:18px;margin-left:-85px;border-radius:50%;background:radial-gradient(closest-side,rgb(60 30 90 / .28),transparent)}
 .pz-torn .pz-notch,.pz-torn .ub-tap,.pz-torn .ub-hint{opacity:0;transition:opacity .2s}
-.pz-torn .tfin-top{transition:translate .7s cubic-bezier(.2,.8,.3,1),opacity .7s;translate:60px -140px;opacity:0}
 .pz-torn .pz{animation:pz-sink .9s .25s ease-in forwards}
 @keyframes pz-sink{0%{opacity:1}30%{translate:0 -6px}100%{translate:0 40px;opacity:0;scale:.92}}
 .ub-tap{background:var(--sunken);font-size:13px;padding:8px 14px}
-@media (prefers-reduced-motion:reduce){.pz-notch,.tet.spin,.tet.spin .tf-holo{animation:none}}
+@media (prefers-reduced-motion:reduce){.pz-notch,.box3d.spin,.box3d.spin .bf-holo{animation:none}}
 .ub-mute{position:absolute;top:10px;left:10px;font-size:16px}
