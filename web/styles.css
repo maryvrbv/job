@@ -678,7 +678,7 @@ body.ub-open{overflow:hidden}
 .pz-stage:active{cursor:grabbing}
 .pz{position:absolute;inset:0;transform-style:preserve-3d;will-change:transform}
 .pz .box3d{top:55%}
-.pz-notch{position:absolute;left:50%;top:22%;width:30px;height:30px;margin-left:-15px;border-radius:50%;border:2px solid #fff;animation:pz-ping 1.8s ease-out infinite;pointer-events:none}
+.pz-notch{position:absolute;left:50%;top:20%;width:30px;height:30px;margin-left:-15px;border-radius:50%;border:2px solid #fff;animation:pz-ping 1.8s ease-out infinite;pointer-events:none}
 @keyframes pz-ping{0%{box-shadow:0 0 0 0 rgb(124 58 237 / .45);opacity:1}100%{box-shadow:0 0 0 16px rgb(124 58 237 / 0);opacity:.25}}
 .pz-shadow{position:absolute;left:50%;bottom:10px;width:170px;height:18px;margin-left:-85px;border-radius:50%;background:radial-gradient(closest-side,rgb(60 30 90 / .28),transparent)}
 .pz-torn .pz-notch,.pz-torn .ub-tap,.pz-torn .ub-hint{opacity:0;transition:opacity .2s}
@@ -687,3 +687,17 @@ body.ub-open{overflow:hidden}
 .ub-tap{background:var(--sunken);font-size:13px;padding:8px 14px}
 @media (prefers-reduced-motion:reduce){.pz-notch,.box3d.spin,.box3d.spin .bf-holo{animation:none}}
 .ub-mute{position:absolute;top:10px;left:10px;font-size:16px}
+
+/* holographic details on the box: the collection name on a foil band, a foil «?» sticker, a foil stripe and star */
+.bf{--ha:0deg}
+.bf-band{position:absolute;left:8%;right:8%;top:7%;z-index:1;padding:3px 4px;border-radius:999px;text-align:center;font:800 clamp(6px,calc(var(--w) * .075),12px)/1.15 system-ui,sans-serif;letter-spacing:.02em;
+  background:linear-gradient(115deg,#ffffff 0%,#ffd6f5 15%,#d6f0ff 30%,#fff3c4 45%,#dcd2ff 60%,#c9fff0 75%,#ffffff 90%);background-size:300% 100%;background-position:var(--hx) 0;box-shadow:0 1px 0 rgb(255 255 255 / .8) inset,0 2px 6px rgb(120 80 200 / .18);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bf .bf-sticker{inset:auto;position:absolute;right:7%;bottom:6%;z-index:1;width:22%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font:900 clamp(7px,calc(var(--w) * .13),20px)/1 system-ui,sans-serif;font-style:normal;
+  background:conic-gradient(from var(--ha),#ff9ad5,#ffe58a,#9dffcf,#8fd8ff,#c7a6ff,#ff9ad5);box-shadow:0 0 0 2px #fff,0 3px 8px rgb(120 80 200 / .25)}
+.bf .bf-sticker::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 30% 25%,rgb(255 255 255 / .8),transparent 45%)}
+.bf .bf-stripe{inset:auto;position:absolute;top:0;bottom:0;left:42%;width:16%;z-index:1;background:linear-gradient(180deg,#ff9ad5,#ffe58a,#9dffcf,#8fd8ff,#c7a6ff,#ff9ad5);background-size:100% 300%;background-position:0 var(--hy);opacity:.55;mix-blend-mode:screen}
+.bf-side-name{position:absolute;left:0;right:0;top:6%;z-index:1;text-align:center;font:800 clamp(5px,calc(var(--d) * .06),10px)/1.2 system-ui,sans-serif;opacity:.85;padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bf .bf-star{inset:auto;position:absolute;right:12%;top:14%;width:32%;aspect-ratio:1;z-index:1;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);background:conic-gradient(from var(--ha),#ff9ad5,#ffe58a,#9dffcf,#8fd8ff,#c7a6ff,#ff9ad5)}
+.box3d.spin .bf-band{animation:tet-holo 4.5s ease-in-out infinite alternate}
+.box-mini{width:120px;height:120px}
+.pz-stage{width:300px;height:330px}

@@ -7,49 +7,30 @@ const toys = { opened: null, last: null, cur: null };
 const toyHash = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 const mskDay = ts => new Date(ts).toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
 const STAGE_BOX = ["Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес"]; // the process, not the offer
-const FOLIO_STEP = 4, SORT_STEP = 3, NOTE_STEP = 2; // a box for every 4 portfolio visits, 3 sorted vacancies, 2 diary notes
 
 async function loadToys() {
   const { data, error } = await sb.from("toy_boxes").select("key,series,figure,opened_at").order("opened_at");
   if (error) return;
-  toys.opened = data || [];
+  toys.opened = (data || []).filter(o => o.key.startsWith(TOYS_VER));
   if (!diary.rows) loadDiary(); // diary interviews and tests bring boxes too
   updateToyBadge(); if (state.view === "toys") renderToys();
 }
 
+// TOYS_VER starts the collection over: opened boxes of an older version stay in the table but no longer count.
+// TOYS_TEST: while testing, every box is the same series and always brings the same figure.
+const TOYS_VER = "v2:", TOYS_TEST = { series: "cats", figure: "letter" };
 function earnedBoxes() {
   if (!events || !toys.opened) return null;
-  // tag: what the box is for in a word or two, printed on the box; why: the longer story
-  const out = [], add = (key, tag, why, day) => out.push({ key, tag, why, day: day || todayIso() });
-  const after = d => d && d >= TOYS_LAUNCH;
+  const out = [], add = (key, why, day) => out.push({ key: TOYS_VER + key, why, day: day || todayIso() });
   const byId = Object.fromEntries(state.jobs.map(j => [j.id, j]));
   const who = id => byId[id]?.company || byId[id]?.title || "вакансия";
-  for (let i = 1; i <= 5; i++) add("start:" + i, "Старт", "Стартовый набор: добро пожаловать в коллекцию", TOYS_LAUNCH);
-  // every rejection: a fear met face to face
+  // every rejection, over all time
   const rej = new Map();
   for (const e of events) if (e.to_status === REJECT && !rej.has(e.job_id)) rej.set(e.job_id, mskDay(e.at));
   for (const j of state.jobs) if (j.status === REJECT && !rej.has(j.id) && j.updated_at) rej.set(j.id, mskDay(j.updated_at));
-  for (const [id, day] of rej) if (after(day)) add("rej:" + id, "Отказ", `${who(id)}. Отказ — это смелость, а не провал`, day);
-  // every new stage of the process; the offer is a reward of its own
-  const stg = new Map();
-  for (const e of events) if (STAGE_BOX.includes(e.to_status)) { const k = e.job_id + "|" + e.to_status; if (!stg.has(k)) stg.set(k, mskDay(e.at)); }
-  for (const j of state.jobs) if (STAGE_BOX.includes(j.status)) { const k = j.id + "|" + j.status; if (!stg.has(k)) stg.set(k, j.applied_at || ""); }
-  for (const [k, day] of stg) { const [id, st] = k.split("|"); if (after(day)) add(`stg:${id}:${st}`, "Новый этап", `${who(id)}: ${st}`, day); }
-  // interviews and test tasks marked in the diary
-  for (const r of diary.rows || []) if (r.kind && after(r.day)) add("dia:" + r.id, r.kind === "interview" ? "Собес" : "Тестовое", r.text.slice(0, 80), r.day);
-  // the diary itself: every 2 notes and every reached goal
-  const notes = (diary.rows || []).filter(r => !r.is_goal && after(r.day)).map(r => r.day).sort();
-  for (let i = NOTE_STEP; i <= notes.length; i += NOTE_STEP) add("note:" + i, "Дневник", `${i} ${plural(i, "запись", "записи", "записей")} в дневнике`, notes[i - 1]);
-  for (const r of diary.rows || []) if (r.is_goal && r.done && after(r.day)) add("goal:" + r.id, "Цель", r.text.slice(0, 80), r.day);
-  // every 5 sorted vacancies (my first decision on a new one) and every 2 applications
-  const sorted = [], seenJob = new Set();
-  for (const e of events) if (e.by_me && e.from_status === NEW && !seenJob.has(e.job_id)) { seenJob.add(e.job_id); if (after(mskDay(e.at))) sorted.push(mskDay(e.at)); }
-  for (let i = SORT_STEP; i <= sorted.length; i += SORT_STEP) add("sort:" + i, "Разбор вакансий", `Разобрано ${i} ${plural(i, "вакансия", "вакансии", "вакансий")}`, sorted[i - 1]);
-  // every application
-  for (const j of state.jobs) if (isApplied(j) && after(j.applied_at)) add("app1:" + j.id, "Отклик", who(j.id), j.applied_at);
-  // every 8 visits of people to the portfolio: one guest on one day is one visit
-  const visits = Object.values(folio.data?.guests || {}).flatMap(g => g.days.map(d => d.day)).filter(after).sort();
-  for (let i = FOLIO_STEP; i <= visits.length; i += FOLIO_STEP) add("folio:" + i, "Портфолио", `${i} ${plural(i, "заход", "захода", "заходов")} людей в портфолио`, visits[i - 1]);
+  for (const [id, day] of rej) add("rej:" + id, `Отказ: ${who(id)}`, day);
+  // every test task marked as done in the diary
+  for (const r of diary.rows || []) if (r.kind === "test") add("test:" + r.id, `Тестовое: ${r.text.slice(0, 70)}`, r.day);
   return out;
 }
 const unopened = () => { const e = earnedBoxes(); if (!e) return null; for (const b of e) b.series = seriesOf(b.key); const got = new Set(toys.opened.map(o => o.key)); return e.filter(b => !got.has(b.key)).sort((a, b) => (b.day || "").localeCompare(a.day || "")); };
@@ -66,8 +47,9 @@ function updateToyBadge() {
 // a figure out of the box: common ones weigh 10, rare 4, the secret 1.5 (about 1 in 72, like real blind boxes);
 // every 10th box of a series is sure to bring a figure I don't have yet, while there are some left
 // a box gets its series from its key: random to me, unrelated to what it was for, the same on every visit
-const seriesOf = key => TOY_SERIES[toyHash("s" + key) % TOY_SERIES.length].key;
+const seriesOf = key => TOYS_TEST ? TOYS_TEST.series : TOY_SERIES[toyHash("s" + key) % TOY_SERIES.length].key;
 function rollFigure(seriesKey) {
+  if (TOYS_TEST) return toyFigure(TOYS_TEST.series, TOYS_TEST.figure);
   const s = toySeries(seriesKey), mine = toys.opened.filter(o => o.series === seriesKey);
   const have = new Set(mine.map(o => o.figure)), missing = s.figures.filter(f => !have.has(f.id));
   const pool = (mine.length + 1) % 10 === 0 && missing.length ? missing : s.figures;
@@ -87,9 +69,9 @@ function renderToys() {
       <div class="stat"><b>${dups}</b><span>${plural(dups, "повторка", "повторки", "повторок")}</span></div>
       <div class="stat"><b>${list.length}</b><span>${plural(list.length, "коробка ждёт", "коробки ждут", "коробок ждут")}</span></div></div>`;
   $("toysBoxes").innerHTML = list.length ? `<h2 class="fsec">Ждут открытия</h2><div class="box-grid">${list.slice(0, 24).map(b =>
-    `<button type="button" class="box-card" data-box="${esc(b.key)}"><span class="box-tag">${esc(b.tag)}</span><span class="box-mini">${boxHtml(b.series, { S: 52, cls: "spin" })}</span><span class="box-series">${esc(toySeries(b.series).short)}</span><span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
+    `<button type="button" class="box-card" data-box="${esc(b.key)}"><span class="box-mini">${boxHtml(b.series, { S: 64, cls: "spin" })}</span><span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
     ${list.length > 24 ? `<p class="note">И ещё ${list.length - 24}. Открывай по одной или подряд, они никуда не денутся</p>` : ""}`
-    : `<h2 class="fsec">Ждут открытия</h2><p class="note">Все коробки открыты. Следующая придёт за отклики, разобранные вакансии, собес, тестовое, новый этап, отказ или заходы в портфолио.</p>`;
+    : `<h2 class="fsec">Ждут открытия</h2><p class="note">Все коробки открыты. Следующая придёт за отказ или сделанное тестовое.</p>`;
   const counts = {}; for (const o of toys.opened) counts[o.series + ":" + o.figure] = (counts[o.series + ":" + o.figure] || 0) + 1;
   $("toysShelves").innerHTML = TOY_SERIES.map(s => {
     const got = s.figures.filter(f => have.has(s.key + ":" + f.id)).length;
@@ -101,15 +83,10 @@ function renderToys() {
         return `<button type="button" class="slot ${rare}" data-fig="${s.key}:${f.id}">${toySvg(s.key, f.id)}${n > 1 ? `<span class="slot-x" title="Повторки">+${n - 1}</span>` : ""}<span class="slot-name">${esc(f.name)}</span>${n > 1 ? `<span class="slot-dup">${n - 1} ${plural(n - 1, "повторка", "повторки", "повторок")}</span>` : ""}</button>`;
       }).join("")}</div></div>`;
   }).join("") + `<details class="panel-card toy-rules"><summary>За что дают коробки</summary><ul>
-      <li><b>Каждый отклик</b></li>
-      <li><b>Каждые 3 разобранные вакансии</b>: отклик или «не подходит»</li>
       <li><b>Каждый отказ</b>. Отказ — это смелость, а не провал</li>
-      <li><b>Каждый новый этап</b>: скрининг, собес с лидом, тестовое, финал. Оффер — награда сам по себе</li>
-      <li><b>Собес или тестовое в дневнике</b> — коробка за каждое</li>
-      <li><b>Каждые 2 записи в дневнике и каждая достигнутая цель</b></li>
-      <li><b>Каждые 4 захода людей в портфолио</b></li>
-      <li>Серию видно по цвету коробочки, а какая фигурка внутри — сюрприз. Серия не зависит от того, за что дана коробка. В каждой серии 13 фигурок, одна из них секретная и очень редкая. Каждая 10-я коробка серии — точно новая фигурка, остальные могут быть повторками</li>
-      <li>Считается всё с 16 ноября, когда появилась коллекция. За старт — 5 коробок</li></ul></details>`;
+      <li><b>Каждое сделанное тестовое</b>: отметь запись в дневнике как «Тестовое»</li>
+      <li>Цвет и название на коробке — это серия. Какая фигурка внутри — сюрприз. В каждой серии 13 фигурок, одна из них секретная и очень редкая. Каждая 10-я коробка серии — точно новая фигурка, остальные могут быть повторками</li>
+      <li>Сейчас идёт тест: из всех коробок выпадает одна и та же фигурка</li></ul></details>`;
 }
 
 // ---------- unboxing ----------
@@ -149,8 +126,8 @@ function openUnbox(key) {
   u.innerHTML = `<div class="ub-card ub-sealed">
       <button class="btn icon-btn ub-close" type="button" data-ub="close" aria-label="Закрыть">✕</button>
       <button class="btn icon-btn ub-mute" type="button" data-ub="mute" aria-pressed="${muted}" aria-label="${muted ? "Включить звук" : "Выключить звук"}">${muted ? "🔇" : "🔊"}</button>
-      <p class="ub-why"><span class="box-tag">${esc(b.tag)}</span><br>${esc(b.why)}</p>
-      <div class="pz-stage" id="pzStage"><div class="pz-shadow" id="pzShadow"></div><div class="pz" id="pz">${boxHtml(b.series, { tag: b.tag, S: 128, cls: "live" })}</div><span class="pz-notch" aria-hidden="true"></span></div>
+      <p class="ub-why">${esc(b.why)}</p>
+      <div class="pz-stage" id="pzStage"><div class="pz-shadow" id="pzShadow"></div><div class="pz" id="pz">${boxHtml(b.series, { S: 150, cls: "live" })}</div><span class="pz-notch" aria-hidden="true"></span></div>
       <p class="ub-hint">${esc(toySeries(b.series).name)} · покрути коробочку и потяни крышку вверх, чтобы открыть</p>
       <button type="button" class="btn ub-tap" data-ub="tear">Открыть одним нажатием</button></div>`;
   u.hidden = false; document.body.classList.add("ub-open");
