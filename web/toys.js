@@ -13,6 +13,7 @@ const toyHash = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(
 const mskDay = ts => new Date(ts).toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
 const STAGE_BOX = ["Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес"]; // stages with a meeting
 const TOYS_FOLIO_STEP = 8;
+const TOYS_GIFTS = [["2026-11-16", 4, "Подарок: просто так, за то, что ты молодец"]]; // [day, how many, label]
 
 async function loadToys() {
   const { data, error } = await sb.from("toy_boxes").select("key,series,figure,opened_at").order("opened_at");
@@ -46,6 +47,8 @@ function earnedBoxes() {
   for (let i = 2; i <= applied.length; i += 2) add("app:" + i, `${i} ${plural(i, "отклик", "отклика", "откликов")} с начала коллекции`, applied[i - 1]);
   const visits = Object.values(folio.data?.guests || {}).flatMap(g => g.days.map(d => d.day)).filter(after).sort(); // one guest on one day is one visit
   for (let i = TOYS_FOLIO_STEP; i <= visits.length; i += TOYS_FOLIO_STEP) add("folio:" + i, `${i} ${plural(i, "заход", "захода", "заходов")} в портфолио`, visits[i - 1]);
+  // gifts: bags handed out by hand when Masha asks for more
+  for (const [day, n, why] of TOYS_GIFTS) for (let i = 1; i <= n; i++) add(`gift:${day}:${i}`, why, day);
   return out;
 }
 // while testing, one bag of every series waits on the shelf too; they always bring the test figure and never count
