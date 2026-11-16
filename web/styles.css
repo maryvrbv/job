@@ -584,12 +584,12 @@ i.bot{background:#D9D3E6}
 .tbadge{display:inline-block;min-width:18px;height:18px;line-height:18px;padding:0 5px;margin-left:5px;border-radius:9px;background:#ff5c7a;color:#fff;font-size:11px;font-weight:700;vertical-align:1px}
 .toys{display:flex;flex-direction:column;gap:14px}
 .toy-stats .stat b small{color:var(--muted);background:none;padding:0;margin-left:4px}
-.box-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.box-card{border:0;background:var(--surface);border-radius:var(--r);padding:12px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;text-align:center;transition:transform .15s ease}
+.box-grid{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;padding:6px 2px 14px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.box-card{flex:0 0 196px;scroll-snap-align:start;border:0;background:var(--surface);border-radius:var(--r);padding:18px 14px 16px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;text-align:center;transition:transform .15s ease}
 .box-card:hover{transform:translateY(-3px)}
 .box-card .tbox{width:96px;height:auto}
 .box-series{font-size:12px;font-weight:600;color:var(--accent)}
-.box-why{font-size:13px;color:var(--fg);line-height:1.35}
+.box-why{font-size:14px;color:var(--fg);line-height:1.35}
 .tbox.idle{animation:tb-bob 3s ease-in-out infinite}
 .box-card:nth-child(2n) .tbox.idle{animation-delay:-1.2s}.box-card:nth-child(3n) .tbox.idle{animation-delay:-2s}
 @keyframes tb-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
@@ -651,7 +651,7 @@ body.ub-open{overflow:hidden}
 .ub-actions .btn{background:var(--sunken)}
 .ub-actions .btn.primary{background:var(--lime);color:var(--lime-ink)}
 @media (prefers-reduced-motion:reduce){.tbox.idle,.tbox.wiggle,.ub-rays,.ub-fig,.ub-confetti i,.ub-tearing .tbox,.ub-tearing .tbox-lid,.ub-tearing .tbox-body{animation:none!important}}
-@media (max-width:640px){.box-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.shelves{grid-template-columns:1fr}.shelf-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:640px){.box-card{flex-basis:168px}.shelves{grid-template-columns:1fr}.shelf-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .box-tag{display:inline-block;font-size:13px;font-weight:700;color:var(--lime-ink);background:var(--lime);border-radius:999px;padding:3px 10px;margin-bottom:2px}
 .ub-why .box-tag{font-size:14px;margin-bottom:6px}
 

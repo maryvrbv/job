@@ -20,8 +20,8 @@ async function loadToys() {
 }
 
 // TOYS_VER starts the collection over: opened boxes of an older version stay in the table but no longer count.
-// TOYS_TEST: while testing, every box is the same series and always brings the same figure.
-const TOYS_VER = "v2:", TOYS_TEST = { series: "cats", figure: "letter" };
+// TOYS_TEST: while testing, every box is the same series and always brings the same figure (null: the real thing).
+const TOYS_VER = "v3:", TOYS_TEST = null;
 function earnedBoxes() {
   if (!events || !toys.opened) return null;
   const out = [], add = (key, why, day) => out.push({ key: TOYS_VER + key, why, day: day || todayIso() });
@@ -78,9 +78,9 @@ function renderToys() {
       <div class="pack-row"><div class="segmented pack-seg" role="radiogroup" aria-label="Упаковка">${PACKS.map(([k, l]) => `<button type="button" role="radio" data-pack="${k}" aria-checked="${toys.pack === k}" class="${toys.pack === k ? "on" : ""}">${l}</button>`).join("")}</div>
       <button type="button" class="btn" data-demo>Попробовать открыть</button></div></div>`;
   const shown = [...testBoxes(), ...list];
-  $("toysBoxes").innerHTML = shown.length ? `<h2 class="fsec">Ждут открытия</h2><div class="box-grid">${shown.slice(0, 24 + testBoxes().length).map(b =>
+  $("toysBoxes").innerHTML = shown.length ? `<h2 class="fsec">Ждут открытия</h2><div class="box-grid">${shown.slice(0, 60 + testBoxes().length).map(b =>
     `<button type="button" class="box-card" data-box="${esc(b.key)}">${toys.pack === "bag" ? bagMini(b.series) : `<span class="box-mini">${boxHtml(b.series, { S: 64, cls: "spin" })}</span>`}<span class="box-why">${esc(b.why)}</span></button>`).join("")}</div>
-    ${list.length > 24 ? `<p class="note">И ещё ${list.length - 24}. Открывай по одной или подряд, они никуда не денутся</p>` : ""}`
+    ${list.length > 60 ? `<p class="note">И ещё ${list.length - 60}. Открывай по одной или подряд, они никуда не денутся</p>` : ""}`
     : `<h2 class="fsec">Ждут открытия</h2><p class="note">Все коробки открыты. Следующая придёт за отказ или сделанное тестовое.</p>`;
   const counts = {}; for (const o of toys.opened) counts[o.series + ":" + o.figure] = (counts[o.series + ":" + o.figure] || 0) + 1;
   $("toysShelves").innerHTML = TOY_SERIES.map(s => {
@@ -95,8 +95,7 @@ function renderToys() {
   }).join("") + `<details class="panel-card toy-rules"><summary>За что дают коробки</summary><ul>
       <li><b>Каждый отказ</b>. Отказ — это смелость, а не провал</li>
       <li><b>Каждое сделанное тестовое</b>: отметь запись в дневнике как «Тестовое»</li>
-      <li>Цвет и название на коробке — это серия. Какая фигурка внутри — сюрприз. В каждой серии 13 фигурок, одна из них секретная и очень редкая. Каждая 10-я коробка серии — точно новая фигурка, остальные могут быть повторками</li>
-      <li>Сейчас идёт тест: из всех коробок выпадает одна и та же фигурка, а пакетики с пометкой «Тест» открываются сколько угодно и в коллекцию не идут</li></ul></details>`;
+      <li>Цвет и название на коробке — это серия. Какая фигурка внутри — сюрприз. В каждой серии 13 фигурок, одна из них секретная и очень редкая. Каждая 10-я коробка серии — точно новая фигурка, остальные могут быть повторками</li></ul></details>`;
 }
 
 // ---------- unboxing ----------
@@ -232,8 +231,9 @@ async function finishTear() {
 }
 async function tearBox() {
   const b = toys.cur; if (!b || toys.busy) return; toys.busy = true;
-  const fs = TOYS_TEST ? TOYS_TEST.series : b.series; // while testing every bag holds the test figure, whatever its series
-  const f = rollFigure(b.series), before = toys.opened.filter(o => o.series === b.series && o.figure === f.id).length;
+  // a trial opening always brings the cat she already knows, so it never gives away a secret figure
+  const fs = b.demo ? "cats" : TOYS_TEST ? TOYS_TEST.series : b.series;
+  const f = b.demo ? toyFigure("cats", "letter") : rollFigure(b.series), before = toys.opened.filter(o => o.series === b.series && o.figure === f.id).length;
   if (!b.demo) { // a trial opening in the workshop saves nothing
     const { error } = await sb.from("toy_boxes").insert({ key: b.key, series: b.series, figure: f.id });
     toys.busy = false;
