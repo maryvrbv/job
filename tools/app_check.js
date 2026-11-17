@@ -48,5 +48,8 @@ const diary = [{ id: 1, day: today, at_time: "10:00", text: "Собес", is_goa
   if (VIEW !== "jobs") { await p.click(`#views [data-v=${VIEW}]`); await p.waitForTimeout(800); }
   const file = `${OUT}-${VIEW}-${WIDTH}.png`; await p.screenshot({ path: file });
   console.log(file); console.log("page errors:", errs.length ? errs : "none");
+  // the collection without pictures: bags waiting on the badge, and whether the shelf is still loading
+  console.log("toys:", await p.evaluate(() => ({ badge: document.getElementById("toysBadge")?.hidden ? 0 : document.getElementById("toysBadge")?.textContent,
+    loading: (document.getElementById("toysHead")?.textContent || "").includes("Загружаю") })));
   await b.close(); srv.close();
 })();
