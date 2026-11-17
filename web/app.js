@@ -137,40 +137,6 @@ const TR = { а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"e",ж:"zh",з:"z",и:
 // link tags stay Latin-only so analytics reports read cleanly: «Яндекс» → yandeks
 const slug = s => (s.toLowerCase().replace(/[а-яё]/g, c => TR[c]).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "co").slice(0, 30);
 
-// Same instructions as the Supabase function, packed into one message for a Claude chat
-function letterPrompt(job, desc) {
-  const d = (desc || "").slice(0, 4000);
-  if (job.market === "uae") {
-    const tag = "li-" + slug(job.company);
-    return `${window.JOB_PROFILE}\nWrite a cover letter from Maria for this job. English, 130–180 words, warm and confident, no clichés ("excited to apply", "passionate", "thrilled" are banned). Greeting "Hi ${job.company} team,"; why this role in 1–2 sentences, referring to concrete things from the description; 2–3 most relevant achievements with numbers; one line: relocating to Dubai, available immediately; then exactly "Portfolio: https://marydis.com/index-en.html?from=${tag}"; sign-off "Best regards,\nMaria Vorobyeva". Plain text only, no placeholders, no invented facts. Reply with the letter only.\n\nJob: ${job.title} at ${job.company}. Domain: ${job.domain}. Level: ${job.level}. Why it fits: ${job.why}\nLink: ${job.url}\nDescription:\n${d || "(no description)"}`;
-  }
-  const tag = "hh-" + slug(job.company);
-  return `${window.JOB_PROFILE}\nНапиши сопроводительное письмо от Маши на эту вакансию. Русский, 110–160 слов. Тон тёплый и живой, без канцелярита и клише; начинай с «Здравствуйте!». Почему именно эта вакансия — 1–2 предложения; 2–3 самых подходящих результата с цифрами; строки портфолио ровно такие:\nПортфолио\n\nОткрывается из России: https://mariadis.gitverse.site/?from=${tag}\nМожет понадобиться VPN: https://marydis.com/?from=${tag}\nЗаверши фразой «Буду рада обсудить вакансию 🐱» и подписью «Маша Воробьева». Про переезд в ОАЭ не пиши. Только простой текст, без плейсхолдеров и выдуманных фактов. В ответе — только письмо.\n\nВакансия: ${job.title}, компания ${job.company}. Сфера: ${job.domain}. Уровень: ${job.level}. Формат: ${job.work_format}. Почему подходит: ${job.why}\nСсылка: ${job.url}${d ? "\nОписание:\n" + d : ""}`;
-}
-
-async function generate(job) {
-  const note = $("letterNote"), btn = $("gen"), ta = $("letter");
-  if (!window.JOB_CONFIG.letterFunction) {
-    // free path: copy a full prompt, paste it into a Claude chat, paste the answer back here
-    if (state.desc[job.id] == null) {
-      const { data } = await sb.from("jobs").select("description").eq("id", job.id).single();
-      state.desc[job.id] = (data?.description || "").trim();
-    }
-    const text = letterPrompt(job, state.desc[job.id]);
-    try { await navigator.clipboard.writeText(text); }
-    catch (e) { ta.value = text; ta.focus(); ta.select(); note.textContent = "Скопируй выделенный текст вручную."; return; }
-    note.textContent = "Запрос скопирован. Вставь его в чат с Claude, а готовое письмо вставь сюда и нажми «Сохранить правки».";
-    window.open("https://claude.ai/new", "_blank", "noopener");
-    return;
-  }
-  btn.disabled = true; note.textContent = "Claude пишет письмо…";
-  const { data, error } = await sb.functions.invoke("letter", { body: { job_id: job.id } });
-  btn.disabled = false;
-  if (error || data?.error) { note.textContent = "Не получилось написать письмо: " + (data?.error || error.message); return; }
-  note.textContent = "";
-  job.letter = data.letter; ta.value = data.letter; cacheSave(); render(); toast("Новое письмо сохранено");
-}
-
 // ---------- views ----------
 
 const isHot = j => j.fit === "Высокий" && j.status === NEW && ageDays(j.posted_at) != null && ageDays(j.posted_at) <= FRESH_DAYS;
@@ -533,7 +499,6 @@ function renderDetail(rows) {
       <div class="row" style="margin-top:8px">
         <button class="btn primary" type="button" id="copy" ${j.letter ? "" : "disabled"}>Скопировать письмо</button>
         <button class="btn" type="button" id="saveLetter" disabled>Сохранить правки</button>
-        ${window.JOB_CONFIG.letterFunction ? `<button class="btn" type="button" id="gen">${j.letter ? "Переписать заново" : "Написать письмо"}</button>` : ""}
         <span class="note grow" id="letterNote"></span>
       </div>
     </div>
@@ -554,7 +519,6 @@ function renderDetail(rows) {
     catch (e) { ta.focus(); ta.select(); toast("Текст выделен: нажми Ctrl+C / ⌘C"); }
   };
   $("saveLetter").onclick = () => save(j, { letter: ta.value }, "Письмо сохранено");
-  if ($("gen")) $("gen").onclick = () => generate(j); // only with the letter function; letters otherwise come from the Claude chat
   $("referral").onchange = e => save(j, { referral: e.target.checked }, e.target.checked ? "Отмечено: рефералка" : "Отметка снята");
   if ($("reserve")) $("reserve").onclick = () => {
     const on = !j.reserve;
