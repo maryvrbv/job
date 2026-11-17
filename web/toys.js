@@ -12,6 +12,7 @@ const PACKS = [["bag", "Пакетик"], ["box", "Коробочка"]];
 const toyHash = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 const mskDay = ts => new Date(ts).toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
 const STAGE_BOX = ["Скрининг с HR", "Собес с лидом", "Тестовое", "Финальный собес"]; // stages with a meeting
+const MEET_BOX = ["Скрининг с HR", "Собес с лидом", "Финальный собес"]; // every one of these brings a bag
 const TOYS_FOLIO_STEP = 8;
 const TOYS_GIFTS = [["2026-11-16", 2, "Подарок: два котика, как ты просила", "cats"]]; // [day, how many, label, series (optional)]
 const TOYS_PAST_MAX = 8; // bags for past applications and visits, at most
@@ -39,6 +40,11 @@ function earnedBoxes() {
   for (const e of events) if (e.to_status === REJECT && !rej.has(e.job_id)) rej.set(e.job_id, mskDay(e.at));
   for (const j of state.jobs) if (j.status === REJECT && !rej.has(j.id) && j.updated_at) rej.set(j.id, mskDay(j.updated_at));
   for (const [id, day] of rej) if (met.has(id)) add("rej:" + id, `Отказ после собеса: ${who(id)}`, day);
+  // every interview: each meeting stage a vacancy reached (HR screening, lead, final), once per vacancy and stage, over all time
+  const meet = new Map();
+  for (const e of events) if (MEET_BOX.includes(e.to_status) && !meet.has(e.job_id + "|" + e.to_status)) meet.set(e.job_id + "|" + e.to_status, mskDay(e.at));
+  for (const j of state.jobs) if (MEET_BOX.includes(j.status) && !meet.has(j.id + "|" + j.status)) meet.set(j.id + "|" + j.status, mskDay(j.updated_at || Date.now()));
+  for (const [k, day] of meet) { const [id, st] = k.split("|"); add("meet:" + k, `${st}: ${who(id)}`, day); }
   // every two days spent on test tasks (days with a diary entry marked «Тестовое»)
   const testDays = [...new Set((diary.rows || []).filter(r => r.kind === "test").map(r => r.day))].sort();
   for (let i = 2; i <= testDays.length; i += 2) add("test2:" + i, `Два дня над тестовым (${i / 2}-я пара)`, testDays[i - 1]);
