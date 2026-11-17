@@ -619,8 +619,8 @@ function render() {
 const folio = { data: null, at: null, period: "30", histDays: 3, country: null };
 async function loadFolio() {
   const { data, error } = await sb.from("portfolio_stats").select("data,updated_at").eq("id", "snapshot").maybeSingle();
-  if (error) { showBanner("Не получилось загрузить статистику портфолио: " + error.message); return; }
-  folio.data = data?.data || null; folio.at = data?.updated_at || null;
+  if (error) { showBanner("Не получилось загрузить статистику портфолио: " + error.message); folio.loaded = true; if (toys.opened) updateToyBadge(); return; }
+  folio.data = data?.data || null; folio.at = data?.updated_at || null; folio.loaded = true;
   renderFolio(); loadAvatars().catch(() => {}); loadGuestNotes().catch(() => {}); if (state.view === "jobs") render(); // vacancy cards show visits too
   if (toys.opened) { updateToyBadge(); if (state.view === "toys") renderToys(); } // portfolio visits bring bags too
 }
@@ -1008,8 +1008,8 @@ const hhmm = t => t ? t.slice(0, 5) : "";
 async function loadDiary() {
   diary.rows = diary.rows || [];
   const { data, error } = await sb.from("diary").select(DIARY_COLS).order("day", { ascending: false }).order("at_time", { ascending: false, nullsFirst: false }).order("id", { ascending: false });
-  if (error) { showBanner("Не получилось загрузить дневник: " + error.message); return; }
-  diary.rows = data; renderDiary(); updateToyBadge();
+  if (error) { showBanner("Не получилось загрузить дневник: " + error.message); diary.loaded = true; return; }
+  diary.rows = data; diary.loaded = true; renderDiary(); updateToyBadge();
   if (state.view === "dash") renderActivity(); else if (state.view === "jobs" && byApplyTime()) render(); // «Отклики» sort by application time
 }
 const byNewest = (a, b) => b.day.localeCompare(a.day) || hhmm(b.at_time).localeCompare(hhmm(a.at_time)) || b.id - a.id;

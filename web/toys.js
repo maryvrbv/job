@@ -29,7 +29,9 @@ async function loadToys() {
 // TOYS_TEST: while testing, every box is the same series and always brings the same figure (null: the real thing).
 const TOYS_VER = "v3:", TOYS_TEST = null;
 function earnedBoxes() {
-  if (!events || !toys.opened) return null;
+  // count only once everything is in: before the diary and the portfolio arrive the count comes out wrong
+  // (opened bags for visits are not recognised yet, so other bags take their places and vanish a moment later)
+  if (!events || !toys.opened || !diary.loaded || !folio.loaded) return null;
   const out = [], add = (key, why, day) => out.push({ key: TOYS_VER + key, why, day: day || todayIso() });
   const byId = Object.fromEntries(state.jobs.map(j => [j.id, j]));
   const who = id => byId[id]?.company || byId[id]?.title || "вакансия";
@@ -80,6 +82,7 @@ const unopened = () => { const e = earnedBoxes(); if (!e) return null; dealSerie
 // the tab carries the number of boxes waiting; a box earned while the app is open says so right away
 function updateToyBadge() {
   const list = unopened(); if (!list) return;
+  if (toys.waiting && state.view === "toys") renderToys(); // the shelf was waiting for the data
   const b = $("toysBadge"); b.textContent = list.length; b.hidden = !list.length;
   if (toys.last != null && list.length > toys.last && state.view !== "toys")
     toast(list.length - toys.last > 1 ? `Новые пакетики: ${list.length - toys.last}!` : "Новый пакетик! " + list[0].why, { label: "Открыть", run: () => { state.view = "toys"; render(); openUnbox(list[0].key); } });
@@ -106,6 +109,8 @@ function rollFigure(seriesKey) {
 function renderToys() {
   if (!toys.opened) { $("toysHead").innerHTML = '<p class="note">Загружаю коллекцию…</p>'; if (toys.opened === null) loadToys(); return; }
   if (!diary.rows) loadDiary();
+  if (!unopened()) { $("toysHead").innerHTML = '<p class="note">Загружаю коллекцию…</p>'; toys.waiting = true; if (!folio.loaded && typeof loadFolio === "function") loadFolio(); return; }
+  toys.waiting = false;
   const list = unopened() || [], total = TOY_SERIES.reduce((a, s) => a + s.figures.length, 0);
   const have = new Set(toys.opened.map(o => o.series + ":" + o.figure)), dups = toys.opened.length - have.size;
   $("toysHead").innerHTML = `<div class="stats toy-stats">
