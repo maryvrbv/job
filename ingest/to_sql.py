@@ -1,10 +1,10 @@
-"""Turn `hh.py details` / `linkedin.py details` JSON into UPDATE statements for Supabase MCP.
+"""Turn `hh.py details` / `linkedin.py details` JSON into UPDATE statements for Supabase (run through Composio SUPABASE_BETA_RUN_SQL_QUERY).
 
     python3 ingest/hh.py details 138221309 | python3 ingest/to_sql.py
 
 Supabase MCP hangs on statements whose string literals contain a semicolon or a raw line break,
 so those go in as chr(59) / chr(10). Statements are printed in batches of ~8000 characters,
-one batch per line: run each line as one execute_sql call. Only empty descriptions are filled.
+one batch per line: run each line as one query. Only empty descriptions are filled.
 """
 import json
 import sys
