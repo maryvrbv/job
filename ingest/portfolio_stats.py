@@ -2,8 +2,9 @@
 
 Runs inside the Composio remote workbench (COMPOSIO_REMOTE_WORKBENCH), where `run_composio_tool`
 reaches Google Analytics through Masha's connection; there are no GA keys anywhere else.
-Paste the whole file as code_to_execute: it prints one line of JSON, which Claude writes to
-Supabase (`portfolio_stats`, id 'snapshot') in parts made by ingest/stats_chunks.py.
+Run the whole file there: it writes the snapshot to Supabase (`portfolio_stats`, id 'snapshot') itself, through the
+Supabase connection in Composio, and prints one short line. Only if that write fails does it print the snapshot JSON,
+which then goes to Supabase the old way, in parts made by ingest/stats_chunks.py.
 
 Masha herself. Whoever opened a draft of the home page is her checking the site; those visitors are left out.
 
@@ -399,4 +400,17 @@ for v, n in keys.items():
     # only a shortened mark goes into the snapshot: enough to recognise the guest, not the full browser id
     guests[str(n)] = {"mark": v[:5] + "…" + v[-4:], "first": out[-1]["day"] if out else "", **gear.get(v, {}), "days": out}
 snap["guests"] = guests
-print(json.dumps(snap, ensure_ascii=False, separators=(",", ":")))
+out = json.dumps(snap, ensure_ascii=False, separators=(",", ":"))
+# Write straight to Supabase through Masha's Supabase connection in Composio: one query, nothing to carry by hand.
+# Dollar quoting keeps quotes, ; and line breaks in the JSON as they are. data || snapshot replaces every key
+# of the snapshot and keeps the rest. If the write fails, the JSON is printed for the old path (stats_chunks.py).
+Q = "$snap" + hashlib.md5(out.encode()).hexdigest()[:8] + "$"
+sql = f"update portfolio_stats set updated_at = now(), data = data || {Q}{out}{Q}::jsonb where id = 'snapshot' returning length(data::text) as size"
+res, err = run_composio_tool("SUPABASE_BETA_RUN_SQL_QUERY", {"ref": "iiaqpkynritnvcwjhooh", "query": sql})  # noqa: F821
+rows = (res or {}).get("data", {}).get("result") if not err else None
+if rows:
+    print(json.dumps({"saved": True, "size": rows[0].get("size"), "guests": len(guests), "tags": len(snap.get("tags", [])),
+                      "people_30d": snap.get("totals", {}).get("people")}, ensure_ascii=False))
+else:
+    print("supabase write failed:", err or res)
+    print(out)
