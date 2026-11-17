@@ -1,11 +1,11 @@
-"""Split the portfolio snapshot printed by portfolio_stats.py into small SQL statements for Supabase MCP.
+"""Split the portfolio snapshot printed by portfolio_stats.py into small SQL statements (fallback path only).
 
     python3 ingest/stats_chunks.py snapshot.json OUT_DIR
 
 A single 60 KB execute_sql is held back by Supabase with a question that never reaches Masha, so the snapshot
 goes in parts: the small keys merged with ||, each period with jsonb_set, the tags, history entries and guests
 set first and then appended. Statements are grouped into files OUT_DIR/w_0.sql, w_1.sql, ... of about 7 KB;
-each file is one execute_sql call. Every statement has where id = 'snapshot'. Literals keep no raw ; or line
+each file is one query. Every statement has where id = 'snapshot'. Literals keep no raw ; or line
 breaks (json.dumps escapes line breaks; a ; inside a value is written as chr(59)).
 """
 import json
