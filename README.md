@@ -24,11 +24,7 @@ Claude в чате (по просьбе)               Supabase                 
 4. **Project Settings → API**: скопируй *Project URL*, *anon public* и *service_role* ключи.
 
 ### 2. Письма и оценка вакансий: бесплатно или через API
-По умолчанию **ключ Anthropic API не нужен**:
-- кнопка «Запрос для Claude ↗» копирует готовый запрос (опыт + вакансия + требования к письму) и открывает claude.ai; ответ вставляешь обратно и сохраняешь;
-- вакансии оценивает Claude в чате при обновлении.
-
-Если захочешь письмо одной кнопкой прямо в приложении: добавь секрет `ANTHROPIC_API_KEY` в Supabase (**Edge Functions → Secrets**), задеплой функцию (**Edge Functions → Deploy a new function → Via Editor**, имя `letter`, код из `supabase/functions/letter/index.ts`) и поставь `letterFunction: true` в `web/config.js`.
+**Ключ Anthropic API не нужен**: вакансии оценивает и письма пишет Claude в чате, письмо можно поправить в карточке и сохранить.
 
 ### 3. Приложение
 1. В `web/config.js` впиши *Project URL* и *anon* ключ (они публичные, данные защищает RLS).
@@ -47,8 +43,8 @@ Google Таблица «Собесы» → Файл → Скачать → Micro
 
 ## Стоимость
 - Apify: ~$0.3–0.5 за запуск (бесплатно $5 в месяц).
-- Claude: по подписке в чате. Только если включить функцию `letter`, ~1 цент за письмо через API.
+- Claude: по подписке в чате.
 - Supabase и Vercel: бесплатные планы.
 
 ## Если поменялся опыт
-Обнови `ingest/profile.md` и константу `PROFILE` в `supabase/functions/letter/index.ts` (тот же текст), затем задеплой функцию заново.
+Обнови `ingest/profile.md`: Claude берёт факты для писем оттуда.

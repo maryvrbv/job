@@ -3,7 +3,7 @@
 Runs inside the Composio remote workbench (COMPOSIO_REMOTE_WORKBENCH), where `run_composio_tool`
 reaches Google Analytics through Masha's connection; there are no GA keys anywhere else.
 Paste the whole file as code_to_execute: it prints one line of JSON, which Claude writes to
-Supabase (`portfolio_stats`, id 'snapshot') with ingest/stats_to_sql.py.
+Supabase (`portfolio_stats`, id 'snapshot') in parts made by ingest/stats_chunks.py.
 
 Masha herself. Whoever opened a draft of the home page is her checking the site; those visitors are left out.
 
