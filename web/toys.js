@@ -47,6 +47,8 @@ function earnedBoxes() {
   for (const e of events) if (MEET_BOX.includes(e.to_status) && !meet.has(e.job_id + "|" + e.to_status)) meet.set(e.job_id + "|" + e.to_status, mskDay(e.at));
   for (const j of state.jobs) if (MEET_BOX.includes(j.status) && !meet.has(j.id + "|" + j.status)) meet.set(j.id + "|" + j.status, mskDay(j.updated_at || Date.now()));
   for (const [k, day] of meet) { const [id, st] = k.split("|"); add("meet:" + k, `${st}: ${who(id)}`, day); }
+  // every diary entry marked «Был собес» (interviews that are not a vacancy in the tracker, like a recruiter call)
+  for (const r of diary.rows || []) if (r.kind === "interview") add("dint:" + r.id, `Собес: ${String(r.text || "").slice(0, 70)}`, r.day);
   // every two days spent on test tasks (days with a diary entry marked «Тестовое»)
   const testDays = [...new Set((diary.rows || []).filter(r => r.kind === "test").map(r => r.day))].sort();
   for (let i = 2; i <= testDays.length; i += 2) add("test2:" + i, `Два дня над тестовым (${i / 2}-я пара)`, testDays[i - 1]);
