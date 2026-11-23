@@ -54,7 +54,7 @@
   - 1–2 предложения, почему эта роль, затем 2–3 достижения с цифрами;
   - строка «I'm relocating to Dubai and available immediately.»;
   - `Portfolio: https://marydis.com/index-en.html?from=li-<slug>`;
-  - подпись «Best regards,\nMaria Vorobyeva».
+  - подпись «Best regards,\nMariia Vorobeva» — имя как в загранпаспорте, так же в анкетах рекрутеров, CV и LinkedIn.
 - **Россия**:
   - русский, начинается с «Здравствуйте!», про ОАЭ не упоминать;
   - блок ссылок ровно в таком виде (и в письмах, и когда Маша просит просто «разметку»):
@@ -80,7 +80,7 @@
   Portfolio: https://marydis.com/index-en.html?from=li-<slug>
 
   Best regards,
-  Maria Vorobyeva
+  Mariia Vorobeva
   ```
 - Без клише (excited, passionate, thrilled), без выдуманных фактов. Тон тёплый и уверенный.
 - Перед письмом на hh-вакансию возьми описание через `python3 ingest/hh.py details <id>` (или то, что Маша вставила в приложении) и опирайся на него.
