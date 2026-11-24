@@ -8,7 +8,7 @@
 - **Компании мечты: talabat (Delivery Hero), Careem, noon, Deliveroo** — сильные B2C-платформы доставки и e-commerce в ОАЭ. Любая их продуктово-дизайнерская вакансия в ОАЭ (не джун, не креатив) — «Высокий», даже если роль B2B или внутренняя. В `why` начинай с «Компания мечты Маши».
 - **Компании мечты в России: Золотое Яблоко, Авито, Ozon (включая Ozon Банк и Ozon Tech)** — то же правило для их удалённых продуктово-дизайнерских вакансий.
 - Вкладка «Резерв» (`jobs.reserve`): вакансии, которые Маша отложила на потом (кнопка-коробка справа от названия в карточке). Их не трогать и снова не предлагать, пока она сама не вернёт.
-- Сейчас работает в Альфа-Банке: вакансии Альфы — внутренний перевод, письма на них не писать.
+- Альфа-Банк — последнее место работы, Маша там уже не работает: в письмах и рассказах о себе про Альфу в прошедшем времени («built», «построила»), не «where I work now». Вакансии Альфы и её дочерних компаний пока записывай как «Низкий» без письма, пока Маша не скажет иначе.
 - Digital Chief — бывший работодатель, возвращаться не хочет: такие вакансии не записывать (`SKIP_COMPANIES` в `ingest/hh.py` и `ingest/hirehi.py`).
 
 ## Как устроено
@@ -73,7 +73,7 @@
 
   The role sounds like a great fit: owning a design system end to end, from components and tokens to governance and adoption, is work I enjoy.
 
-  I've worked in companies with very strong design communities, and I've always followed closely how they build and scale their design systems. One of the most complex and interesting was at Alfa-Bank, where I work now. At X5 (Pyaterochka app, 10M MAU) I evolved the design system in a team of four designers and led the redesign of the HR services design system, managing two designers on the project. I also prototype in code every day with Claude Code, so I'm comfortable working close to front-end implementation.
+  I've worked in companies with very strong design communities, and I've always followed closely how they build and scale their design systems. One of the most complex and interesting was at Alfa-Bank, my most recent company. At X5 (Pyaterochka app, 10M MAU) I evolved the design system in a team of four designers and led the redesign of the HR services design system, managing two designers on the project. I also prototype in code every day with Claude Code, so I'm comfortable working close to front-end implementation.
 
   I'm relocating to Dubai and available immediately.
 
